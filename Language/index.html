@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<head>
+  <script src="errors.js"></script>
+<script src="lexer.js"></script>
+<script src="parser.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+  <textarea id="testInput" name="name" rows="8" cols="80"></textarea>
+  <button value="go" onclick="lexicalAnalyser(document.getElementById('testInput').value);"></button>
+  <button value="parse" onclick="parse_program();">parse</button>
+  </body>

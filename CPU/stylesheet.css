@@ -1,0 +1,569 @@
+body {
+  font-family: "Verdana", "Arial", sans-serif;
+}
+
+.entryBox{
+    top: 10px;
+    left:80px;
+    position: absolute;
+}
+
+
+.options{
+  top: 10px;
+  left: 270px;
+  position: absolute;
+}
+
+.convDisplay{
+  top:170px;
+  left: 270px;
+  position: absolute;
+}
+
+.register {
+  border: 10px solid black;
+  background-color: black;
+  width: 175px;
+  text-align: center;
+  color: white;
+  z-index: 2;
+  position: absolute;
+  margin-bottom: 10px;
+  display: inline-grid;
+}
+
+.statTable{
+  background-color: black;
+  color: white;
+  top: 500px;
+  left: 80px;
+  position: absolute;
+  z-index: 2;
+}
+
+.PC{
+  top: 700px;
+  left: 80px;
+  position: absolute;
+}
+.CIR {
+  top: 700px;
+  left: 370px;
+  position: absolute;
+}
+
+.MAR{
+  top: 700px;
+  left: 670px;
+  position: absolute;
+}
+
+.MDR{
+  top: 700px;
+  left: 970px;
+  position: absolute;
+}
+
+.ACC{
+  top: 900px;
+  left: 570px;
+  position: absolute;
+
+}
+
+.IO{
+  top: 375px;
+  left: 670px;
+  position: absolute;
+  display: none;
+}
+
+.IObox_button{
+  margin-left: 62px;
+  width: 50px;
+}
+
+.sevenSegment{
+  top: 350px;
+  left: 670px;
+  background-color: black;
+  width: 125px;
+  height: 130px;
+  position: absolute;
+  display: none;
+}
+.segments{
+  stroke: grey;
+  fill: grey;
+}
+
+.segment_panel{
+  background-color: lightgrey;
+  height: 100%;
+  width: 50px;
+  top: 0px;
+  left: 90px;
+  position: absolute;
+}
+.segment_svg_text{
+  font-size: 8px;
+  fill: white;
+  stroke: none;
+}
+.segment_panel_svg{
+  padding-top: 3px;
+}
+.segment_panel_svg_text{
+  font-size: 10px;
+}
+.segLine_A{}
+.segLine_B{}
+.segLine_C{}
+.segLine_D{}
+.segLine_E{}
+.segLine_F{}
+.segLine_G{}
+.segLine_DP{}
+
+.databusLine{
+  border: solid black;
+  display: inline-grid;
+
+}
+
+
+.data_bus{
+  position: absolute;
+  top: 700px;
+  left: 245px;
+  height: 45px;
+
+}
+
+
+
+.dI{
+
+  position: absolute;
+  top: 700px;
+  left: 370px;
+  height: 45px;
+}
+
+.dII{
+
+  position: absolute;
+  top: 700px;
+  left: 670px;
+  height: 45px;
+}
+
+.dIII{
+
+  position: absolute;
+  top: 700px;
+  left: 980px;
+  height: 500px;
+  width: 45px;
+}
+
+.dIV{
+  top: 900px;
+  left: 670px;
+  width: 350px;
+  height: 45px;
+}
+
+.dV{
+  top: 1150px;
+  left: 570px;
+  width: 450px;
+  height: 45px;
+}
+
+.databusIText{
+  border-radius: 5;
+  border: solid black;
+  position: absolute;
+  background-color: black;
+  color: white;
+  top: 775px;
+  left: 280px;
+  display: none;
+}
+
+.databusIText:hover{
+  display: block;
+}
+
+.address_bus{
+  position: absolute;
+  top: 750px;
+  left: 245px;
+  height: 165px;
+}
+
+.aI{
+  position: absolute;
+  top: 750px;
+  left: 370px;
+  height: 45px;
+}
+
+.aII{
+  position: absolute;
+  top: 750px;
+  left: 670px;
+  height: 45px;
+}
+
+.aIII{
+
+  position: absolute;
+  top: 700px;
+  left: 1030px;
+  height: 420px;
+  width: 45px;
+}
+
+.aIV{
+  top: 950px;
+  left: 670px;
+  width: 800px;
+}
+
+.address_bus_box{
+  position: absolute;
+  top: 500px;
+  left: 380px;
+  height: 165px;
+  width: 165px;
+  border-style: solid;
+  border-color: black;
+}
+
+.expanded_bus{
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.Abus_expanded_line{
+  display: none;
+}
+
+
+.control_bus{
+  position: absolute;
+  top: 950px;
+  left: 120px;
+  width: 1000px;
+  height: 45px;
+}
+
+.cI{
+  position: absolute;
+  top: 700px;
+  left: 115px;
+  height: 420px;
+  width: 45px;
+}
+
+.cII{
+  position: absolute;
+  top: 700px;
+  left: 415px;
+  height: 420px;
+  width: 45px;
+}
+
+.cIII{
+  position: absolute;
+  top: 375px;
+  left: 715px;
+  height: 820px;
+  width: 45px;
+}
+
+.cIV{
+  position: absolute;
+  top: 700px;
+  left: 1080px;
+  height: 550px;
+  width: 45px
+}
+
+.cV{
+  position: absolute;
+  top: 700px
+}
+
+.cVI{
+  position: absolute;
+  top: 643px;
+  left: 115px;
+  height: 100px;
+  width: 45px;
+}
+
+.cVII{
+  position: absolute;
+  top: 1215px;
+  left: 120px;
+  width: 1000px;
+  height: 45px;
+}
+
+.io_bus{
+  position: absolute;
+  top: 1050px;
+  left: 670px;
+  height: 45px;
+  width: 700px;
+}
+
+.ioBII{
+  position: absolute;
+  top: 950px;
+  left: 675px;
+  height: 150px;
+  width: 45px;
+}
+
+.ioBIII{
+  position: absolute;
+  top: 400px;
+  left: 1325px;
+  height: 1000px;
+  width: 45px;
+}
+
+.ioBIV{
+  position: absolute;
+  top: 395px;
+  left: 670px;
+  height: 45px;
+  width: 700px;
+}
+
+
+.busline{
+
+  display: inline-block;
+  border: solid hidden;
+  background-color: grey;
+  width: 5%;
+  height: 100%;
+  z-index: inherit;
+  margin-left: 2.5%;
+  margin-right: 1.25%;
+}
+
+.converter{
+  border: solid grey 1px;
+  background-color: lightgrey;
+  text-align: center;
+  visibility: hidden;
+  position: absolute;
+  top: 200px;
+  left: 570px;
+
+}
+
+
+
+.memTab{
+  position: absolute;
+  table-layout: fixed;
+  top: 1100px;
+  left: 80px;
+  border: solid black 1px;
+  background-color: black;
+}
+
+
+.memTab td{
+  background-color: white;
+  border: solid black 1px;
+  width: 85px;
+}
+.memTab th{
+  background-color: black;
+  color: white;
+  font-size: 0.5em;
+  width: 85px;
+
+}
+
+.expanded_mode_memory{
+position: absolute;
+top: 1100px;
+left: 80px;
+height: 500px;
+width: 500px;
+background-color: black;
+color: white;
+display: none;
+}
+.expanded_mode_memory_title{
+  text-align: center;
+  border-bottom: solid white 1px;
+}
+.expanded_mode_memory_query{
+  border-bottom: solid white 1px;
+  padding-bottom: 5px;
+}
+.expanded_mode_memory_query h1{
+  text-align: center;
+  font-size: 1rem;
+  font-weight: normal;
+}
+.expanded_mode_memory_watch{
+
+}
+.expanded_mode_memory_watch h1{
+  text-align: center;
+  font-size: 1rem;
+  font-weight: normal;
+}
+.watchAddresses{
+  margin-top: 10px;
+  border: outset grey 1px;
+  background-color: white;
+  color: black;
+}
+.watchAddresses td{
+  border: solid black 1px;
+}
+
+
+
+.DBlineZero{
+stroke: grey;
+}
+.DBlineI{
+stroke: grey;
+}
+.DBlineII{
+stroke: grey;
+}
+.DBlineIII{
+stroke: grey;
+}
+.DBlineIV{
+stroke: grey;
+}
+.DBlineV{
+stroke: grey;
+}
+.DBlineVI{
+stroke: grey;
+}
+.DBlineVII{
+stroke: grey;
+}
+
+.CBl{
+stroke-width: 2;
+}
+.CBlI{
+stroke-width: 2;
+}
+.CBlII{
+stroke-width: 2;
+}
+.CBlIII{
+stroke-width: 2;
+}
+.CBlIV{
+stroke-width: 2;
+}
+.CBlV{
+stroke-width: 2;
+}
+.CBlVI{
+stroke-width: 2;
+}
+.CBlVII{
+stroke-width: 2;
+}
+
+
+.InfoTableI{
+border: solid black;
+position: absolute;
+display: none;
+z-index: 16;
+top: 10%;
+left: 30%;
+background-color: white;
+
+}
+
+.InfoTableII{
+display: none;
+position: absolute;
+top: 0;
+left: 22%;
+z-index: 16;
+background-color: white;
+border: solid black;
+}
+.InfoTableIII{
+display: none;
+position: absolute;
+top: 10%;
+left: 20%;
+z-index: 16;
+background-color: white;
+border: solid black;
+}
+.InfoTableIV{
+display: none;
+position: absolute;
+top: 10%;
+left: 0%;
+z-index: 16;
+background-color: white;
+border: solid black;
+}
+.popup_Box{
+border: black 1px solid;
+background-color: black;
+color: white;
+position: fixed;
+display: none;
+width: 100px;
+height: 50px;
+text-align: center;
+z-index: 10;
+}
+
+.infoPopUp{
+display: none;
+position: fixed;
+top: 0px;
+left: 0px;
+z-index: -5;
+width: 100%;
+height: 100%;
+overflow: scroll;
+background-color: rgba(0, 0, 0, 0.6);
+
+
+}
+.exitHelp{
+  position: fixed;
+  height: 50px;
+  width: 50px;
+  top: 1%;
+  left: 90%;
+}
+
+
+.exitHelpLine{
+stroke: white;
+stroke-width: 5px;
+stroke-linecap: "round";
+
+}

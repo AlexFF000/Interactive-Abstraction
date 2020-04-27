@@ -1,0 +1,41 @@
+name = "Alex"  // Name of person
+age = 18.17 // My age
+family = ["Mum", "Dad", "Brothers"]
+brothers = {"Leo": "20/05/06", "Olly": "04/12/07"}
+function outputLeo(brothers){
+if (brothers != empty){
+return brothers["Leo"]
+}
+else{
+return "oh noes"
+}}
+
+
+if (((15 / (7-(1+1)))*3)-(2+(1+1)) == 5){
+return true
+}
+
+https://stackoverflow.com/questions/9452584/building-a-parser-part-i
+
+each expression should be contained in () or separated by a && or || operator
+parse_single_expression and parse_expression.  parse_expression should break down the expression into a number of single expressions.
+
+function parse_expression(token, left){
+  parserStack.push("parse_expression");
+  if (left != undefined){  // Token on left of operator has been provided, and token is an operator
+    var operator = token[1];
+  }
+  else {
+    var left = parsers[token[0]](token);
+    var next = identifiedTokens.shift();
+    if (next[0] == "operator"){
+      var operator = next[1];
+    }
+    else{
+      errors.syntax.unexpected([["operator", null]], next, next[2]);
+    }
+  }
+  var next = identifiedTokens.shift();
+  var right = parsers[next[0]](next);
+  return {"type": operator, "left": left, "right": right};
+}

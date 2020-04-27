@@ -1,0 +1,23 @@
+Single character tokens:
+
+character
+operator
+symbol
+number
+letter
+separator
+slash
+point
+whitespace
+carriagereturn
+newline
+singlequote
+doublequote
+
+Multi-character tokens:
+
+float
+string
+bool
+identifier
+comment

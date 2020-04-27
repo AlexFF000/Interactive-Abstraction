@@ -1,0 +1,1147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" type="text/css" href="stylesheet.css"/>
+  <script src="Interface/ui.js"></script>
+  <script src="Components/CU.js"></script>
+  <script src="Components/buses.js"></script>
+  <script src="Components/memory.js"></script>
+  <script src="Components/registers.js"></script>
+  <script src="Components/ALU.js"></script>
+  <script src="Reporting.js"></script>
+  <script src="Components/IO_modules.js"></script>
+</head>
+<body>
+  <textarea id="instructionBox" class="entryBox" rows="20" disabled="true">Please choose an input langauge</textarea>
+  <table id="helpTable" border="1" style="border: grey 0.5px solid; text-align: center; top: 10px; left:570px; position:absolute;">
+    <tr><td>Help</td></tr>
+  <tr><td><a href="javascript:void()" onclick="showHelp('InfoTabI')">Instruction Format</a></td></tr>
+  <tr><td><a href="javascript:void()" onclick="showHelp('InfoTabIII')">Addressing Modes</a></td></tr>
+  <tr><td><a href="javascript:void()" onclick="showHelp('InfoTabII')">Instruction Set</a></td></tr>
+</table>
+<div id="controls" class="options">
+  <form><p>Language:</p>
+  <input type="radio" name="entryMode" onclick="formatEntry(0)">Assembly code</input><br>
+  <input type="radio" name="entryMode" onclick="formatEntry(1)"></input>Machine code</form>
+  <input id="clockSpeed" type="number" min="1" max="100" maxlength="3">hz</input>
+  <input id="load" value="start" onclick="start()" type="button" disabled="true"></input>
+  <input id="playPause" value="Pause" onclick="playPause()" type="button" disabled="true"></input>
+  <br><input id="toggle_clock_speed" type="checkbox" onclick="unlimitedClockSpeed();">Do not simulate clock speed</input>
+  <br><input id="toggle_expanded_memory" class="toggle_expanded_memory" type="checkbox" onclick="expandMemory();">32 bit mode</input></div>
+  <div id="converter" class="converter">
+    <h>Create machine code instructions</h>
+    <br>
+    <select id='pickOpc' >
+  	<option title='Add' value='0000'>Add</option>
+  	<option title='Subtract' value='0001'>Subtract</option>
+  	<option title='AND' value='0010'>AND</option>
+  	<option title='OR' value='0011'>OR</option>
+  	<option title='XOR' value='0100'>XOR</option>
+  	<option title='NOT' value='0101'>NOT</option>
+  	<option title='Read' value='0110'>Read</option>
+  	<option title='Write' value='0111'>Write</option>
+  	<option title='Goto' value='1000'>Goto</option>
+  	<option title='goto_ifPos' value='1001'>branch_ifZero</option>
+  	<option title='goto_ifNeg' value='1010'>branch_ifNeg</option>
+  	<option title='goto_ifZero' value='1011'>branch_ifOverflow</option>
+  	<option title='Clear' value='1100'>branch_ifCarry</option>
+  	<option title='Output' value='1101'>Output</option>
+    <option title="Input" value="1110">Input</option>
+  	<option title='End' value='1111'>End</option>
+  </select>
+  <select id="pickMode"><option value="00">Data</option><option value="01">Address</option></select><input id="pickOper" type="text" maxlength="5" /><input id="convertToMCode" type="button" value="Convert" onclick="convert()" /> <input id="convertBox" type="text" readonly="true" />
+  </div>
+  <div id="chooseDisplay" class="convDisplay"><input type="checkbox" id="showInt" onclick="convertDisplay()">Dislay values in decimal format</input>
+  <br><input type="checkbox" id="showTwoC" disabled="true" onclick="convertDisplay()">Consider two's complement</input>
+<br><p>Choose Input / Output module:</p>
+<select id="selectIOModule" onchange="changeIOModule(this.value);"></select></div>
+
+  <input id="reportBox" type="text" readonly="true" style="width: 300px; top: 350px; left: 80px; position: absolute;" />
+  <table id="statReg" width="8%" border="1" class="statTable">
+  <caption style="color: black;">
+    Status Register
+  </caption>
+  <tr>
+    <td width="50%">Zero</td>
+    <td style="background-color: white; color: black;" width="50%">0</td>
+  </tr>
+  <tr>
+    <td>Negative</td>
+    <td style="background-color: white; color: black;">0</td>
+  </tr>
+  <tr>
+    <td>Overflow</td>
+    <td style="background-color: white; color: black;">0</td>
+  </tr>
+  <tr>
+    <td height="23">Carry</td>
+    <td style="background-color: white; color: black;">0</td>
+  </tr>
+</table>
+<div id="popupBox" class="popup_Box"><p id="popupText">Info Box</p></div>
+<div class="register PC">
+  <p>Program Counter</p>
+  <input id="PCbox" type="text" maxlength="8" readonly="true"/>
+</div>
+<div class="address_bus_box Abus_expanded_line">
+  <svg class="address_bus expanded_bus Abus_expanded_line" onmouseover="BusHover(evt, 'Address Bus', 'address_bus');" onmouseout="stopHover('address_bus');"><line x1="0" y1="5" x2="165" y2="5" class="DBlineZero"/>
+  <line x1="0" y1="10" x2="165" y2="10" class="DBlineI"/>
+  <line x1="0" y1="15" x2="165" y2="15" class="DBlineII"/>
+  <line x1="0" y1="20" x2="165" y2="20" class="DBlineIII"/>
+  <line x1="0" y1="25" x2="165" y2="25" class="DBlineIV"/>
+  <line x1="0" y1="30" x2="165" y2="30" class="DBlineV"/>
+  <line x1="0" y1="35" x2="165" y2="35" class="DBlineVI"/>
+  <line x1="0" y1="40" x2="165" y2="40" class="DBlineVII"/>
+  <line x1="0" y1="45" x2="165" y2="45" class="DBlineZero"/>
+  <line x1="0" y1="50" x2="165" y2="50" class="DBlineI"/>
+  <line x1="0" y1="55" x2="165" y2="55" class="DBlineII"/>
+  <line x1="0" y1="60" x2="165" y2="60" class="DBlineIII"/>
+  <line x1="0" y1="65" x2="165" y2="65" class="DBlineIV"/>
+  <line x1="0" y1="70" x2="165" y2="70" class="DBlineV"/>
+  <line x1="0" y1="75" x2="165" y2="75" class="DBlineVI"/>
+  <line x1="0" y1="80" x2="165" y2="80" class="DBlineVII"/>
+  <line x1="0" y1="85" x2="165" y2="85" class="DBlineZero"/>
+  <line x1="0" y1="90" x2="165" y2="90" class="DBlineI"/>
+  <line x1="0" y1="95" x2="165" y2="95" class="DBlineII"/>
+  <line x1="0" y1="100" x2="165" y2="100" class="DBlineIII"/>
+  <line x1="0" y1="105" x2="165" y2="105" class="DBlineIV"/>
+  <line x1="0" y1="110" x2="165" y2="110" class="DBlineV"/>
+  <line x1="0" y1="115" x2="165" y2="115" class="DBlineVI"/>
+  <line x1="0" y1="120" x2="165" y2="120" class="DBlineVII"/>
+  <line x1="0" y1="125" x2="165" y2="125" class="DBlineZero"/>
+  <line x1="0" y1="130" x2="165" y2="130" class="DBlineI"/>
+  <line x1="0" y1="135" x2="165" y2="135" class="DBlineII"/>
+  <line x1="0" y1="140" x2="165" y2="140" class="DBlineIII"/>
+  <line x1="0" y1="145" x2="165" y2="145" class="DBlineIV"/>
+  <line x1="0" y1="150" x2="165" y2="150" class="DBlineV"/>
+  <line x1="0" y1="155" x2="165" y2="155" class="DBlineVI"/>
+  <line x1="0" y1="160" x2="165" y2="160" class="DBlineVII"/>
+  </svg>
+</div>
+
+
+<div class="databusIText">Data Bus</div>
+<svg class="data_bus" onmouseover="BusHover(evt, 'Data bus','data_bus');" onmouseout="stopHover('data_bus');"><line x1="0" y1="5" x2="300" y2="5" class="DBlineZero"/>
+<line x1="0" y1="10" x2="300" y2="10" class="DBlineI"/>
+<line x1="0" y1="15" x2="300" y2="15" class="DBlineII"/>
+<line x1="0" y1="20" x2="300" y2="20" class="DBlineIII"/>
+<line x1="0" y1="25" x2="300" y2="25" class="DBlineIV"/>
+<line x1="0" y1="30" x2="300" y2="30" class="DBlineV"/>
+<line x1="0" y1="35" x2="300" y2="35" class="DBlineVI"/>
+<line x1="0" y1="40" x2="300" y2="40" class="DBlineVII"/>
+</svg>
+<svg class="address_bus" onmouseover="BusHover(evt, 'Address Bus', 'address_bus');" onmouseout="stopHover('address_bus');"><line x1="0" y1="5" x2="300" y2="5" class="DBlineZero"/>
+<line x1="0" y1="10" x2="300" y2="10" class="DBlineI"/>
+<line x1="0" y1="15" x2="300" y2="15" class="DBlineII"/>
+<line x1="0" y1="20" x2="300" y2="20" class="DBlineIII"/>
+<line x1="0" y1="25" x2="300" y2="25" class="DBlineIV"/>
+<line x1="0" y1="30" x2="300" y2="30" class="DBlineV"/>
+<line x1="0" y1="35" x2="300" y2="35" class="DBlineVI"/>
+<line x1="0" y1="40" x2="300" y2="40" class="DBlineVII"/>
+</svg>
+
+<svg class="control_bus"><line x1="0" y1="5" x2="965" y2="5" class="DBlineZero CBl" onmouseover="BusHover(evt, 'Control Bus (Clock Line)', 'CBl');" onmouseout="stopHover('CBl');"/>
+<line x1="5" y1="10" x2="970" y2="10" class="DBlineI  CBlI" onmouseover="BusHover(evt, 'Control Bus (Request Line)', 'CBlI');" onmouseout="stopHover('CBlI');"/>
+<line x1="10" y1="15" x2="975" y2="15" class="DBlineII CBlII" onmouseover="BusHover(evt, 'Control Bus (Request Grant)', 'CBlII');" onmouseout="stopHover('CBlII');"/>
+<line x1="15" y1="20" x2="980" y2="20" class="DBlineIII CBlIII" onmouseover="BusHover(evt, 'Control Bus (Memory Write)', 'CBlIII');" onmouseout="stopHover('CBlIII');"/>
+<line x1="20" y1="25" x2="985" y2="25" class="DBlineIV CBlIV" onmouseover="BusHover(evt, 'Control Bus (Memory Read)', 'CBlIV');" onmouseout="stopHover('CBlIV');"/>
+<line x1="25" y1="30" x2="990" y2="30" class="DBlineV CBlV" onmouseover="BusHover(evt, 'Control Bus(I/O Request)', 'CBlV');" onmouseout="stopHover('CBlV')"/>
+<line x1="30" y1="35" x2="995" y2="35" class="DBlineVI CBlVI" onmouseover="BusHover(evt, 'Control Bus(I/O Grant)', 'CBlVI');" onmouseout="stopHover('CBlVI');"/>
+</svg>
+<svg class="control_bus cI"><line x1="5" y1="0" x2="5" y2="255" class="DBlineZero CBl" onmouseover="BusHover(evt, 'Control Bus (Clock Line)', 'CBl');" onmouseout="stopHover('CBl');"/>
+<line x1="10" y1="0" x2="10" y2="260" class="DBlineI  CBlI" onmouseover="BusHover(evt, 'Control Bus (Request Line)', 'CBlI');" onmouseout="stopHover('CBlI');"/>
+<line x1="15" y1="0" x2="15" y2="265" class="DBlineII CBlII" onmouseover="BusHover(evt, 'Control Bus (Request Grant)', 'CBlII');" onmouseout="stopHover('CBlII');"/>
+<line x1="20" y1="0" x2="20" y2="270" class="DBlineIII CBlIII" onmouseover="BusHover(evt, 'Control Bus (Memory Write)', 'CBlIII');" onmouseout="stopHover('CBlIII');"/>
+<line x1="25" y1="0" x2="25" y2="275" class="DBlineIV CBlIV" onmouseover="BusHover(evt, 'Control Bus (Memory Read)', 'CBlIV');" onmouseout="stopHover('CBlIV');"/>
+<line x1="30" y1="0" x2="30" y2="280" class="DBlineV CBlV" onmouseover="BusHover(evt, 'Control Bus(I/O Request)', 'CBlV');" onmouseout="stopHover('CBlV')"/>
+<line x1="35" y1="0" x2="35" y2="285" class="DBlineVI CBlVI" onmouseover="BusHover(evt, 'Control Bus(I/O Grant)', 'CBlVI');" onmouseout="stopHover('CBlVI');"/>
+</svg>
+
+</div>
+<div class="register MAR">
+  <p>Memory address register</p>
+  <input id="MARbox" type="text" maxlength="8" readonly="true" />
+</div>
+<svg class="control_bus cII"><line x1="5" y1="0" x2="5" y2="255" class="DBlineZero CBl" onmouseover="BusHover(evt, 'Control Bus (Clock Line)', 'CBl');" onmouseout="stopHover('CBl');"/>
+<line x1="10" y1="0" x2="10" y2="260" class="DBlineI  CBlI" onmouseover="BusHover(evt, 'Control Bus (Request Line)', 'CBlI');" onmouseout="stopHover('CBlI');"/>
+<line x1="15" y1="0" x2="15" y2="265" class="DBlineII CBlII" onmouseover="BusHover(evt, 'Control Bus (Request Grant)', 'CBlII');" onmouseout="stopHover('CBlII');"/>
+<line x1="20" y1="0" x2="20" y2="270" class="DBlineIII CBlIII" onmouseover="BusHover(evt, 'Control Bus (Memory Write)', 'CBlIII');" onmouseout="stopHover('CBlIII');"/>
+<line x1="25" y1="0" x2="25" y2="275" class="DBlineIV CBlIV" onmouseover="BusHover(evt, 'Control Bus (Memory Read)', 'CBlIV');" onmouseout="stopHover('CBlIV');"/>
+<line x1="30" y1="0" x2="30" y2="280" class="DBlineV CBlV" onmouseover="BusHover(evt, 'Control Bus(I/O Request)', 'CBlV');" onmouseout="stopHover('CBlV')"/>
+<line x1="35" y1="0" x2="35" y2="285" class="DBlineVI CBlVI" onmouseover="BusHover(evt, 'Control Bus(I/O Grant)', 'CBlVI');" onmouseout="stopHover('CBlVI');"/>
+</svg>
+<svg class="data_bus dI" onmouseover="BusHover(evt, 'Data Bus', 'data_bus');" onmouseout="stopHover('data_bus');"><line x1="0" y1="5" x2="300" y2="5" class="DBlineZero"/>
+<line x1="0" y1="10" x2="300" y2="10" class="DBlineI"/>
+<line x1="0" y1="15" x2="300" y2="15" class="DBlineII"/>
+<line x1="0" y1="20" x2="300" y2="20" class="DBlineIII"/>
+<line x1="0" y1="25" x2="300" y2="25" class="DBlineIV"/>
+<line x1="0" y1="30" x2="300" y2="30" class="DBlineV"/>
+<line x1="0" y1="35" x2="300" y2="35" class="DBlineVI"/>
+<line x1="0" y1="40" x2="300" y2="40" class="DBlineVII"/>
+</svg>
+
+<svg class="address_bus aI"onmouseover="BusHover(evt, 'Address Bus', 'address_bus');" onmouseout="stopHover('address_bus');"><line x1="0" y1="5" x2="300" y2="5" class="DBlineZero"/>
+<line x1="0" y1="10" x2="300" y2="10" class="DBlineI"/>
+<line x1="0" y1="15" x2="300" y2="15" class="DBlineII"/>
+<line x1="0" y1="20" x2="300" y2="20" class="DBlineIII"/>
+<line x1="0" y1="25" x2="300" y2="25" class="DBlineIV"/>
+<line x1="0" y1="30" x2="300" y2="30" class="DBlineV"/>
+<line x1="0" y1="35" x2="300" y2="35" class="DBlineVI"/>
+<line x1="0" y1="40" x2="300" y2="40" class="DBlineVII"/>
+</svg>
+<svg class="control_bus cIII"><line x1="5" y1="400" x2="5" y2="580" class="DBlineZero CBl" onmouseover="BusHover(evt, 'Control Bus (Clock Line)', 'CBl');" onmouseout="stopHover('CBl');"/>
+<line x1="10" y1="400" x2="10" y2="585" class="DBlineI  CBlI" onmouseover="BusHover(evt, 'Control Bus (Request Line)', 'CBlI');" onmouseout="stopHover('CBlI');"/>
+<line x1="15" y1="400" x2="15" y2="590" class="DBlineII CBlII" onmouseover="BusHover(evt, 'Control Bus (Request Grant)', 'CBlII');" onmouseout="stopHover('CBlII');"/>
+<line x1="20" y1="400" x2="20" y2="595" class="DBlineIII CBlIII" onmouseover="BusHover(evt, 'Control Bus (Memory Write)', 'CBlIII');" onmouseout="stopHover('CBlIII');"/>
+<line x1="25" y1="400" x2="25" y2="600" class="DBlineIV CBlIV" onmouseover="BusHover(evt, 'Control Bus (Memory Read)', 'CBlIV');" onmouseout="stopHover('CBlIV');"/>
+<line x1="30" y1="0" x2="30" y2="605" class="DBlineV CBlV" onmouseover="BusHover(evt, 'Control Bus(I/O Request)', 'CBlV');" onmouseout="stopHover('CBlV')"/>
+<line x1="35" y1="0" x2="35" y2="610" class="DBlineVI CBlVI" onmouseover="BusHover(evt, 'Control Bus(I/O Grant)', 'CBlVI');" onmouseout="stopHover('CBlVI');"/>
+</svg>
+<div class="register MDR">
+  <p>Memory data register</p>
+  <input id="MDRbox" type="text" maxlength="8" readonly="true" />
+</div>
+<div class="register IO" id="IOregister">
+  <p>Input / Output box</p>
+  <input id="IObox" type="text" maxlength="8"/>
+  <input id="IObox_button" class="IObox_button" type="button" value="Input" onclick="binaryIOInput();"/>
+</div>
+<svg class="data_bus dII" onmouseover="BusHover(evt, 'Data Bus', 'data_bus');" onmouseout="stopHover('data_bus');"><line x1="0" y1="5" x2="300" y2="5" class="DBlineZero"/>
+<line x1="0" y1="10" x2="300" y2="10" class="DBlineI"/>
+<line x1="0" y1="15" x2="300" y2="15" class="DBlineII"/>
+<line x1="0" y1="20" x2="300" y2="20" class="DBlineIII"/>
+<line x1="0" y1="25" x2="300" y2="25" class="DBlineIV"/>
+<line x1="0" y1="30" x2="300" y2="30" class="DBlineV"/>
+<line x1="0" y1="35" x2="300" y2="35" class="DBlineVI"/>
+<line x1="0" y1="40" x2="300" y2="40" class="DBlineVII"/>
+</svg>
+<svg class="address_bus aII" onmouseover="BusHover(evt, 'Address Bus', 'address_bus');" onmouseout="stopHover('address_bus');"><line x1="0" y1="5" x2="300" y2="5" class="DBlineZero"/>
+<line x1="0" y1="10" x2="300" y2="10" class="DBlineI"/>
+<line x1="0" y1="15" x2="300" y2="15" class="DBlineII"/>
+<line x1="0" y1="20" x2="300" y2="20" class="DBlineIII"/>
+<line x1="0" y1="25" x2="300" y2="25" class="DBlineIV"/>
+<line x1="0" y1="30" x2="300" y2="30" class="DBlineV"/>
+<line x1="0" y1="35" x2="300" y2="35" class="DBlineVI"/>
+<line x1="0" y1="40" x2="300" y2="40" class="DBlineVII"/>
+</svg>
+
+<svg class="data_bus dIII" onmouseover="BusHover(evt, 'Data Bus', 'data_bus');" onmouseout="stopHover('data_bus');"><line x1="5" y1="0" x2="5" y2="455" class="DBlineZero"/>
+<line x1="10" y1="0" x2="10" y2="460" class="DBlineI"/>
+<line x1="15" y1="0" x2="15" y2="465" class="DBlineII"/>
+<line x1="20" y1="0" x2="20" y2="470" class="DBlineIII"/>
+<line x1="25" y1="0" x2="25" y2="475" class="DBlineIV"/>
+<line x1="30" y1="0" x2="30" y2="480" class="DBlineV"/>
+<line x1="35" y1="0" x2="35" y2="485" class="DBlineVI"/>
+<line x1="40" y1="0" x2="40" y2="490" class="DBlineVII"/>
+</svg>
+<svg class="control_bus cIV"><line x1="5" y1="0" x2="5" y2="520" class="DBlineZero CBl" onmouseover="BusHover(evt, 'Control Bus (Clock Line)', 'CBl');" onmouseout="stopHover('CBl');"/>
+<line x1="10" y1="0" x2="10" y2="525" class="DBlineI  CBlI" onmouseover="BusHover(evt, 'Control Bus (Request Line)', 'CBlI');" onmouseout="stopHover('CBlI');"/>
+<line x1="15" y1="0" x2="15" y2="530" class="DBlineII CBlII" onmouseover="BusHover(evt, 'Control Bus (Request Grant)', 'CBlII');" onmouseout="stopHover('CBlII');"/>
+<line x1="20" y1="0" x2="20" y2="535" class="DBlineIII CBlIII" onmouseover="BusHover(evt, 'Control Bus (Memory Write)', 'CBlIII');" onmouseout="stopHover('CBlIII');"/>
+<line x1="25" y1="0" x2="25" y2="540" class="DBlineIV CBlIV" onmouseover="BusHover(evt, 'Control Bus (Memory Read)', 'CBlIV');" onmouseout="stopHover('CBlIV');"/>
+<line x1="30" y1="0" x2="30" y2="545" class="DBlineV CBlV" onmouseover="BusHover(evt, 'Control Bus(I/O Request)', 'CBlV');" onmouseout="stopHover('CBlV')"/>
+<line x1="35" y1="0" x2="35" y2="550" class="DBlineVI CBlVI" onmouseover="BusHover(evt, 'Control Bus(I/O Grant)', 'CBlVI');" onmouseout="stopHover('CBlVI');"/>
+</svg>
+
+
+<svg class="address_bus aIII" onmouseover="BusHover(evt, 'Address Bus', 'address_bus');" onmouseout="stopHover('address_bus');"><line x1="5" y1="0" x2="5" y2="1500" class="DBlineZero"/>
+<line x1="10" y1="0" x2="10" y2="1500" class="DBlineI"/>
+<line x1="15" y1="0" x2="15" y2="1500" class="DBlineII"/>
+<line x1="20" y1="0" x2="20" y2="1500" class="DBlineIII"/>
+<line x1="25" y1="0" x2="25" y2="1500" class="DBlineIV"/>
+<line x1="30" y1="0" x2="30" y2="1500" class="DBlineV"/>
+<line x1="35" y1="0" x2="35" y2="1500" class="DBlineVI"/>
+<line x1="40" y1="0" x2="40" y2="1500" class="DBlineVII"/>
+</svg>
+
+<svg class="data_bus dIV" onmouseover="BusHover(evt, 'Data Bus', 'data_bus');" onmouseout="stopHover('data_bus');"><line x1="0" y1="5" x2="315" y2="5" class="DBlineZero"/>
+<line x1="0" y1="10" x2="320" y2="10" class="DBlineI"/>
+<line x1="0" y1="15" x2="325" y2="15" class="DBlineII"/>
+<line x1="0" y1="20" x2="330" y2="20" class="DBlineIII"/>
+<line x1="0" y1="25" x2="335" y2="25" class="DBlineIV"/>
+<line x1="0" y1="30" x2="340" y2="30" class="DBlineV"/>
+<line x1="0" y1="35" x2="345" y2="35" class="DBlineVI"/>
+<line x1="0" y1="40" x2="350" y2="40" class="DBlineVII"/>
+</svg>
+
+<svg class="io_bus" onmouseover="BusHover(evt, 'I/O Bus', 'io_bus');" onmouseout="stopHover('io_bus');"><line x1="10" y1="5" x2="660" y2="5" class="DBlineZero"/>
+<line x1="15" y1="10" x2="665" y2="10" class="DBlineI"/>
+<line x1="20" y1="15" x2="670" y2="15" class="DBlineII"/>
+<line x1="25" y1="20" x2="675" y2="20" class="DBlineIII"/>
+<line x1="30" y1="25" x2="680" y2="25" class="DBlineIV"/>
+<line x1="35" y1="30" x2="685" y2="30" class="DBlineV"/>
+<line x1="40" y1="35" x2="690" y2="35" class="DBlineVI"/>
+<line x1="45" y1="40" x2="695" y2="40" class="DBlineVII"/>
+</svg>
+
+<svg class="io_bus ioBII" onmouseover="BusHover(evt, 'I/O Bus', 'io_bus');" onmouseout="stopHover('io_bus');"><line x1="5" y1="0" x2="5" y2="105" class="DBlineZero"/>
+<line x1="10" y1="0" x2="10" y2="110" class="DBlineI"/>
+<line x1="15" y1="0" x2="15" y2="115" class="DBlineII"/>
+<line x1="20" y1="0" x2="20" y2="120" class="DBlineIII"/>
+<line x1="25" y1="0" x2="25" y2="125" class="DBlineIV"/>
+<line x1="30" y1="0" x2="30" y2="130" class="DBlineV"/>
+<line x1="35" y1="0" x2="35" y2="135" class="DBlineVI"/>
+<line x1="40" y1="0" x2="40" y2="140" class="DBlineVII"/>
+</svg>
+
+<svg class="io_bus ioBIII" onmouseover="BusHover(evt, 'I/O Bus', 'io_bus');" onmouseout="stopHover('io_bus');"><line x1="5" y1="0" x2="5" y2="655" class="DBlineZero"/>
+<line x1="10" y1="5" x2="10" y2="660" class="DBlineI"/>
+<line x1="15" y1="10" x2="15" y2="665" class="DBlineII"/>
+<line x1="20" y1="15" x2="20" y2="670" class="DBlineIII"/>
+<line x1="25" y1="20" x2="25" y2="675" class="DBlineIV"/>
+<line x1="30" y1="25" x2="30" y2="680" class="DBlineV"/>
+<line x1="35" y1="30" x2="35" y2="685" class="DBlineVI"/>
+<line x1="40" y1="35" x2="40" y2="690" class="DBlineVII"/>
+</svg>
+
+<svg class="io_bus ioBIV" onmouseover="BusHover(evt, 'I/O Bus', 'io_bus');" onmouseout="stopHover('io_bus');"><line x1="0" y1="5" x2="660" y2="5" class="DBlineZero"/>
+<line x1="0" y1="10" x2="665" y2="10" class="DBlineI"/>
+<line x1="0" y1="15" x2="670" y2="15" class="DBlineII"/>
+<line x1="0" y1="20" x2="675" y2="20" class="DBlineIII"/>
+<line x1="0" y1="25" x2="680" y2="25" class="DBlineIV"/>
+<line x1="0" y1="30" x2="685" y2="30" class="DBlineV"/>
+<line x1="0" y1="35" x2="690" y2="35" class="DBlineVI"/>
+<line x1="0" y1="40" x2="695" y2="40" class="DBlineVII"/>
+</svg>
+<svg class="data_bus dV" onmouseover="BusHover(evt, 'Data Bus', 'data_bus');" onmouseout="stopHover('data_bus');" style=""><line x1="0" y1="5" x2="415" y2="5" class="DBlineZero"></line>
+<line x1="0" y1="10" x2="420" y2="10" class="DBlineI"></line>
+<line x1="0" y1="15" x2="425" y2="15" class="DBlineII"></line>
+<line x1="0" y1="20" x2="430" y2="20" class="DBlineIII"></line>
+<line x1="0" y1="25" x2="435" y2="25" class="DBlineIV"></line>
+<line x1="0" y1="30" x2="440" y2="30" class="DBlineV"></line>
+<line x1="0" y1="35" x2="445" y2="35" class="DBlineVI"></line>
+<line x1="0" y1="40" x2="450" y2="40" class="DBlineVII"></line>
+</svg>
+<svg class="control_bus cVII"><line x1="0" y1="5" x2="965" y2="5" class="DBlineZero CBl" onmouseover="BusHover(evt, 'Control Bus (Clock Line)', 'CBl');" onmouseout="stopHover('CBl');" style=""></line>
+<line x1="5" y1="10" x2="970" y2="10" class="DBlineI  CBlI" onmouseover="BusHover(evt, 'Control Bus (Request Line)', 'CBlI');" onmouseout="stopHover('CBlI');" style=""></line>
+<line x1="10" y1="15" x2="975" y2="15" class="DBlineII CBlII" onmouseover="BusHover(evt, 'Control Bus (Request Grant)', 'CBlII');" onmouseout="stopHover('CBlII');" style=""></line>
+<line x1="15" y1="20" x2="980" y2="20" class="DBlineIII CBlIII" onmouseover="BusHover(evt, 'Control Bus (Memory Write)', 'CBlIII');" onmouseout="stopHover('CBlIII');" style=""></line>
+<line x1="20" y1="25" x2="985" y2="25" class="DBlineIV CBlIV" onmouseover="BusHover(evt, 'Control Bus (Memory Read)', 'CBlIV');" onmouseout="stopHover('CBlIV');" style=""></line>
+<line x1="25" y1="30" x2="990" y2="30" class="DBlineV CBlV" onmouseover="BusHover(evt, 'Control Bus(I/O Request)', 'CBlV');" onmouseout="stopHover('CBlV')" style=""></line>
+<line x1="30" y1="35" x2="995" y2="35" class="DBlineVI CBlVI" onmouseover="BusHover(evt, 'Control Bus(I/O Grant)', 'CBlVI');" onmouseout="stopHover('CBlVI');" style=""></line>
+</svg>
+
+<div class="register ACC">
+  <p>Accumulator</p>
+  <input id="ACCbox" type="text" maxlength="8" readonly="true" />
+</div>
+<div class="register CIR">
+  <p>Current Instruction Register</p>
+  <input id="CIRbox" type="text" maxlength="14" readonly="true" />
+</div>
+<br>
+
+
+  <table width="50%" border="0" id="memTable" class="memTab">
+  <caption>
+    Memory
+  </caption>
+    <tr>
+      <th>0</th>
+      <th>1</th>
+      <th>2</th>
+      <th>3</th>
+      <th>4</th>
+      <th>5</th>
+      <th>6</th>
+      <th>7</th>
+      <th>8</th>
+      <th>9</th>
+      <th>10</th>
+      <th>11</th>
+      <th>12</th>
+      <th>13</th>
+      <th>14</th>
+      <th>15</th>
+    </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>16</th>
+    <th>17</th>
+    <th>18</th>
+    <th>19</th>
+    <th>20</th>
+    <th>21</th>
+    <th>22</th>
+    <th>23</th>
+    <th>24</th>
+    <th>25</th>
+    <th>26</th>
+    <th>27</th>
+    <th>28</th>
+    <th>29</th>
+    <th>30</th>
+    <th>31</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>32</th>
+    <th>33</th>
+    <th>34</th>
+    <th>35</th>
+    <th>36</th>
+    <th>37</th>
+    <th>38</th>
+    <th>39</th>
+    <th>40</th>
+    <th>41</th>
+    <th>42</th>
+    <th>43</th>
+    <th>44</th>
+    <th>45</th>
+    <th>46</th>
+    <th>47</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>48</th>
+    <th>49</th>
+    <th>50</th>
+    <th>51</th>
+    <th>52</th>
+    <th>53</th>
+    <th>54</th>
+    <th>55</th>
+    <th>56</th>
+    <th>57</th>
+    <th>58</th>
+    <th>59</th>
+    <th>60</th>
+    <th>61</th>
+    <th>62</th>
+    <th>63</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>64</th>
+    <th>65</th>
+    <th>66</th>
+    <th>67</th>
+    <th>68</th>
+    <th>69</th>
+    <th>70</th>
+    <th>71</th>
+    <th>72</th>
+    <th>73</th>
+    <th>74</th>
+    <th>75</th>
+    <th>76</th>
+    <th>77</th>
+    <th>78</th>
+    <th>79</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>80</th>
+    <th>81</th>
+    <th>82</th>
+    <th>83</th>
+    <th>84</th>
+    <th>85</th>
+    <th>86</th>
+    <th>87</th>
+    <th>88</th>
+    <th>89</th>
+    <th>90</th>
+    <th>91</th>
+    <th>92</th>
+    <th>93</th>
+    <th>94</th>
+    <th>95</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>96</th>
+    <th>97</th>
+    <th>98</th>
+    <th>99</th>
+    <th>100</th>
+    <th>101</th>
+    <th>102</th>
+    <th>103</th>
+    <th>104</th>
+    <th>105</th>
+    <th>106</th>
+    <th>107</th>
+    <th>108</th>
+    <th>109</th>
+    <th>110</th>
+    <th>111</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>112</th>
+    <th>113</th>
+    <th>114</th>
+    <th>115</th>
+    <th>116</th>
+    <th>117</th>
+    <th>118</th>
+    <th>119</th>
+    <th>120</th>
+    <th>121</th>
+    <th>122</th>
+    <th>123</th>
+    <th>124</th>
+    <th>125</th>
+    <th>126</th>
+    <th>127</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>128</th>
+    <th>129</th>
+    <th>130</th>
+    <th>131</th>
+    <th>132</th>
+    <th>133</th>
+    <th>134</th>
+    <th>135</th>
+    <th>136</th>
+    <th>137</th>
+    <th>138</th>
+    <th>139</th>
+    <th>140</th>
+    <th>141</th>
+    <th>142</th>
+    <th>143</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>144</th>
+    <th>145</th>
+    <th>146</th>
+    <th>147</th>
+    <th>148</th>
+    <th>149</th>
+    <th>150</th>
+    <th>151</th>
+    <th>152</th>
+    <th>153</th>
+    <th>154</th>
+    <th>155</th>
+    <th>156</th>
+    <th>157</th>
+    <th>158</th>
+    <th>159</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>160</th>
+    <th>161</th>
+    <th>162</th>
+    <th>163</th>
+    <th>164</th>
+    <th>165</th>
+    <th>166</th>
+    <th>167</th>
+    <th>168</th>
+    <th>169</th>
+    <th>170</th>
+    <th>171</th>
+    <th>172</th>
+    <th>173</th>
+    <th>174</th>
+    <th>175</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>176</th>
+    <th>177</th>
+    <th>178</th>
+    <th>179</th>
+    <th>180</th>
+    <th>181</th>
+    <th>182</th>
+    <th>183</th>
+    <th>184</th>
+    <th>185</th>
+    <th>186</th>
+    <th>187</th>
+    <th>188</th>
+    <th>189</th>
+    <th>190</th>
+    <th>191</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>192</th>
+    <th>193</th>
+    <th>194</th>
+    <th>195</th>
+    <th>196</th>
+    <th>197</th>
+    <th>198</th>
+    <th>199</th>
+    <th>200</th>
+    <th>201</th>
+    <th>202</th>
+    <th>203</th>
+    <th>204</th>
+    <th>205</th>
+    <th>206</th>
+    <th>207</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>208</th>
+    <th>209</th>
+    <th>210</th>
+    <th>211</th>
+    <th>212</th>
+    <th>213</th>
+    <th>214</th>
+    <th>215</th>
+    <th>216</th>
+    <th>217</th>
+    <th>218</th>
+    <th>219</th>
+    <th>220</th>
+    <th>221</th>
+    <th>222</th>
+    <th>223</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>224</th>
+    <th>225</th>
+    <th>226</th>
+    <th>227</th>
+    <th>228</th>
+    <th>229</th>
+    <th>230</th>
+    <th>231</th>
+    <th>232</th>
+    <th>233</th>
+    <th>234</th>
+    <th>235</th>
+    <th>236</th>
+    <th>237</th>
+    <th>238</th>
+    <th>239</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+  <tr>
+    <th>240</th>
+    <th>241</th>
+    <th>242</th>
+    <th>243</th>
+    <th>244</th>
+    <th>245</th>
+    <th>246</th>
+    <th>247</th>
+    <th>248</th>
+    <th>249</th>
+    <th>250</th>
+    <th>251</th>
+    <th>252</th>
+    <th>253</th>
+    <th>254</th>
+    <th>255</th>
+  </tr>
+  <tr>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+    <td>00000000</td>
+  </tr>
+</table>
+<br>
+<table border="1" class="InfoTableI"><tr><th>Instruction format</th><td>Opcode</td><td>Addressing mode</td><td>Operand</td></tr>
+<tr><th>Example (assembly)</th><td>ADD</td><td>D</td><td>052</td></tr>
+<th>Example (machine code)</th><td>0000</td><td>00</td><td>00110100</td></tr></table>
+
+<br>
+<table caption="Addressing Modes" border="1" class="InfoTableIII">
+<tr><th>Mode</th><th>Assembly</th><th>Machine code</th><th>Description</th></tr>
+<tr><td>Data</td><td>D</td><td>00</td><td>The operand given is the data to be used</td></tr>
+<tr><td>Address</td><td>A</td><td>01</td><td>The operand given is the address of the data to be used</td></tr>
+</table>
+
+
+<div id="helpPopUp" class="infoPopUp">
+  <svg id="closeHelp" class="exitHelp" onclick="showHelp('close');" onmouseover="enlargeX('8px');" onmouseout="enlargeX('5px');"><line class="exitHelpLine" x1="0" y1="0" x2="50" y2="50"</><line class="exitHelpLine" x1="50" y1="0" x2="0" y2="50"</></svg>
+  <table border="1" class="InfoTableI" id="InfoTabI"><tr><th>Instruction format</th><td>Opcode</td><td>Addressing mode</td><td>Operand</td></tr>
+  <tr><th>Example (assembly)</th><td>ADD</td><td>D</td><td>052</td></tr>
+  <th>Example (machine code)</th><td>0000</td><td>00</td><td>00110100</td></tr></table>
+
+  <table border="1" class="InfoTableII" id="InfoTabII">
+    <tr>
+      <th width="72">Instruction</th>
+    <th width="140">Assembly Mnemonic</th>
+  <th width="98">Machine Code</th>
+  <th width="313">Description</th>
+  </tr>
+    <tr>
+      <td>Add</td>
+      <td>ADD</td>
+      <td>0000</td>
+      <td>Adds operand to value in  accumulator </td>
+    </tr>
+    <tr>
+      <td>Subtract</td>
+      <td>SUB</td>
+      <td>0001</td>
+      <td>Subtracts operand from value in accumulator </td>
+    </tr>
+    <tr>
+      <td>Bitwise and </td>
+      <td>AND</td>
+      <td>0010</td>
+      <td>Bitwise and of operand and value in accumulator </td>
+    </tr>
+    <tr>
+      <td>Bitwise or </td>
+      <td>BOR</td>
+      <td>0011</td>
+      <td>Bitwise or of operand and value in accumulator </td>
+    </tr>
+    <tr>
+      <td>Bitwise xor </td>
+      <td>XOR</td>
+      <td>0100</td>
+      <td>Bitwise exclusive or of operand and value in accumulator </td>
+    </tr>
+    <tr>
+      <td>Bitwise not </td>
+      <td>NOT</td>
+      <td>0101</td>
+      <td>Bitwise not of value in accumulator </td>
+    </tr>
+    <tr>
+      <td>Read</td>
+      <td>RED</td>
+      <td>0110</td>
+      <td>Fetch value from memory address (operand) and place in accumulator </td>
+    </tr>
+    <tr>
+      <td>Write</td>
+      <td>WRT</td>
+      <td>0111</td>
+      <td>Store value in accumulator at memory address (operand) </td>
+    </tr>
+    <tr>
+      <td>Goto</td>
+      <td>GTO</td>
+      <td>1000</td>
+      <td>Change address in program counter to operand, the instruction at address will be run next (note: As instructions are 14 bit but memory spaces are 8 bit, each instruction is stored in two parts, when using goto, give address of part one of desired instruction e.g. to goto third instuction address will be 4) </td>
+    </tr>
+    <tr>
+      <td>Branch if zero </td>
+      <td>BIZ</td>
+      <td>1001</td>
+      <td>Goto if zero flag is set in status register </td>
+    </tr>
+    <tr>
+      <td>Branch if negative </td>
+      <td>BIN</td>
+      <td>1010</td>
+      <td>Goto if negative flag is set in status register</td>
+    </tr>
+    <tr>
+      <td>Branch if overflow </td>
+      <td>BIO</td>
+      <td>1011</td>
+      <td>Goto if overflow flag is set in status register</td>
+    </tr>
+    <tr>
+      <td>Branch if carry </td>
+      <td>BIC</td>
+      <td>1100</td>
+      <td>Goto if carry flag is set in status register</td>
+    </tr>
+    <tr>
+      <td>Output</td>
+      <td>OUT</td>
+      <td>1101</td>
+      <td>Copy contents of accumulator onto I/O bus and into I/O module. If addressing mode 01 is used, contents at specified memory address (opcode) will be output instead. </td>
+    </tr>
+    <tr>
+    <td>Input</td>
+    <td>INP</td>
+    <td>1110</td>
+    <td>Copy contents of I/O bus into accumulator</td>
+  </tr>
+    <tr>
+    <td>End</td>
+    <td>END</td>
+    <td>1111</td>
+    <td>Finish program </td>
+  </tr>
+  </table>
+
+  <table caption="Addressing Modes" border="1" class="InfoTableIII" id="InfoTabIII">
+  <tr><th>Mode</th><th>Assembly</th><th>Machine code</th><th>Description</th></tr>
+  <tr><td>Data</td><td>D</td><td>00</td><td>The operand given is the data to be used</td></tr>
+  <tr><td>Address</td><td>A</td><td>01</td><td>The operand given is the address of the data to be used</td></tr>
+  </table>
+
+  <table caption="32 Bit Mode" border="1" class="InfoTableIV" id="InfoTabIV">
+    <tr><th>What is 32 bit mode?</th><td>By default, the processor uses 8 bit buses and registers.  This allows for a maximum of <b>256</b> (2^8) memory addresses, which is too few for more complex programs.  32 bit mode increases the address bus and some registers to 32 bits, allowing a maximum of <b>4,294,967,296</b> (2^32) addresses, therefore providing space for more complex programs.  Note that 32 bit mode only allows for more memory addresses, it does not allow the processor to handle data that is more than 8 bits.</td></tr>
+    <tr><th>Which buses and registers are different in 32 bit mode?</th><td>The <b>Address Bus</b>, <b>Program Counter</b>, <b>Current Instruction Register</b>, and <b>Memory Data Register</b> are all 32 bits wide.  The other buses and registers remain 8 bits wide.</td></tr>
+    <tr><th>Are the instructions different in 32 bit mode?</th><td>The machine code instructions follow a slightly different format in 32 bit mode. The instruction must specify the number of memory addresses used by the operand.  Therefore the new format is as follows: <b>opcode</b> <i>(4 bits)</i>  <b>addressing mode</b> <i>(1 bit)</i> <b>number of addresses needed to store operand</b> <i>(3 bits)</i> <b>operand</b> <i>(8-32 bits)</i>.  If using assembly code then the converter will work out the operand length automatically, meaning that <b>the format for assembly code remains unchanged</b> (aside from the fact that addresses larger that 256 can be used).</td></tr>
+    <tr><th>Drawbacks of using 32 bit mode</th><td>The 4 billion memory addresses allowed by 32 bit mode is far too many to display, therefore the memory table UI is replaced with a more limited interface which allows the user to specify a small number of addresses to be displayed.  Another drawback is that the databus (which remains 8 bits) is a bottleneck when transferring data between 32 bit registers, which means that the data must be transferred in 4 parts.  This adds a significant number of extra clock cycles to each instruction, so <b>the processor is slower when in 32 bit mode.</b></td></tr>
+  </table>
+
+</div>
+
+<div id="sevenSegment" class="sevenSegment">
+  <svg class="segments">
+<polygon points="10,10, 15,5 60,5 65,10 60,15 15,15 10,10" id="segment_A"/>
+<text x="35" y="25" class="segment_svg_text">A</text>
+<polygon points="10,10, 5,15 5,60 10,65 15,60 15,15 10,10" id="segment_F"/>
+<text x="20" y="40" class="segment_svg_text">F</text>
+<polygon points="10,65, 15,60 60,60 65,65 60,70 15,70 10,65" id="segment_G"/>
+<text x="35" y="80" class="segment_svg_text">G</text>
+<polygon points="65,10, 60,15 60,60 65,65 70,60 70,15 65,10" id="segment_B"/>
+<text x="50" y="40" class="segment_svg_text">B</text>
+<polygon points="65,65, 60,70 60,115 65,120 70,115 70,70 65,65" id="segment_C"/>
+<text x="50" y="95" class="segment_svg_text">C</text>
+<polygon points="10,120, 15,115 60,115 65,120 60,125 15,125 10,120" id="segment_D"/>
+<text x="35" y="110" class="segment_svg_text">D</text>
+<polygon points="10,65, 5,70 5,115 10,120 15,115 15,70 10,65" id="segment_E"/>
+<text x="20" y="95" class="segment_svg_text">E</text>
+<circle cx="80" cy="120" r="5" id="segment_DP"/>
+<text x="75" y="110" class="segment_svg_text">DP</text>
+</svg>
+<div class="segment_panel"/>
+<svg class="segment_panel_svg">
+  <line x1="25" y1="10" x2="45" y2="10" class="DBlineI segLine_A"/>
+  <line x1="45" y1="47" x2="45" y2="10" class="DBlineI segLine_A"/>
+  <line x1="50" y1="47" x2="45" y2="47" class="DBlineI segLine_A"/>
+  <circle cx="25" cy="10" r="5"/>
+  <text x="5" y="12" class="segment_panel_svg_text">A</text>
+  <line x1="25" y1="25" x2="40" y2="25" class="DBlineI segLine_B"/>
+  <line x1="40" y1="52" x2="40" y2="25" class="DBlineI segLine_B"/>
+  <line x1="50" y1="52" x2="40" y2="52" class="DBlineI segLine_B"/>
+  <circle cx="25" cy="25" r="5"/>
+  <line x1="25" y1="40" x2="35" y2="40" class="DBlineI segLine_C"/>
+  <line x1="35" y1="57" x2="35" y2="40" class="DBlineI segLine_C"/>
+  <line x1="50" y1="57" x2="35" y2="57" class="DBlineI segLine_C"/>
+  <text x="5" y="27" class="segment_panel_svg_text">B</text>
+  <circle cx="25" cy="40" r="5"/>
+  <line x1="25" y1="55" x2="30" y2="55" class="DBlineI segLine_D"/>
+  <line x1="30" y1="62" x2="30" y2="55" class="DBlineI segLine_D"/>
+  <line x1="50" y1="62" x2="30" y2="62" class="DBlineI segLine_D"/>
+  <text x="5" y="42" class="segment_panel_svg_text">C</text>
+  <circle cx="25" cy="55" r="5"/>
+  <line x1="25" y1="70" x2="30" y2="70" class="DBlineI segLine_E"/>
+  <line x1="30" y1="67" x2="30" y2="72" class="DBlineI segLine_E"/>
+  <line x1="50" y1="67" x2="30" y2="67" class="DBlineI segLine_E"/>
+  <text x="5" y="57" class="segment_panel_svg_text">D</text>
+  <circle cx="25" cy="70" r="5"/>
+  <line x1="25" y1="85" x2="35" y2="85" class="DBlineI segLine_F"/>
+  <line x1="35" y1="72" x2="35" y2="85" class="DBlineI segLine_F"/>
+  <line x1="50" y1="72" x2="35" y2="72" class="DBlineI segLine_F"/>
+  <text x="5" y="72" class="segment_panel_svg_text">E</text>
+  <circle cx="25" cy="85" r="5"/>
+  <line x1="25" y1="100" x2="40" y2="100" class="DBlineI segLine_G"/>
+  <line x1="40" y1="77" x2="40" y2="100" class="DBlineI segLine_G"/>
+  <line x1="50" y1="77" x2="40" y2="77" class="DBlineI segLine_G"/>
+  <text x="5" y="87" class="segment_panel_svg_text">F</text>
+  <circle cx="25" cy="100" r="5"/>
+  <line x1="25" y1="115" x2="45" y2="115" class="DBlineI segLine_DP"/>
+  <line x1="45" y1="82" x2="45" y2="115" class="DBlineI segLine_DP"/>
+  <line x1="50" y1="82" x2="45" y2="82" class="DBlineI segLine_DP"/>
+  <text x="5" y="102" class="segment_panel_svg_text">G</text>
+  <circle cx="25" cy="115" r="5"/>
+  <text x="5" y="117" class="segment_panel_svg_text">DP</text>
+</svg>
+</svg>
+</div>
+</div>
+<div id="expanded_mode_memory" class="expanded_mode_memory">
+  <div class="expanded_mode_memory_title">Memory</div>
+  <div class="expanded_mode_memory_query">
+    <h1>Get current value of an address:</h1>
+    <br>
+    Address:
+    <input id="queryAddress" type="text"></input>
+    <button value="Query" onclick="queryMemory();">Query</button>
+    Value:
+    <input id="queryResult" type="text" readonly="true"></input>
+  </div>
+<div class="expanded_mode_memory_watch">
+  <h1>Watch addresses:</h1><br>
+  Watch new Address:
+  <input id="watchNewAddress" type="text"></input>
+  <button onclick="watchAddress();"/>Watch</button>
+  <br>
+  <table id="watchAddresses" class="watchAddresses">
+    <tr>
+      <td><i>Not watching any addresses</i></td>
+    </tr>
+  </table>
+</div>
+</div>
+</body>
+<script>getOutputs();
+populateSelectModules();</script>
