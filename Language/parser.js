@@ -640,7 +640,7 @@ function parse_global(token){  // Parse global keyword
 function parse_if(token){
   parserStack.push("parse_if");
   var next = identifiedTokens.shift();  // Get next token
-  if (next[1] != "("){  // If must be followed by open bracket
+  if (next == undefined || next[1] != "("){  // If must be followed by open bracket
     errors.syntax.unexpected([["separator", "("]], next, next[2]);
   }
   next = identifiedTokens.shift();
@@ -650,17 +650,18 @@ function parse_if(token){
   //  errors.syntax.unexpected([["separator", ")"]], next, next[2]);
   //}
   next = identifiedTokens.shift();
-  if (next[1] != "{"){
+  if (next == undefined || next[1] != "{"){
     errors.syntax.unexpected([["separator", "{"]], next, next[2]);
   }
   var innerCode = [];  // Syntax tree for code within the loop
   while (next[1] != "}"){
     next = identifiedTokens.shift();
+    if (next == undefined) {errors.syntax.incomplete;}
     innerCode.push(parsers[next[0]](next));
   }
   next = identifiedTokens[0];
   var elses = [];  // Else statements
-  while (next[1] == "else"){
+  while (next != undefined && next[1] == "else"){
     identifiedTokens.shift();  // Remove else from tokens so it is not processed twice
     elses.push(parse_else(next));
     next = identifiedTokens[0];
