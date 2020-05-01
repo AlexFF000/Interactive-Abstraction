@@ -368,6 +368,9 @@ function postfix(tokens, extended_identifiers){  // Convert to postfix notation 
 }
 
 function parse_postfix(expression){  // Parse the postfix expression into the AST
+  if (expression.length == 1){  // If expression is a single value such as true
+    return parsers[expression[0][0]](expression[0]);
+  }
   while (containsTokens(expression)){  // Loop until there are no more un-processed tokens in the array
     var index = expression.length - 1;
     while (!(expression[index][1] == "!" && expression[index - 1][0] != "operator" || expression[index][0] == "operator" && expression[index - 1][0] != "operator" && expression[index - 2][0] != "operator")){
