@@ -657,11 +657,13 @@ function parse_if(token){
     errors.syntax.unexpected([["separator", "{"]], next, next[2]);
   }
   var innerCode = [];  // Syntax tree for code within the loop
-  while (next[1] != "}"){
+  /* while (next[1] != "}"){
     next = identifiedTokens.shift();
     if (next == undefined) {errors.syntax.incomplete;}
     innerCode.push(parsers[next[0]](next));
-  }
+  } */
+  let innerTokens = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerTokens);
   next = identifiedTokens[0];
   var elses = [];  // Else statements
   while (next != undefined && next[1] == "else"){
@@ -953,6 +955,25 @@ function handleUndefined(token){  // Check if a token is undefined, and raise th
   if (token == undefined){
     errors.syntax.incomplete();
   }
+}
+
+function getTokenSublist(open_symbol, close_symbol){  // Get all tokens between an open and close bracket e.g. between { and }
+  var token_list = [];
+  var open_brackets = 0;
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  while (next[1] != close_symbol || open_brackets > 0){
+    handleUndefined(next);
+    if (next[1] == open_symbol){
+      open_brackets++;
+    }
+    else if (next[1] == close_symbol){
+      open_brackets--;
+    }
+    token_list.push(next);
+    next = identifiedTokens.shift();
+  }
+  return token_list;
 }
 
 function sub_parser(token_list){  // Run the parser with a different version of identifiedTokens, in order to parse sub-expressions e.g. a + b[12 + 1] - the 12 + 1 for the list index is a separate expression from the a + b[] expression so must be parsed separately
