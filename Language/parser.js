@@ -368,6 +368,9 @@ function postfix(tokens, extended_identifiers){  // Convert to postfix notation 
 }
 
 function parse_postfix(expression){  // Parse the postfix expression into the AST
+  if (expression.length == 1){  // If expression is a single value such as true
+    return parsers[expression[0][0]](expression[0]);
+  }
   while (containsTokens(expression)){  // Loop until there are no more un-processed tokens in the array
     var index = expression.length - 1;
     while (!(expression[index][1] == "!" && expression[index - 1][0] != "operator" || expression[index][0] == "operator" && expression[index - 1][0] != "operator" && expression[index - 2][0] != "operator")){
@@ -640,7 +643,7 @@ function parse_global(token){  // Parse global keyword
 function parse_if(token){
   parserStack.push("parse_if");
   var next = identifiedTokens.shift();  // Get next token
-  if (next[1] != "("){  // If must be followed by open bracket
+  if (next == undefined || next[1] != "("){  // If must be followed by open bracket
     errors.syntax.unexpected([["separator", "("]], next, next[2]);
   }
   next = identifiedTokens.shift();
@@ -650,17 +653,18 @@ function parse_if(token){
   //  errors.syntax.unexpected([["separator", ")"]], next, next[2]);
   //}
   next = identifiedTokens.shift();
-  if (next[1] != "{"){
+  if (next == undefined || next[1] != "{"){
     errors.syntax.unexpected([["separator", "{"]], next, next[2]);
   }
   var innerCode = [];  // Syntax tree for code within the loop
   while (next[1] != "}"){
     next = identifiedTokens.shift();
+    if (next == undefined) {errors.syntax.incomplete;}
     innerCode.push(parsers[next[0]](next));
   }
   next = identifiedTokens[0];
   var elses = [];  // Else statements
-  while (next[1] == "else"){
+  while (next != undefined && next[1] == "else"){
     identifiedTokens.shift();  // Remove else from tokens so it is not processed twice
     elses.push(parse_else(next));
     next = identifiedTokens[0];
@@ -671,23 +675,24 @@ function parse_if(token){
 function parse_else(token){
   parserStack.push("parse_else");
   var next = identifiedTokens.shift();
-  if (next[1] == "if"){
+  if (next != undefined && next[1] == "if"){
     next = identifiedTokens.shift();
+    handleUndefined(next);
     if (next[1] != "("){  // If must be followed by open bracket
       errors.syntax.unexpected([["separator", "("]], next, next[2]);
     }
-    next = identifiedTokens.shift();
-    var condition = parse_expression(next);
-    if (next[1] != ")"){  // Expression must be followed by close bracket
-      errors.syntax.unexpected([["separator", ")"]], next, next[2]);
-    }
-    next = identifiedTokens.shift();
-    if (next != "{"){
+    next = identifiedTokens.shift();  // Get first token of condition
+    handleUndefined(next);
+    var condition = parse_expression(next);  // Parse condition
+    next = identifiedTokens.shift();  // Get first token after condition (should be "{")
+    handleUndefined(next);
+    if (next[1] != "{"){
       errors.syntax.unexpected([["separator", "{"]], next, next[2]);
     }
     var innerCode = [];  // Syntax tree for code within the loop
     while (next[1] != "}"){
       next = identifiedTokens.shift();
+      handleUndefined(next);
       innerCode.push(parsers[next[0]](next));
     }
     return {"type": "else if", "condition": condition, "code": innerCode};
@@ -699,6 +704,7 @@ function parse_else(token){
     var innerCode = [];  // Syntax tree for code within the loop
     while (next[1] != "}"){
       next = identifiedTokens.shift();
+      handleUndefined(next);
       innerCode.push(parsers[next[0]](next));
     }
     return {"type": "else", "code": innerCode};
@@ -940,6 +946,12 @@ function getObjectType(obj){  // Determine whether an object is an array or obje
   }
   else{
     return "object";
+  }
+}
+
+function handleUndefined(token){  // Check if a token is undefined, and raise the "incomplete code" error if necessary  Function should only be in cases where a) an undefined token is syntactically incorrect (i.e. in the middle of a statement) and b) a case specific error is not unnecessary
+  if (token == undefined){
+    errors.syntax.incomplete();
   }
 }
 
