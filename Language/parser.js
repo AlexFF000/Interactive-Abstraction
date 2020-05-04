@@ -389,7 +389,7 @@ function parse_postfix(expression){  // Parse the postfix expression into the AS
       var left = expression[index - 2];
       if (getObjectType(left) == "array"){  // If value is not in an array then it must have already been parsed, so should not be parsed again
         if (getObjectType(left[0]) == "array"){  // If the first item in the token array is itself an array, then the "token" must actually be a list of tokens from an extended identifier, which will need to be parsed separately
-          left = sub_parser(left);  // Parse the tokens in left separately to produce a parse tree
+          left = sub_parser(left)[0];  // Parse the tokens in left separately to produce a parse tree
         }
         else{
         left = parsers[left[0]](left);
@@ -399,7 +399,7 @@ function parse_postfix(expression){  // Parse the postfix expression into the AS
     var right = expression[index - 1];
     if (getObjectType(right) == "array"){
       if (getObjectType(right[0]) == "array"){
-        right = sub_parser(right);
+        right = sub_parser(right)[0];
       }
       else{
       right = parsers[right[0]](right);
@@ -452,7 +452,7 @@ function parse_args(){
   var args = [];  // Contains the parse trees for each argument
   for (let i = 0; i < all_args.length; i++){
     // Use sub_parser to parse the argument
-    args.push(sub_parser(all_args[i]));
+    args.push(sub_parser(all_args[i])[0]);
   }
   return args;
 
@@ -993,5 +993,5 @@ function sub_parser(token_list){  // Run the parser with a different version of 
   identifiedTokens = currentTokens;
   syntaxTree = currentTree;
 
-  return newTree[0];
+  return newTree;
 }
