@@ -692,11 +692,8 @@ function parse_else(token){
       errors.syntax.unexpected([["separator", "{"]], next, next[2]);
     }
     var innerCode = [];  // Syntax tree for code within the loop
-    while (next[1] != "}"){
-      next = identifiedTokens.shift();
-      handleUndefined(next);
-      innerCode.push(parsers[next[0]](next));
-    }
+    let innerTokens = getTokenSublist("{", "}");
+    innerCode = sub_parser(innerTokens);
     return {"type": "else if", "condition": condition, "code": innerCode};
   }
   else{
@@ -704,11 +701,8 @@ function parse_else(token){
       errors.syntax.unexpected([["separator", "{"]], next, next[2]);
     }
     var innerCode = [];  // Syntax tree for code within the loop
-    while (next[1] != "}"){
-      next = identifiedTokens.shift();
-      handleUndefined(next);
-      innerCode.push(parsers[next[0]](next));
-    }
+    let innerTokens = getTokenSublist("{", "}");
+    innerCode = sub_parser(innerTokens);
     return {"type": "else", "code": innerCode};
   }
 
