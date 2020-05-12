@@ -1,7 +1,7 @@
 var syntaxTree = [];  // index: [item, parent];
 var treeIndexes = 0;
 var parserStack = []  // Stack of parser functions for debugging purposes
-var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "separator": parse_separator};
+var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "bool": parse_literal, "separator": parse_separator};
 function addToTree(item, parent){
   treeIndexes++;  // Increment to create a new index for the new node
   syntaxTree[treeIndexes] = [item, parent];
@@ -52,6 +52,9 @@ function parse_program(){  // Parse program from top level
     }
     else if (token[0] == "number" || token[0] == "float" || token[0] == "string"){
       syntaxTree.push(parse_expression(token));
+    }
+    else if (token[0] == "bool"){
+      syntaxTree.push(parse_literal(token));
     }
     else if (token[0] == "operator"){  // Numbers may begin with +/- to denote whether they are positive or negative, or the ! operator
       syntaxTree.push(parse_operator(token));
