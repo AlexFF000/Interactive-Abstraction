@@ -1,4 +1,4 @@
-var keywords = ["class", "else", "for", "function", "global", "if", "import", "return", "value", "while"];  // List of reserved keywords
+var keywords = ["class", "else", "false", "for", "function", "global", "if", "import", "return", "true", "value", "while"];  // List of reserved keywords
 var TokenTests = {"character": function(char){
   if (char.search(/[a-z0-9\/\{\}\]\[\,\.\:\(\)\"\+\-\*\=\>\<\&\|\!\r\n\ ]/i) != -1){  // Check if char is allowed character
     return true;  // Character is an allowed character in the language
@@ -635,6 +635,9 @@ function createToken(){
 function isKeyword(name){
   for (var i = 0; i < keywords.length; i++){
     if (name == keywords[i]){
+      if (name == "true" || name == "false"){
+        return ["bool", keywords[i], [line, column]];  // If true or false, then create a bool token
+      }
       return ["keyword", keywords[i], [line, column]];  // Change token from identifier to keyword
     }
   }
