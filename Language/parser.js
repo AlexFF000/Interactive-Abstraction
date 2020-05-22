@@ -718,7 +718,9 @@ function parse_import(){
 
 function parse_return(){
   parserStack.push("parse_return");
-  return {"type": "return", "value": identifiedTokens.shift()};
+  let token = identifiedTokens.shift();
+  handleUndefined(token);
+  return {"type": "return", "value": parsers[token[0]](token)};
 }
 
 function parse_value(){
