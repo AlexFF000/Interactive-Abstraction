@@ -91,8 +91,8 @@ function parse_keyword(token){
   else if (token[1] == "return"){
     return parse_return(token);
   }
-  else if (token[1] == "value"){
-    return parse_value(token);
+  else if (token[1] == "reference"){
+    return parse_reference(token);
   }
 }
 
@@ -723,9 +723,14 @@ function parse_return(){
   return {"type": "return", "value": parsers[token[0]](token)};
 }
 
-function parse_value(){
-  parserStack.push("parse_value");
-  return {"type": "value", "identifier": identifiedTokens.shift()};
+function parse_reference(){
+  parserStack.push("parse_reference");
+  let token = identifiedTokens.shift();
+  handleUndefined(token);
+  if (token[0] != "identifier"){
+    throw errors.syntax.unexpected([["identifier", null]], token, token[2]);
+  }
+  return {"type": "reference", "identifier": parse_identifier(token)};
 }
 
 function parse_literal(token){
