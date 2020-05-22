@@ -628,25 +628,28 @@ function parse_while(token){
 function parse_function(token){
   parserStack.push("parse_function");
   var next = identifiedTokens.shift();  // Get next token
+  handleUndefined(next);
   if (next[0] != "identifier"){
     errors.syntax.unexpected([["identifier", null]], next, next[2]);
   }
   var name = parse_definition_identifier(next);
   next = identifiedTokens[0];
+  handleUndefined(next);
   if (next[1] != "("){
     errors.syntax.unexpected([["separator", "("]], next, next[2]);
   }
   next = identifiedTokens.shift();
+  handleUndefined(next);
   var args = parse_args();
   next = identifiedTokens.shift();
+  handleUndefined(next);
   if (next[1] != "{"){
     errors.syntax.unexpected([["separator", "{"]], next, next[2]);
   }
+  // Parse code inside function
   var innerCode = [];  // Syntax tree for code within the function
-  while (next[1] != "}"){
-    next = identifiedTokens.shift();
-    innerCode.push(parsers[next[0]](next));
-  }
+  innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
   return {"type": "function", "name": name, "code": innerCode};
 }
 
