@@ -729,7 +729,9 @@ function parse_else(token){
 
 function parse_import(){
   parserStack.push("parse_import");
-  return {"type": "import", "path": identifiedTokens.shift()};
+  let token = identifiedTokens.shift();
+  handleUndefined(token);
+  return {"type": "import", "path": parsers[token[0]](token)};
 }
 
 function parse_return(){
