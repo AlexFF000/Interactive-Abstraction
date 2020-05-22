@@ -1,7 +1,7 @@
 var syntaxTree = [];  // index: [item, parent];
 var treeIndexes = 0;
 var parserStack = []  // Stack of parser functions for debugging purposes
-var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "separator": parse_separator};
+var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "bool": parse_literal, "separator": parse_separator};
 function addToTree(item, parent){
   treeIndexes++;  // Increment to create a new index for the new node
   syntaxTree[treeIndexes] = [item, parent];
@@ -52,6 +52,9 @@ function parse_program(){  // Parse program from top level
     }
     else if (token[0] == "number" || token[0] == "float" || token[0] == "string"){
       syntaxTree.push(parse_expression(token));
+    }
+    else if (token[0] == "bool"){
+      syntaxTree.push(parse_literal(token));
     }
     else if (token[0] == "operator"){  // Numbers may begin with +/- to denote whether they are positive or negative, or the ! operator
       syntaxTree.push(parse_operator(token));
@@ -389,7 +392,7 @@ function parse_postfix(expression){  // Parse the postfix expression into the AS
       var left = expression[index - 2];
       if (getObjectType(left) == "array"){  // If value is not in an array then it must have already been parsed, so should not be parsed again
         if (getObjectType(left[0]) == "array"){  // If the first item in the token array is itself an array, then the "token" must actually be a list of tokens from an extended identifier, which will need to be parsed separately
-          left = sub_parser(left);  // Parse the tokens in left separately to produce a parse tree
+          left = sub_parser(left)[0];  // Parse the tokens in left separately to produce a parse tree
         }
         else{
         left = parsers[left[0]](left);
@@ -399,7 +402,7 @@ function parse_postfix(expression){  // Parse the postfix expression into the AS
     var right = expression[index - 1];
     if (getObjectType(right) == "array"){
       if (getObjectType(right[0]) == "array"){
-        right = sub_parser(right);
+        right = sub_parser(right)[0];
       }
       else{
       right = parsers[right[0]](right);
@@ -452,7 +455,7 @@ function parse_args(){
   var args = [];  // Contains the parse trees for each argument
   for (let i = 0; i < all_args.length; i++){
     // Use sub_parser to parse the argument
-    args.push(sub_parser(all_args[i]));
+    args.push(sub_parser(all_args[i])[0]);
   }
   return args;
 
@@ -657,11 +660,13 @@ function parse_if(token){
     errors.syntax.unexpected([["separator", "{"]], next, next[2]);
   }
   var innerCode = [];  // Syntax tree for code within the loop
-  while (next[1] != "}"){
+  /* while (next[1] != "}"){
     next = identifiedTokens.shift();
     if (next == undefined) {errors.syntax.incomplete;}
     innerCode.push(parsers[next[0]](next));
-  }
+  } */
+  let innerTokens = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerTokens);
   next = identifiedTokens[0];
   var elses = [];  // Else statements
   while (next != undefined && next[1] == "else"){
@@ -690,11 +695,8 @@ function parse_else(token){
       errors.syntax.unexpected([["separator", "{"]], next, next[2]);
     }
     var innerCode = [];  // Syntax tree for code within the loop
-    while (next[1] != "}"){
-      next = identifiedTokens.shift();
-      handleUndefined(next);
-      innerCode.push(parsers[next[0]](next));
-    }
+    let innerTokens = getTokenSublist("{", "}");
+    innerCode = sub_parser(innerTokens);
     return {"type": "else if", "condition": condition, "code": innerCode};
   }
   else{
@@ -702,11 +704,8 @@ function parse_else(token){
       errors.syntax.unexpected([["separator", "{"]], next, next[2]);
     }
     var innerCode = [];  // Syntax tree for code within the loop
-    while (next[1] != "}"){
-      next = identifiedTokens.shift();
-      handleUndefined(next);
-      innerCode.push(parsers[next[0]](next));
-    }
+    let innerTokens = getTokenSublist("{", "}");
+    innerCode = sub_parser(innerTokens);
     return {"type": "else", "code": innerCode};
   }
 
@@ -955,6 +954,25 @@ function handleUndefined(token){  // Check if a token is undefined, and raise th
   }
 }
 
+function getTokenSublist(open_symbol, close_symbol){  // Get all tokens between an open and close bracket e.g. between { and }
+  var token_list = [];
+  var open_brackets = 0;
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  while (next[1] != close_symbol || open_brackets > 0){
+    handleUndefined(next);
+    if (next[1] == open_symbol){
+      open_brackets++;
+    }
+    else if (next[1] == close_symbol){
+      open_brackets--;
+    }
+    token_list.push(next);
+    next = identifiedTokens.shift();
+  }
+  return token_list;
+}
+
 function sub_parser(token_list){  // Run the parser with a different version of identifiedTokens, in order to parse sub-expressions e.g. a + b[12 + 1] - the 12 + 1 for the list index is a separate expression from the a + b[] expression so must be parsed separately
   // Store a "copy" of the original identifiedTokens
   let currentTokens = identifiedTokens;
@@ -972,5 +990,5 @@ function sub_parser(token_list){  // Run the parser with a different version of 
   identifiedTokens = currentTokens;
   syntaxTree = currentTree;
 
-  return newTree[0];
+  return newTree;
 }

@@ -1,4 +1,4 @@
-var keywords = ["class", "else", "for", "function", "global", "if", "import", "return", "value", "while"];  // List of reserved keywords
+var keywords = ["class", "else", "false", "for", "function", "global", "if", "import", "return", "true", "value", "while"];  // List of reserved keywords
 var TokenTests = {"character": function(char){
   if (char.search(/[a-z0-9\/\{\}\]\[\,\.\:\(\)\"\+\-\*\=\>\<\&\|\!\r\n\ ]/i) != -1){  // Check if char is allowed character
     return true;  // Character is an allowed character in the language
@@ -104,63 +104,6 @@ var TokenTests = {"character": function(char){
     return false;
   }
 },
-"bool": {"t": function (char){
-  if (char == "t"){
-    return true;
-  }
-  else{
-    return false;
-  }
-}, "r": function(char){
-  if (char == "r"){
-    return true;
-  }
-  else{
-    return false;
-  }
-},"u": function(char){
-  if (char == "u"){
-    return true;
-  }
-  else{
-    return false;
-  }
-}, "e": function(char){
-  if (char == "e"){
-    return true;
-  }
-  else{
-    return false;
-  }
-}, "f": function(char){
-  if (char == "f"){
-    return true;
-  }
-  else{
-    return false;
-  }
-}, "a": function(char){
-  if (char == "a"){
-    return true;
-  }
-  else{
-    return false;
-  }
-}, "l": function(char){
-  if (char == "l"){
-    return true;
-  }
-  else{
-    return false;
-  }
-}, "s": function(char){
-  if (char == "s"){
-    return true;
-  }
-  else{
-    return false;
-  }
-}},
 "removableSeparator": function(char){
   if (char.search(/[\ \r\n]/) != -1){
     return true;
@@ -250,13 +193,7 @@ var Tokens = {"character": function(char){
     }
 },
 "letter": function(char){
-    if (TokenTests.bool.t(char) === true){
-      currentToken = Tokens["bool_components"]["t"];
-    }
-    else if (TokenTests.bool.f(char) === true){
-      currentToken = Tokens["bool_components"]["f"];
-    }
-    else if (TokenTests.letter(char) === true){
+    if (TokenTests.letter(char) === true){
       currentToken = Tokens["identifier"];
       tokenName = "identifier";
     }
@@ -390,150 +327,6 @@ var Tokens = {"character": function(char){
     currentToken = Tokens["string"];
   }
 },
-"bool_components": {"t": function (char){
-  if (TokenTests.bool.r(char) === true){
-    currentToken = Tokens["bool_components"]["r"];
-  }
-  else if (TokenTests.letter(char) === true){
-    currentToken = Tokens["identifier"];  // Not a boolean state
-    tokenName = "identifier";
-  }
-  else if (TokenTests.separator(char) === true){
-    endOfToken = true;
-    tokenName = "identifier";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
-  }
-  else{
-    currentToken = "invalid";
-  }
-}, "r": function (char){
-  if (TokenTests.bool.u(char) === true){
-    currentToken = Tokens["bool_components"]["u"];
-  }
-  else if (TokenTests.letter(char) === true){
-    currentToken = Tokens["identifier"];  // Not a boolean state
-    tokenName = "identifier";
-  }
-  else if (TokenTests.separator(char) === true){
-    endOfToken = true;
-    tokenName = "identifier";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
-  }
-  else{
-    currentToken = "invalid";
-  }
-}, "u": function (char){
-  if (TokenTests.bool.e(char) === true){
-    currentToken = Tokens["bool"];
-  }
-  else if (TokenTests.letter(char) === true){
-    currentToken = Tokens["identifier"];  // Not a boolean state
-    tokenName = "identifier";
-  }
-  else if (TokenTests.separator(char) === true){
-    endOfToken = true;
-    tokenName = "identifier";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
-  }
-  else{
-    currentToken = "invalid";
-  }
-}, "f": function (char){
-  if (TokenTests.bool.a(char) === true){
-    currentToken = Tokens["bool_components"]["a"];
-  }
-  else if (TokenTests.letter(char) === true){
-    currentToken = Tokens["identifier"];  // Not a boolean state
-    tokenName = "identifier";
-  }
-  else if (TokenTests.separator(char) === true){
-    endOfToken = true;
-    tokenName = "identifier";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
-  }
-  else{
-    currentToken = "invalid";
-  }
-}, "a": function (char){
-  if (TokenTests.bool.l(char) === true){
-    currentToken = Tokens["bool_components"]["l"];
-  }
-  else if (TokenTests.letter(char) === true){
-    currentToken = Tokens["identifier"];  // Not a boolean state
-    tokenName = "identifier";
-  }
-  else if (TokenTests.separator(char) === true){
-    endOfToken = true;
-    tokenName = "identifier";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
-  }
-  else{
-    currentToken = "invalid";
-  }
-}, "l": function(char){
-  if (TokenTests.bool.s(char) === true){
-    currentToken = Tokens["bool_components"]["s"];
-  }
-  else if (TokenTests.letter(char) === true){
-    currentToken = Tokens["identifier"];  // Not a boolean state
-    tokenName = "identifier";
-  }
-  else if (TokenTests.separator(char) === true){
-    endOfToken = true;
-    tokenName = "identifier";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
-  }
-  else{
-    currentToken = "invalid";
-  }
-}, "s": function (char){
-  if (TokenTests.bool.e(char) === true){
-    currentToken = Tokens["bool"];
-  }
-  else if (TokenTests.letter(char) === true){
-    currentToken = Tokens["identifier"];  // Not a boolean state
-    tokenName = "identifier";
-  }
-  else if (TokenTests.separator(char) === true){
-    endOfToken = true;
-    tokenName = "identifier";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
-  }
-  else{
-    currentToken = "invalid";
-  }
-}
-},
-"bool": function (char){
-  if (TokenTests.letter(char) === true){
-    currentToken = Tokens["identifier"];
-    tokenName = "identifier";
-  }
-  else if (TokenTests.separator(char) === true){
-    endOfToken = true;
-    tokenName = "bool";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
-  }
-  else{
-    currentToken = "invalid";
-  }
-},
 "identifier": function (char){
   if (TokenTests.letter(char) === true){
     currentToken = Tokens["identifier"];
@@ -635,6 +428,9 @@ function createToken(){
 function isKeyword(name){
   for (var i = 0; i < keywords.length; i++){
     if (name == keywords[i]){
+      if (name == "true" || name == "false"){
+        return ["bool", keywords[i], [line, column]];  // If true or false, then create a bool token
+      }
       return ["keyword", keywords[i], [line, column]];  // Change token from identifier to keyword
     }
   }
