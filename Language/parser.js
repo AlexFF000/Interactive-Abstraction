@@ -311,6 +311,22 @@ function parse_expression(token, left){
           end = true;  // If there is no next token, or the next token is not an operator or close bracket, then this must be the end of the expression
         }
       }
+      else if (next[0] == "keyword"){  // For parts of expressions preceded by keywords
+        if (next[1] == "reference"){
+          let reference_tokens = [next, identifiedTokens.shift()];
+          while (identifiedTokens[0] != undefined && identifiedTokens[0][1] == "["){
+            reference_tokens.push(identifiedTokens.shift());
+            reference_tokens = reference_tokens.concat(getTokenSublist("[", "]"));
+            reference_tokens.push(["separator", "]"]);
+          }
+          extended_identifiers.push(sub_parser(reference_tokens)[0]);  // Sub parser must be used rather than simply calling parse_reference, as otherwise the identifier will be parsed as an expression
+          expression_tokens.pop();  // Replace with extended identifier reference
+          expression_tokens.push(["identifier", 2, extended_identifiers.length - 1]);
+        }
+        if (identifiedTokens[0] == undefined || !(identifiedTokens[0][1] == "operator" || identifiedTokens[0][1] == ")")){
+          end = true;
+        }
+      }
     }
     if (expression_tokens[expression_tokens.length - 1][1] == ")" && open_brackets < 0){  // The final token is a close bracket that does not have a corrosponding open bracket, this can happen with parse_if.
       expression_tokens.pop();  // Remove the extra bracket to prevent an error
@@ -976,6 +992,7 @@ function getTokenSublist(open_symbol, close_symbol){  // Get all tokens between 
     }
     token_list.push(next);
     next = identifiedTokens.shift();
+    handleUndefined(next);
   }
   return token_list;
 }
