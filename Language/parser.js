@@ -650,7 +650,7 @@ function parse_function(token){
   var innerCode = [];  // Syntax tree for code within the function
   innerCode = getTokenSublist("{", "}");
   innerCode = sub_parser(innerCode);
-  return {"type": "function", "name": name, "code": innerCode};
+  return {"type": "function", "name": name, "args": args, "code": innerCode};
 }
 
 function parse_global(token){  // Parse global keyword
