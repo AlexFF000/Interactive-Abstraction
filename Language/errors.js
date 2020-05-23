@@ -28,6 +28,12 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
   outputConsole(message);
   throw message;
 },
+"invaliddefinitionparams": function(pos){
+  var message = errors.syntax.message + "Parameter provided to function definition is not an identifier";
+  message = addPosition(message, pos);
+  outputConsole(message);
+  throw message;
+},
 "invalidexpression": {"unmatchedparantheses": function(pos){
   var message = errors.syntax.message + "Unmatched Parentheses";
   message = addPosition(message, pos);
