@@ -641,6 +641,13 @@ function parse_function(token){
   next = identifiedTokens.shift();
   handleUndefined(next);
   var args = parse_args();
+  // Check that the arguments provided are identifiers or assignments to identifiers
+  for (let i = 0; i < args.length; i++){
+    let arg = args[i];
+    if (!(arg["type"] == "identifier" || (arg["type"] == "=" && arg["left"]["type"] == "identifier"))){
+      throw errors.syntax.invaliddefinitionparams(next[2]);
+    }
+  }
   next = identifiedTokens.shift();
   handleUndefined(next);
   if (next[1] != "{"){
