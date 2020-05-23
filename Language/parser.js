@@ -582,23 +582,20 @@ function parse_class(token){
 function parse_for(token){
   parserStack.push("parse_for");
   var next = identifiedTokens.shift();  // Get next token
+  handleUndefined(next);
   if (next[1] != "("){  // For must be followed by open bracket
     errors.syntax.unexpected([["separator", "("]], next, next[2]);
   }
   next = identifiedTokens.shift();
+  handleUndefined(next);
   var condition = parse_expression(next);
-  if (next[1] != ")"){  // Expression must be followed by close bracket
-    errors.syntax.unexpected([["separator", ")"]], next, next[2]);
-  }
   next = identifiedTokens.shift();
-  if (next != "{"){
+  handleUndefined(next);
+  if (next[1] != "{"){
     errors.syntax.unexpected([["separator", "{"]], next, next[2]);
   }
-  var innerCode = [];  // Syntax tree for code within the loop
-  while (next[1] != "}"){
-    next = identifiedTokens.shift();
-    innerCode.push(parsers[next[0]](next));
-  }
+  var innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
   return {"type": "for", "condition": condition, "code": innerCode};
 }
 
