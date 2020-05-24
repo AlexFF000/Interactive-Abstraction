@@ -646,19 +646,19 @@ function parse_for_parameters(){
       return {"type": "foreach", "variable": initialisation, "iterable": iterable};
     }
     else{
-      throw errors.syntax.unexpected([["separator", ";"], ["keyword", "in"]], next, next[2]);
+      errors.syntax.unexpected([["separator", ";"], ["keyword", "in"]], next, next[2]);
     }
   }
   next = identifiedTokens.shift();
   handleUndefined(next);
   if (next[0] == "separator" && next[1] == ";"){
-    throw errors.syntax.noconditionprovided(next[2]);
+    errors.syntax.noconditionprovided(next[2]);
   }
   condition = parse_expression(next);
   next = identifiedTokens.shift();
   handleUndefined(next);
   if (!(next[0] == "separator" && next[1] == ";")){
-    throw errors.syntax.noconditionprovided(next[2]);
+    errors.syntax.noconditionprovided(next[2]);
   }
   let statement_tokens = getTokenSublist("(", ")");
   if (statement_tokens.length < 1){
@@ -711,7 +711,7 @@ function parse_function(token){
   for (let i = 0; i < args.length; i++){
     let arg = args[i];
     if (!(arg["type"] == "identifier" || (arg["type"] == "=" && arg["left"]["type"] == "identifier"))){
-      throw errors.syntax.invaliddefinitionparams(next[2]);
+      errors.syntax.invaliddefinitionparams(next[2]);
     }
   }
   next = identifiedTokens.shift();
