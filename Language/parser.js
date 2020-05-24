@@ -579,7 +579,29 @@ function parse_operator(token, left){
 
 function parse_class(token){
   parserStack.push("parse_class");
-  // Implement classes at a higher level
+  var parent;
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[0] != "identifier"){
+    errors.syntax.unexpected([["identifier", null]], next, next[2]);
+  }
+  var name = parse_definition_identifier(next);
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[0] == "keyword" && next[1] == "inherits"){
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+    parent = parse_identifier(next);
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+  }
+  let innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
+  var tree = {"type": "class", "name": name, "code": innerCode};
+  if (parent != undefined){
+    tree["inherits"] = parent
+  }
+  return tree;
 }
 
 function parse_for(token){
