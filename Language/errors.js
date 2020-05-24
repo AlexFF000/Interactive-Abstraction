@@ -40,6 +40,25 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
   outputConsole(message);
   throw message;
 },
+"keywordhaswrongtype": function(keyword, allowedTypes, pos){
+  allowedTypesStatement = "";
+  if (allowedTypes.length == 1){
+    allowedTypesStatement = allowedTypes[0];
+  }
+  else{
+    allowedTypesStatement = "one of the following:";
+    for (var i = 0; i < allowedTypes.length; i++){
+      allowedTypesStatement += " " + allowedTypes[i];
+      if (i != allowedTypes.length - 1){
+        allowedTypesStatement + ",";
+      }
+    }
+  }
+  var message = errors.syntax.message + keyword + " is not followed by " + allowedTypesStatement;
+  message = addPosition(message, pos);
+  outputConsole(message);
+  throw message;
+},
 "invalidexpression": {"unmatchedparantheses": function(pos){
   var message = errors.syntax.message + "Unmatched Parentheses";
   message = addPosition(message, pos);
