@@ -323,6 +323,9 @@ function parse_expression(token, left){
           expression_tokens.pop();  // Replace with extended identifier reference
           expression_tokens.push(["identifier", 2, extended_identifiers.length - 1]);
         }
+        else if (next[1] == "in"){
+          identifiedTokens.unshift(["keyword", "in"]);  // Puts the in keyword back in identifiedTokens as it has been deleted
+        }
         if (identifiedTokens[0] == undefined || !(identifiedTokens[0][1] == "operator" || identifiedTokens[0][1] == ")")){
           end = true;
         }
@@ -586,9 +589,8 @@ function parse_for(token){
   if (next[1] != "("){  // For must be followed by open bracket
     errors.syntax.unexpected([["separator", "("]], next, next[2]);
   }
-  next = identifiedTokens.shift();
-  handleUndefined(next);
-  var condition = parse_expression(next);
+
+  let tree = parse_for_parameters();
   next = identifiedTokens.shift();
   handleUndefined(next);
   if (next[1] != "{"){
@@ -596,7 +598,54 @@ function parse_for(token){
   }
   var innerCode = getTokenSublist("{", "}");
   innerCode = sub_parser(innerCode);
-  return {"type": "for", "condition": condition, "code": innerCode};
+  tree["code"] = innerCode;
+  return tree;
+}
+
+function parse_for_parameters(){
+  var next = identifiedTokens.shift();
+  var initialisation, condition, statement;
+  handleUndefined(next);
+  if (next[1] != ";"){
+    initialisation = parse_expression(next);
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+  }
+  else{
+    initialisation = "";
+  }
+
+  if (next[1] != ";"){
+    if (next[0] == "keyword" && next[1] == "in"){  // This is a foreach loop
+      if (initialisation["type"] != "identifier"){
+        errors.syntax.unexpected([["identifier", null]], [initialisation["type"], null]);
+      }
+      let iterable = sub_parser(getTokenSublist("(", ")"))[0];
+      return {"type": "foreach", "variable": initialisation, "iterable": iterable};
+    }
+    else{
+      throw errors.syntax.unexpected([["separator", ";"], ["keyword", "in"]], next, next[2]);
+    }
+  }
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[0] == "separator" && next[1] == ";"){
+    throw errors.syntax.noconditionprovided(next[2]);
+  }
+  condition = parse_expression(next);
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (!(next[0] == "separator" && next[1] == ";")){
+    throw errors.syntax.noconditionprovided(next[2]);
+  }
+  let statement_tokens = getTokenSublist("(", ")");
+  if (statement_tokens.length < 1){
+    statement = "";
+  }
+  else{
+  statement = sub_parser(statement_tokens)[0];
+}
+  return {"type": "for", "initialisation": initialisation, "condition": condition, "statement": statement};
 }
 
 function parse_while(token){
