@@ -827,7 +827,7 @@ function parse_reference(){
   let token = identifiedTokens.shift();
   handleUndefined(token);
   if (token[0] != "identifier"){
-    throw errors.syntax.unexpected([["identifier", null]], token, token[2]);
+    errors.syntax.unexpected([["identifier", null]], token, token[2]);
   }
   return {"type": "reference", "identifier": parse_identifier(token)};
 }
@@ -1013,11 +1013,11 @@ function valid_consecutive_tokens(token){  // Raises error if an operator is fol
     if (next[0] == "operator"){
       if (next[1] == "+" || next[1] == "-" || next[1] == "!"){  // There are two operators in a row, but the expression is still valid as +, -, or ! do not need left values
         if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" || identifiedTokens != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
-          throw errors.syntax.invalidexpression.norightoperand(next[2]);
+          errors.syntax.invalidexpression.norightoperand(next[2]);
         }
       }
       else{  // An operator followed by another operator other than +, -, or ! is invalid
-        throw errors.syntax.invalidexpression.noleftoperand(next[2]);
+        errors.syntax.invalidexpression.noleftoperand(next[2]);
       }
     }
   }
