@@ -599,7 +599,7 @@ function parse_class(token){
   innerCode = sub_parser(innerCode);
   var tree = {"type": "class", "name": name, "code": innerCode};
   if (parent != undefined){
-    tree["inherits"] = parent
+    tree["inherits"] = parent;
   }
   return tree;
 }
@@ -729,10 +729,15 @@ function parse_function(token){
 function parse_global(token){  // Parse global keyword
   parserStack.push("parse_global");
   var next = identifiedTokens.shift();
+  handleUndefined(next);
   if (next[0] != "identifier"){
     errors.syntax.unexpected([["identifier", null]], next, next[2]);
   }
-  return {"type": "global", "identifier": parse_identifier(next)};
+  let identifier = parse_identifier(next);
+  if (identifier["type"] != "identifier" && !(identifier["type"] == "=" && identifier["left"]["type"] == "identifier")){
+    errors.syntax.keywordhaswrongtype("global", ["identifier"]);
+  }
+  return {"type": "global", "identifier": identifier};
 }
 
 function parse_if(token){
