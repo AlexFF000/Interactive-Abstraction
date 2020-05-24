@@ -34,6 +34,12 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
   outputConsole(message);
   throw message;
 },
+"noconditionprovided": function(pos){
+  var message = errors.syntax.message + "A valid condition has not been provided to the for loop";
+  message = addPosition(message, pos);
+  outputConsole(message);
+  throw message;
+},
 "invalidexpression": {"unmatchedparantheses": function(pos){
   var message = errors.syntax.message + "Unmatched Parentheses";
   message = addPosition(message, pos);
