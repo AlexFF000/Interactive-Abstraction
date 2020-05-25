@@ -146,6 +146,46 @@ function parse_identifier(token){
     }
 
   }
+  while (next[1] == "."){  // Dot notation to access child object
+    identifiedTokens.shift();
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+    var name = parse_definition_identifier(next);
+    tree = {"type": "child", "name": name, "parent": tree };
+    next = identifiedTokens[0];
+    if (next == undefined){
+      return tree;
+    }
+
+    while (next[1] == "("){  // A function call
+      identifiedTokens.shift()  // Remove next token from list
+      var args = parse_args();
+      tree = {"type": "call", "name": tree, "args": args};
+      next = identifiedTokens[0];
+      if (next == undefined){
+        return tree;
+      }}
+
+    while (next[1] == "["){
+      identifiedTokens.shift();
+      var index = parse_index();
+
+      tree = {"type": "index", "name": tree, "index": index};
+      next = identifiedTokens[0];
+      if (next == undefined){
+        return tree;
+      }
+
+      while (next[1] == "("){
+        identifiedTokens.shift();
+        var args = parse_args();
+        tree = {"type": "call", "name": tree, "args": args};
+        next = identifiedTokens[0];
+        if (next == undefined){
+          return tree;
+        }
+      }}
+  }
   return tree;
 }
 
