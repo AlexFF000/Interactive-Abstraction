@@ -1,7 +1,7 @@
 var syntaxTree = [];  // index: [item, parent];
 var treeIndexes = 0;
 var parserStack = []  // Stack of parser functions for debugging purposes
-var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "bool": parse_literal, "separator": parse_separator};
+var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "bool": parse_literal, "null": parse_literal, "separator": parse_separator};
 function addToTree(item, parent){
   treeIndexes++;  // Increment to create a new index for the new node
   syntaxTree[treeIndexes] = [item, parent];
@@ -54,6 +54,9 @@ function parse_program(){  // Parse program from top level
       syntaxTree.push(parse_expression(token));
     }
     else if (token[0] == "bool"){
+      syntaxTree.push(parse_literal(token));
+    }
+    else if (token[0] == "null"){
       syntaxTree.push(parse_literal(token));
     }
     else if (token[0] == "operator"){  // Numbers may begin with +/- to denote whether they are positive or negative, or the ! operator
@@ -1037,7 +1040,7 @@ function containsTokens(arr){  // Returns true if the array contains any tokens 
 }
 
 function isConstant(token){  // Return true if the token is one of the constant types, and false otherwise
-  if (token[0] == "string" || token[0] == "number" || token[0] == "float" || token[0] == "bool"){
+  if (token[0] == "string" || token[0] == "number" || token[0] == "float" || token[0] == "bool" || token[0] == "null"){
     return true;
   }
   else{
