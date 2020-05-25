@@ -186,6 +186,9 @@ function parse_identifier(token){
         }
       }}
   }
+  if (next != undefined && next[0] == "operator"){
+    return parse_expression(tree);
+  }
   return tree;
 }
 
