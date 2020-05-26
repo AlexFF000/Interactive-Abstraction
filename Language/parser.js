@@ -97,6 +97,9 @@ function parse_keyword(token){
   else if (token[1] == "reference"){
     return parse_reference(token);
   }
+  else if (token[1] == "private" || token[1] == "public"){
+    return parse_access_modifier(token);
+  }
 }
 
 function parse_identifier(token){
@@ -904,6 +907,20 @@ function parse_reference(){
   return {"type": "reference", "identifier": parse_identifier(token)};
 }
 
+function parse_access_modifier(token){
+  var allowedTokens = [["keyword", "function"], ["keyword", "static"], ["keyword", "class"], ["identifier", null]];  // Tokens that can follow an access modifier
+  var tree = {"type": "modifier", "modifier": token[1]}
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (tokenMatches(next, allowedTokens)){
+    tree["subject"] = parsers[next[0]](next);
+  }
+  else{
+    errors.syntax.unexpected(allowedTokens, next, next[2]);
+  }
+  return tree;
+}
+
 function parse_literal(token){
   parserStack.push("parse_literal");
   return {"type": token[0], "value": token[1]};
@@ -1111,6 +1128,22 @@ function containsTokens(arr){  // Returns true if the array contains any tokens 
   return false;  // No tokens have been found
 }
 
+function tokenMatches(token, token_list){  // Return true if the token matches a token in the list of tokens
+  for (var i in token_list){
+    var check_token = token_list[i];
+    if (token[0] == check_token[0]){
+      if (check_token[0] == "identifier" || check_token[0] == "string" || check_token[0] == "number" || check_token[0] == "float" || check_token[0] == "bool"){  // If token is one of these types, then the actual value of the token does not need to match (only the type)
+        return true;
+      }
+      else{
+        if (token[1] == check_token[1]){  // Otherwise, the value must also match
+          return true;
+        }
+      }
+  }
+  }
+  return false;
+}
 function isConstant(token){  // Return true if the token is one of the constant types, and false otherwise
   if (token[0] == "string" || token[0] == "number" || token[0] == "float" || token[0] == "bool" || token[0] == "null"){
     return true;
