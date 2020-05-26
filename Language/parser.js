@@ -242,9 +242,21 @@ function parse_expression(token, left){
       expression_tokens.push(next);
       if (next[0] == "identifier" || isConstant(next) || next[1] == ")"){
         if (next[0] == "identifier"){
-          if (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == "{" || identifiedTokens[0][1] == "(")){
+          if (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == "{" || identifiedTokens[0][1] == "(" || identifiedTokens[0][1] == ".")){
             var identifier_tokens = [next];  // The token containing the identifier
-          while (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == "{" || identifiedTokens[0][1] == "(")){  // If identifier is followed by [, (, or { it must be a function call or point to a list or dictionary
+          while (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == "{" || identifiedTokens[0][1] == "(" || identifiedTokens[0][1] == ".")){  // If identifier is followed by [, (, or { it must be a function call or point to a list or dictionary
+            if (identifiedTokens[0][1] == "."){  // For dot notation
+              identifier_tokens.push(identifiedTokens.shift());
+              if (identifiedTokens[0][0] != undefined && identifiedTokens[0][0] == "identifier"){
+                identifier_tokens.push(identifiedTokens.shift());
+                continue;
+              }
+              else{
+                var bad_token = identifiedTokens.shift();
+                handleUndefined(bad_token);
+                errors.syntax.unexpected([["identifier", null]], bad_token, bad_token[2]);
+              }
+            }
             var open_token = identifiedTokens[0][1];
             var close_token = null;
             switch (identifiedTokens[0][1]){  // Get correct closure symbol
