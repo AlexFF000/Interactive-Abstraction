@@ -100,6 +100,9 @@ function parse_keyword(token){
   else if (token[1] == "private" || token[1] == "public" || token[1] == "static"){
     return parse_modifier(token);
   }
+  else if (token[1] == "throw"){
+    return parse_throw(token);
+  }
 }
 
 function parse_identifier(token){
@@ -923,6 +926,19 @@ function parse_modifier(token){
   }
   else{
     errors.syntax.unexpected(allowedTokens, next, next[2]);
+  }
+  return tree;
+}
+
+function parse_throw(token){
+  var tree = {"type": "throw"};
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[0] == "identifier"){
+    tree["name"] = parse_identifier(next);
+  }
+  else{
+    errors.syntax.unexpected([["identifier", null]], next, next[2]);
   }
   return tree;
 }
