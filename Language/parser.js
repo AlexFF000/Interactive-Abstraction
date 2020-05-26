@@ -1070,7 +1070,7 @@ function valid_consecutive_tokens(token){  // Raises error if an operator is fol
     var next = identifiedTokens[0];
     if (next[0] == "operator"){
       if (next[1] == "+" || next[1] == "-" || next[1] == "!"){  // There are two operators in a row, but the expression is still valid as +, -, or ! do not need left values
-        if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" || identifiedTokens != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
+        if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" && identifiedTokens != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
           errors.syntax.invalidexpression.norightoperand(next[2]);
         }
       }
