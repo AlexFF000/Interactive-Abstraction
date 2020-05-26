@@ -906,6 +906,9 @@ function parse_literal(token){
 function parse_separator(token){
   parserStack.push("parse_separator");
   var tree;
+  if (token[1] == "("){  // Beginning of an expression
+    return parse_expression(token);
+  }
   if (token[1] == "["){  // Beginning of a list
     tree = parse_list(token);
   }
