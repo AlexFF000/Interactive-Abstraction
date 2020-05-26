@@ -97,8 +97,8 @@ function parse_keyword(token){
   else if (token[1] == "reference"){
     return parse_reference(token);
   }
-  else if (token[1] == "private" || token[1] == "public"){
-    return parse_access_modifier(token);
+  else if (token[1] == "private" || token[1] == "public" || token[1] == "static"){
+    return parse_modifier(token);
   }
 }
 
@@ -907,8 +907,14 @@ function parse_reference(){
   return {"type": "reference", "identifier": parse_identifier(token)};
 }
 
-function parse_access_modifier(token){
-  var allowedTokens = [["keyword", "function"], ["keyword", "static"], ["keyword", "class"], ["identifier", null]];  // Tokens that can follow an access modifier
+function parse_modifier(token){
+  var allowedTokens;
+  if (token[1] == "private" || token[1] == "public"){
+    var allowedTokens = [["keyword", "function"], ["keyword", "static"], ["keyword", "class"], ["identifier", null]];  // Tokens that can follow an access modifier
+  }
+  else if (token[1] == "static"){
+    allowedTokens = [["keyword", "function"], ["keyword", "private"], ["keyword", "public"], ["keyword", "class"], ["identifier", null]];
+  }
   var tree = {"type": "modifier", "modifier": token[1]}
   var next = identifiedTokens.shift();
   handleUndefined(next);
@@ -920,6 +926,7 @@ function parse_access_modifier(token){
   }
   return tree;
 }
+
 
 function parse_literal(token){
   parserStack.push("parse_literal");
