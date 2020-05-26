@@ -1,4 +1,4 @@
-var keywords = ["class", "else", "false", "for", "function", "global", "if", "import", "in", "inherits", "null", "private", "public", "return", "true", "reference", "while"];  // List of reserved keywords
+var keywords = ["class", "else", "false", "for", "function", "global", "if", "import", "in", "inherits", "null", "private", "public", "return", "static", "true", "reference", "while"];  // List of reserved keywords
 var TokenTests = {"character": function(char){
   if (char.search(/[a-z0-9\/\{\}\]\[\,\.\:\;\(\)\"\+\-\*\=\>\<\&\|\!\r\n\ ]/i) != -1){  // Check if char is allowed character
     return true;  // Character is an allowed character in the language
