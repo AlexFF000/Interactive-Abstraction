@@ -318,6 +318,14 @@ function parse_expression(token, left){
       }
       else if (next[1] == "("){
         open_brackets++;  // A new set of brackets has been opened
+        if (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "+" || identifiedTokens[0][1] == "-")){
+          if (identifiedTokens[1] != undefined && (identifiedTokens[1][0] == "number" || identifiedTokens[1][0] == "float")){
+            if (identifiedTokens[0][1] == "-"){
+              identifiedTokens[1][1] = "-" + identifiedTokens[1][1];
+            }
+            identifiedTokens.shift();
+          }
+        }
       }
       else if (next[1] == "[" || next[1] == "{"){  // [ or { without an identifier must be the start of a list or dictionary
         var structure_tokens = [next];
