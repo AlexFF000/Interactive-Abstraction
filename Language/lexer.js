@@ -1,6 +1,6 @@
-var keywords = ["class", "else", "false", "for", "function", "global", "if", "import", "return", "true", "value", "while"];  // List of reserved keywords
+var keywords = ["class", "else", "false", "for", "function", "global", "if", "import", "in", "inherits", "null", "return", "true", "reference", "while"];  // List of reserved keywords
 var TokenTests = {"character": function(char){
-  if (char.search(/[a-z0-9\/\{\}\]\[\,\.\:\(\)\"\+\-\*\=\>\<\&\|\!\r\n\ ]/i) != -1){  // Check if char is allowed character
+  if (char.search(/[a-z0-9\/\{\}\]\[\,\.\:\;\(\)\"\+\-\*\=\>\<\&\|\!\r\n\ ]/i) != -1){  // Check if char is allowed character
     return true;  // Character is an allowed character in the language
   }
   else{
@@ -17,7 +17,7 @@ var TokenTests = {"character": function(char){
   }
 },
 "symbol": function(char){
-  if (char.search(/[\/\{\}\]\[\,\.\(\)\"\:\'\r\n ]/) != -1){
+  if (char.search(/[\/\{\}\]\[\,\.\(\)\"\:\;\'\r\n ]/) != -1){
     return true;  // Character is a symbol in the langauge
   }
   else{
@@ -41,7 +41,7 @@ var TokenTests = {"character": function(char){
   }
 },
 "separator": function(char){
-  if (char.search(/[\/\{\}\]\[\,\.\(\)\:\r\n ]/) != -1){
+  if (char.search(/[\/\{\}\]\[\,\.\(\)\:\;\r\n ]/) != -1){
     return true;
   }
   else{
@@ -430,6 +430,9 @@ function isKeyword(name){
     if (name == keywords[i]){
       if (name == "true" || name == "false"){
         return ["bool", keywords[i], [line, column]];  // If true or false, then create a bool token
+      }
+      else if (name == "null"){
+        return ["null", keywords[i], [line, column]];  // If null, the create token for null
       }
       return ["keyword", keywords[i], [line, column]];  // Change token from identifier to keyword
     }
