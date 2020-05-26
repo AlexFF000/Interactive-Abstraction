@@ -1,7 +1,7 @@
 var syntaxTree = [];  // index: [item, parent];
 var treeIndexes = 0;
 var parserStack = []  // Stack of parser functions for debugging purposes
-var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "bool": parse_literal, "separator": parse_separator};
+var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "bool": parse_literal, "null": parse_literal, "separator": parse_separator};
 function addToTree(item, parent){
   treeIndexes++;  // Increment to create a new index for the new node
   syntaxTree[treeIndexes] = [item, parent];
@@ -54,6 +54,9 @@ function parse_program(){  // Parse program from top level
       syntaxTree.push(parse_expression(token));
     }
     else if (token[0] == "bool"){
+      syntaxTree.push(parse_literal(token));
+    }
+    else if (token[0] == "null"){
       syntaxTree.push(parse_literal(token));
     }
     else if (token[0] == "operator"){  // Numbers may begin with +/- to denote whether they are positive or negative, or the ! operator
@@ -143,6 +146,49 @@ function parse_identifier(token){
     }
 
   }
+  while (next[1] == "."){  // Dot notation to access child object
+    identifiedTokens.shift();
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+    var name = parse_definition_identifier(next);
+    tree = {"type": "child", "name": name, "parent": tree };
+    next = identifiedTokens[0];
+    if (next == undefined){
+      return tree;
+    }
+
+    while (next[1] == "("){  // A function call
+      identifiedTokens.shift()  // Remove next token from list
+      var args = parse_args();
+      tree = {"type": "call", "name": tree, "args": args};
+      next = identifiedTokens[0];
+      if (next == undefined){
+        return tree;
+      }}
+
+    while (next[1] == "["){
+      identifiedTokens.shift();
+      var index = parse_index();
+
+      tree = {"type": "index", "name": tree, "index": index};
+      next = identifiedTokens[0];
+      if (next == undefined){
+        return tree;
+      }
+
+      while (next[1] == "("){
+        identifiedTokens.shift();
+        var args = parse_args();
+        tree = {"type": "call", "name": tree, "args": args};
+        next = identifiedTokens[0];
+        if (next == undefined){
+          return tree;
+        }
+      }}
+  }
+  if (next != undefined && next[0] == "operator"){
+    return parse_expression(tree);
+  }
   return tree;
 }
 
@@ -196,9 +242,21 @@ function parse_expression(token, left){
       expression_tokens.push(next);
       if (next[0] == "identifier" || isConstant(next) || next[1] == ")"){
         if (next[0] == "identifier"){
-          if (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == "{" || identifiedTokens[0][1] == "(")){
+          if (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == "{" || identifiedTokens[0][1] == "(" || identifiedTokens[0][1] == ".")){
             var identifier_tokens = [next];  // The token containing the identifier
-          while (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == "{" || identifiedTokens[0][1] == "(")){  // If identifier is followed by [, (, or { it must be a function call or point to a list or dictionary
+          while (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == "{" || identifiedTokens[0][1] == "(" || identifiedTokens[0][1] == ".")){  // If identifier is followed by [, (, or { it must be a function call or point to a list or dictionary
+            if (identifiedTokens[0][1] == "."){  // For dot notation
+              identifier_tokens.push(identifiedTokens.shift());
+              if (identifiedTokens[0][0] != undefined && identifiedTokens[0][0] == "identifier"){
+                identifier_tokens.push(identifiedTokens.shift());
+                continue;
+              }
+              else{
+                var bad_token = identifiedTokens.shift();
+                handleUndefined(bad_token);
+                errors.syntax.unexpected([["identifier", null]], bad_token, bad_token[2]);
+              }
+            }
             var open_token = identifiedTokens[0][1];
             var close_token = null;
             switch (identifiedTokens[0][1]){  // Get correct closure symbol
@@ -1037,7 +1095,7 @@ function containsTokens(arr){  // Returns true if the array contains any tokens 
 }
 
 function isConstant(token){  // Return true if the token is one of the constant types, and false otherwise
-  if (token[0] == "string" || token[0] == "number" || token[0] == "float" || token[0] == "bool"){
+  if (token[0] == "string" || token[0] == "number" || token[0] == "float" || token[0] == "bool" || token[0] == "null"){
     return true;
   }
   else{
