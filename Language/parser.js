@@ -223,9 +223,15 @@ function parse_expression(token, left){
         expression_tokens.push(["identifier", 2, extended_identifiers.length - 1]);  // A 2 in place of the normal name string indicates that this token is a reference to an extended_identifier  (2 is used instead of 0 or 1 to avoid possible type conversion causing identifier names such as true or false being identified as equivalent to 0 or 1)
       }
       else{
-        expression_tokens.push(token);
-        if (token[1] == "("){
-          open_brackets++;
+        if (token[0] == "identifier" && identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "(" || identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == ".")){  // First token is start of an extended identifier
+          // Re-add token to identifiedTokens so it can be processed by the while loop below
+          identifiedTokens.unshift(token);
+        }
+        else{
+          expression_tokens.push(token);
+          if (token[1] == "("){
+            open_brackets++;
+          }
         }
     }
     }
