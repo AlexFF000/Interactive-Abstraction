@@ -223,9 +223,15 @@ function parse_expression(token, left){
         expression_tokens.push(["identifier", 2, extended_identifiers.length - 1]);  // A 2 in place of the normal name string indicates that this token is a reference to an extended_identifier  (2 is used instead of 0 or 1 to avoid possible type conversion causing identifier names such as true or false being identified as equivalent to 0 or 1)
       }
       else{
-        expression_tokens.push(token);
-        if (token[1] == "("){
-          open_brackets++;
+        if (token[0] == "identifier" && identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "(" || identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == ".")){  // First token is start of an extended identifier
+          // Re-add token to identifiedTokens so it can be processed by the while loop below
+          identifiedTokens.unshift(token);
+        }
+        else{
+          expression_tokens.push(token);
+          if (token[1] == "("){
+            open_brackets++;
+          }
         }
     }
     }
@@ -318,6 +324,14 @@ function parse_expression(token, left){
       }
       else if (next[1] == "("){
         open_brackets++;  // A new set of brackets has been opened
+        if (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "+" || identifiedTokens[0][1] == "-")){
+          if (identifiedTokens[1] != undefined && (identifiedTokens[1][0] == "number" || identifiedTokens[1][0] == "float")){
+            if (identifiedTokens[0][1] == "-"){
+              identifiedTokens[1][1] = "-" + identifiedTokens[1][1];
+            }
+            identifiedTokens.shift();
+          }
+        }
       }
       else if (next[1] == "[" || next[1] == "{"){  // [ or { without an identifier must be the start of a list or dictionary
         var structure_tokens = [next];
@@ -898,6 +912,9 @@ function parse_literal(token){
 function parse_separator(token){
   parserStack.push("parse_separator");
   var tree;
+  if (token[1] == "("){  // Beginning of an expression
+    return parse_expression(token);
+  }
   if (token[1] == "["){  // Beginning of a list
     tree = parse_list(token);
   }
@@ -1070,7 +1087,7 @@ function valid_consecutive_tokens(token){  // Raises error if an operator is fol
     var next = identifiedTokens[0];
     if (next[0] == "operator"){
       if (next[1] == "+" || next[1] == "-" || next[1] == "!"){  // There are two operators in a row, but the expression is still valid as +, -, or ! do not need left values
-        if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" || identifiedTokens != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
+        if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" && identifiedTokens != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
           errors.syntax.invalidexpression.norightoperand(next[2]);
         }
       }
