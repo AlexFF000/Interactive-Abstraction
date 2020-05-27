@@ -103,6 +103,9 @@ function parse_keyword(token){
   else if (token[1] == "throw"){
     return parse_throw(token);
   }
+  else if (token[1] == "try"){
+    return parse_try(token);
+  }
 }
 
 function parse_identifier(token){
@@ -941,6 +944,59 @@ function parse_throw(token){
     errors.syntax.unexpected([["identifier", null]], next, next[2]);
   }
   return tree;
+}
+
+function parse_try(token){
+  var tree = {};
+  // Process try block
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[1] != "{"){
+    errors.syntax.unexpected([["separator", "{"]], next, next[2]);
+  }
+  let innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
+  tree = {"type": "try", "code": innerCode, "catches": [], "finally": []};
+  // Process catch or finally block
+  next = identifiedTokens.shift();
+  if (next == undefined){
+    errors.syntax.nocatchorfinally();
+  }
+  while (next[1] == "catch" || next[1] == "finally"){
+    if (next[1] == "catch"){
+      tree["catches"].push(parse_catch(next));
+    }
+    else if (next[1] == "finally"){
+      tree["finally"].push(parse_finally(next));
+    }
+    next = identifiedTokens[0];
+    if (next == undefined || !(next[1] == "catch" || next[1] == "finally")){
+      break;
+    }
+    else{
+      identifiedTokens.shift();
+    }
+  }
+  if (tree["catches"].length < 1 && tree["finally"].length < 1){
+    errors.syntax.nocatchorfinally();
+  }
+  return tree;
+
+}
+
+function parse_catch(token){
+  // Parse as must be implemented first
+}
+
+function parse_finally(token){
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[1] != "{"){
+    errors.syntax.unexpected([["separator", "{"]], next, next[2]);
+  }
+  var innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
+  return {"type": "finally", "code": innerCode};
 }
 
 
