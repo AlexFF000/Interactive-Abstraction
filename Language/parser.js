@@ -196,7 +196,11 @@ function parse_identifier(token){
       }}
   }
   if (next != undefined && next[0] == "operator"){
-    return parse_expression(tree);
+    tree = parse_expression(tree);
+    next = identifiedTokens[0];
+  }
+  if (next != undefined && next[1] == "as"){
+    return parse_as(tree);
   }
   return tree;
 }
@@ -911,6 +915,19 @@ function parse_reference(){
     errors.syntax.unexpected([["identifier", null]], token, token[2]);
   }
   return {"type": "reference", "identifier": parse_identifier(token)};
+}
+
+function parse_as(tree){
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[1] == "as"){
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+  }
+  if (next[0] != "identifier"){
+    errors.syntax.unexpected([["identifier", null]], next, next[2]);
+  }
+  return {"type": "as", "subject": tree, "as": parse_definition_identifier(next)};
 }
 
 function parse_modifier(token){
