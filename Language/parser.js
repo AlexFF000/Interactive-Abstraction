@@ -1002,7 +1002,38 @@ function parse_try(token){
 }
 
 function parse_catch(token){
-  // Parse as must be implemented first
+  var tree = {"type": "catch", "exception": "", "variable": "", "code": ""};
+  // Parse code inside the brackets
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[1] == "("){
+    if (identifiedTokens[0] != undefined && identifiedTokens[0][1] == "as"){  // For when no exception is specified but a variable is still given
+      let catch_details = parse_as({});  // Pass empty tree to parse_as
+      tree["variable"] = catch_details["as"];
+      identifiedTokens.shift();  // Remove close bracket
+    }
+    else{
+    var catch_details = getTokenSublist("(", ")");
+    catch_details = sub_parser(catch_details)[0];
+    if (catch_details != undefined && catch_details["type"] == "as"){
+      tree["exception"] = catch_details["subject"];
+      tree["variable"] = catch_details["as"];
+    }
+    else if (catch_details != undefined && (catch_details["type"] == "identifier" || catch_details["type"] == "child" || catch_details["type"] == "call" || catch_details["type"] == "index")){
+      tree["exception"] = catch_details;
+    }
+  }
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+  }
+  // Parse the code between curly brackets
+  if (next[1] != "{"){
+    errors.syntax.unexpected([["separator", "{"]], next, next[2]);
+  }
+  let innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
+  tree["code"] = innerCode;
+  return tree;
 }
 
 function parse_finally(token){
