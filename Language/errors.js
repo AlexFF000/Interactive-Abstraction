@@ -59,6 +59,12 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
   outputConsole(message);
   throw message;
 },
+"nocatchorfinally": function(pos){
+  var message = errors.syntax.message = "No catch or finally clause provided for try";
+  message = addPosition(message, pos);
+  outputConsole(message);
+  throw message;
+},
 "invalidexpression": {"unmatchedparantheses": function(pos){
   var message = errors.syntax.message + "Unmatched Parentheses";
   message = addPosition(message, pos);
