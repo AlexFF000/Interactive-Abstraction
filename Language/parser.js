@@ -97,6 +97,18 @@ function parse_keyword(token){
   else if (token[1] == "reference"){
     return parse_reference(token);
   }
+  else if (token[1] == "private" || token[1] == "public" || token[1] == "static"){
+    return parse_modifier(token);
+  }
+  else if (token[1] == "throw"){
+    return parse_throw(token);
+  }
+  else if (token[1] == "try"){
+    return parse_try(token);
+  }
+  else if (token[1] == "address" || token[1] == "dereference"){
+    return parse_pointer(token);
+  }
 }
 
 function parse_identifier(token){
@@ -187,7 +199,11 @@ function parse_identifier(token){
       }}
   }
   if (next != undefined && next[0] == "operator"){
-    return parse_expression(tree);
+    tree = parse_expression(tree);
+    next = identifiedTokens[0];
+  }
+  if (next != undefined && next[1] == "as"){
+    return parse_as(tree);
   }
   return tree;
 }
@@ -398,7 +414,12 @@ function parse_expression(token, left){
         else if (next[1] == "in"){
           identifiedTokens.unshift(["keyword", "in"]);  // Puts the in keyword back in identifiedTokens as it has been deleted
         }
-        if (identifiedTokens[0] == undefined || !(identifiedTokens[0][1] == "operator" || identifiedTokens[0][1] == ")")){
+        else if (next[1] == "address" || next[1] == "dereference"){
+          extended_identifiers.push(parse_pointer(next));
+          expression_tokens.pop();
+          expression_tokens.push(["identifier", 2, extended_identifiers.length - 1]);
+        }
+        if (identifiedTokens[0] == undefined || !(identifiedTokens[0][0] == "operator" || identifiedTokens[0][1] == ")")){
           end = true;
         }
       }
@@ -904,6 +925,182 @@ function parse_reference(){
   return {"type": "reference", "identifier": parse_identifier(token)};
 }
 
+function parse_pointer(token){  // Parse address and dereference keywords
+  var tree = {};
+  if (token[1] == "address"){
+    tree["type"] = "address";
+  }
+  else if (token[1] == "dereference"){
+    tree["type"] = "dereference";
+  }
+  // Parse identifier pointed to by the keyword
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[0] != "identifier"){
+    errors.syntax.unexpected([["identifier", null]], next, next[2]);
+  }
+  // Get all tokens that comprise the identifier
+  var identifier_tokens = [next];
+  next = identifiedTokens[0];
+  while (next != undefined && (next[1] == "[" || next[1] == "(" || next[1] == ".")){
+    identifiedTokens.shift();
+    var sub_identifier_tokens = [];
+    sub_identifier_tokens.push(next);
+    if (next[1] == "["){
+      sub_identifier_tokens = sub_identifier_tokens.concat(getTokenSublist("[", "]"));
+      sub_identifier_tokens.push(["separator", "]"]);
+    }
+    else if (next[1] == "("){
+      sub_identifier_tokens = sub_identifier_tokens.concat(getTokenSublist("(", ")"));
+      sub_identifier_tokens.push(["separator", ")"]);
+    }
+    else if (next[1] == "."){
+      next = identifiedTokens.shift();
+      handleUndefined(next);
+      if (next[0] != "identifier"){
+        errors.syntax.unexpected([["identifier", null]], next, next[2]);
+      }
+      sub_identifier_tokens.push(next);
+    }
+    next = identifiedTokens[0];
+    identifier_tokens = identifier_tokens.concat(sub_identifier_tokens);
+  }
+  // Then parse them using sub_parser
+  tree["subject"] = sub_parser(identifier_tokens)[0];
+  return tree;
+}
+
+function parse_as(tree){
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[1] == "as"){
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+  }
+  if (next[0] != "identifier"){
+    errors.syntax.unexpected([["identifier", null]], next, next[2]);
+  }
+  return {"type": "as", "subject": tree, "as": parse_definition_identifier(next)};
+}
+
+function parse_modifier(token){
+  var allowedTokens;
+  if (token[1] == "private" || token[1] == "public"){
+    var allowedTokens = [["keyword", "function"], ["keyword", "static"], ["keyword", "class"], ["identifier", null]];  // Tokens that can follow an access modifier
+  }
+  else if (token[1] == "static"){
+    allowedTokens = [["keyword", "function"], ["keyword", "private"], ["keyword", "public"], ["keyword", "class"], ["identifier", null]];
+  }
+  var tree = {"type": "modifier", "modifier": token[1]}
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (tokenMatches(next, allowedTokens)){
+    tree["subject"] = parsers[next[0]](next);
+  }
+  else{
+    errors.syntax.unexpected(allowedTokens, next, next[2]);
+  }
+  return tree;
+}
+
+function parse_throw(token){
+  var tree = {"type": "throw"};
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[0] == "identifier"){
+    tree["name"] = parse_identifier(next);
+  }
+  else{
+    errors.syntax.unexpected([["identifier", null]], next, next[2]);
+  }
+  return tree;
+}
+
+function parse_try(token){
+  var tree = {};
+  // Process try block
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[1] != "{"){
+    errors.syntax.unexpected([["separator", "{"]], next, next[2]);
+  }
+  let innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
+  tree = {"type": "try", "code": innerCode, "catches": [], "finally": []};
+  // Process catch or finally block
+  next = identifiedTokens.shift();
+  if (next == undefined){
+    errors.syntax.nocatchorfinally();
+  }
+  while (next[1] == "catch" || next[1] == "finally"){
+    if (next[1] == "catch"){
+      tree["catches"].push(parse_catch(next));
+    }
+    else if (next[1] == "finally"){
+      tree["finally"].push(parse_finally(next));
+    }
+    next = identifiedTokens[0];
+    if (next == undefined || !(next[1] == "catch" || next[1] == "finally")){
+      break;
+    }
+    else{
+      identifiedTokens.shift();
+    }
+  }
+  if (tree["catches"].length < 1 && tree["finally"].length < 1){
+    errors.syntax.nocatchorfinally();
+  }
+  return tree;
+
+}
+
+function parse_catch(token){
+  var tree = {"type": "catch", "exception": "", "variable": "", "code": ""};
+  // Parse code inside the brackets
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[1] == "("){
+    if (identifiedTokens[0] != undefined && identifiedTokens[0][1] == "as"){  // For when no exception is specified but a variable is still given
+      let catch_details = parse_as({});  // Pass empty tree to parse_as
+      tree["variable"] = catch_details["as"];
+      identifiedTokens.shift();  // Remove close bracket
+    }
+    else{
+    var catch_details = getTokenSublist("(", ")");
+    catch_details = sub_parser(catch_details)[0];
+    if (catch_details != undefined && catch_details["type"] == "as"){
+      tree["exception"] = catch_details["subject"];
+      tree["variable"] = catch_details["as"];
+    }
+    else if (catch_details != undefined && (catch_details["type"] == "identifier" || catch_details["type"] == "child" || catch_details["type"] == "call" || catch_details["type"] == "index")){
+      tree["exception"] = catch_details;
+    }
+  }
+    next = identifiedTokens.shift();
+    handleUndefined(next);
+  }
+  // Parse the code between curly brackets
+  if (next[1] != "{"){
+    errors.syntax.unexpected([["separator", "{"]], next, next[2]);
+  }
+  let innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
+  tree["code"] = innerCode;
+  return tree;
+}
+
+function parse_finally(token){
+  next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[1] != "{"){
+    errors.syntax.unexpected([["separator", "{"]], next, next[2]);
+  }
+  var innerCode = getTokenSublist("{", "}");
+  innerCode = sub_parser(innerCode);
+  return {"type": "finally", "code": innerCode};
+}
+
+
 function parse_literal(token){
   parserStack.push("parse_literal");
   return {"type": token[0], "value": token[1]};
@@ -1087,7 +1284,7 @@ function valid_consecutive_tokens(token){  // Raises error if an operator is fol
     var next = identifiedTokens[0];
     if (next[0] == "operator"){
       if (next[1] == "+" || next[1] == "-" || next[1] == "!"){  // There are two operators in a row, but the expression is still valid as +, -, or ! do not need left values
-        if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" && identifiedTokens != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
+        if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" && identifiedTokens[1][0] != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
           errors.syntax.invalidexpression.norightoperand(next[2]);
         }
       }
@@ -1111,6 +1308,22 @@ function containsTokens(arr){  // Returns true if the array contains any tokens 
   return false;  // No tokens have been found
 }
 
+function tokenMatches(token, token_list){  // Return true if the token matches a token in the list of tokens
+  for (var i in token_list){
+    var check_token = token_list[i];
+    if (token[0] == check_token[0]){
+      if (check_token[0] == "identifier" || check_token[0] == "string" || check_token[0] == "number" || check_token[0] == "float" || check_token[0] == "bool"){  // If token is one of these types, then the actual value of the token does not need to match (only the type)
+        return true;
+      }
+      else{
+        if (token[1] == check_token[1]){  // Otherwise, the value must also match
+          return true;
+        }
+      }
+  }
+  }
+  return false;
+}
 function isConstant(token){  // Return true if the token is one of the constant types, and false otherwise
   if (token[0] == "string" || token[0] == "number" || token[0] == "float" || token[0] == "bool" || token[0] == "null"){
     return true;
