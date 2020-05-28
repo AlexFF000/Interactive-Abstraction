@@ -414,7 +414,12 @@ function parse_expression(token, left){
         else if (next[1] == "in"){
           identifiedTokens.unshift(["keyword", "in"]);  // Puts the in keyword back in identifiedTokens as it has been deleted
         }
-        if (identifiedTokens[0] == undefined || !(identifiedTokens[0][1] == "operator" || identifiedTokens[0][1] == ")")){
+        else if (next[1] == "address" || next[1] == "dereference"){
+          extended_identifiers.push(parse_pointer(next));
+          expression_tokens.pop();
+          expression_tokens.push(["identifier", 2, extended_identifiers.length - 1]);
+        }
+        if (identifiedTokens[0] == undefined || !(identifiedTokens[0][0] == "operator" || identifiedTokens[0][1] == ")")){
           end = true;
         }
       }
