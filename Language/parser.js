@@ -106,6 +106,9 @@ function parse_keyword(token){
   else if (token[1] == "try"){
     return parse_try(token);
   }
+  else if (token[1] == "address" || token[1] == "dereference"){
+    return parse_pointer(token);
+  }
 }
 
 function parse_identifier(token){
@@ -917,6 +920,51 @@ function parse_reference(){
   return {"type": "reference", "identifier": parse_identifier(token)};
 }
 
+function parse_pointer(token){  // Parse address and dereference keywords
+  var tree = {};
+  if (token[1] == "address"){
+    tree["type"] = "address";
+  }
+  else if (token[1] == "dereference"){
+    tree["type"] = "dereference";
+  }
+  // Parse identifier pointed to by the keyword
+  var next = identifiedTokens.shift();
+  handleUndefined(next);
+  if (next[0] != "identifier"){
+    errors.syntax.unexpected([["identifier", null]], next, next[2]);
+  }
+  // Get all tokens that comprise the identifier
+  var identifier_tokens = [next];
+  next = identifiedTokens[0];
+  while (next != undefined && (next[1] == "[" || next[1] == "(" || next[1] == ".")){
+    identifiedTokens.shift();
+    var sub_identifier_tokens = [];
+    sub_identifier_tokens.push(next);
+    if (next[1] == "["){
+      sub_identifier_tokens = sub_identifier_tokens.concat(getTokenSublist("[", "]"));
+      sub_identifier_tokens.push(["separator", "]"]);
+    }
+    else if (next[1] == "("){
+      sub_identifier_tokens = sub_identifier_tokens.concat(getTokenSublist("(", ")"));
+      sub_identifier_tokens.push(["separator", ")"]);
+    }
+    else if (next[1] == "."){
+      next = identifiedTokens.shift();
+      handleUndefined(next);
+      if (next[0] != "identifier"){
+        errors.syntax.unexpected([["identifier", null]], next, next[2]);
+      }
+      sub_identifier_tokens.push(next);
+    }
+    next = identifiedTokens[0];
+    identifier_tokens = identifier_tokens.concat(sub_identifier_tokens);
+  }
+  // Then parse them using sub_parser
+  tree["subject"] = sub_parser(identifier_tokens)[0];
+  return tree;
+}
+
 function parse_as(tree){
   var next = identifiedTokens.shift();
   handleUndefined(next);
@@ -1231,7 +1279,7 @@ function valid_consecutive_tokens(token){  // Raises error if an operator is fol
     var next = identifiedTokens[0];
     if (next[0] == "operator"){
       if (next[1] == "+" || next[1] == "-" || next[1] == "!"){  // There are two operators in a row, but the expression is still valid as +, -, or ! do not need left values
-        if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" && identifiedTokens != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
+        if (identifiedTokens[1][0] == "operator" || (next[1] == "+" || next[1] == "-") && (identifiedTokens[1][0] != "number" && identifiedTokens[1][0] != "float")){  // Three operators in a row cannot be valid. If following an operator, +/- is used to denote positive / negative numbers so cannot be followed by anything other than a number or float
           errors.syntax.invalidexpression.norightoperand(next[2]);
         }
       }
