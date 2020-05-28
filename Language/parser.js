@@ -395,17 +395,27 @@ function parse_expression(token, left){
         expression_tokens.pop();  // Remove first token of list / dict from expression_tokens
         expression_tokens.push(["separator", 2, extended_identifiers.length - 1]);
 
-        if (identifiedTokens[0] == undefined || !(identifiedTokens[0][1] == "operator" || identifiedTokens[0][1] == ")")){
+        if (identifiedTokens[0] == undefined || !(identifiedTokens[0][0] == "operator" || identifiedTokens[0][1] == ")")){
           end = true;  // If there is no next token, or the next token is not an operator or close bracket, then this must be the end of the expression
         }
       }
       else if (next[0] == "keyword"){  // For parts of expressions preceded by keywords
         if (next[1] == "reference"){
           let reference_tokens = [next, identifiedTokens.shift()];
-          while (identifiedTokens[0] != undefined && identifiedTokens[0][1] == "["){
+          while (identifiedTokens[0] != undefined && (identifiedTokens[0][1] == "[" || identifiedTokens[0][1] == ".")){
+            if (identifiedTokens[0][1] == "["){
             reference_tokens.push(identifiedTokens.shift());
             reference_tokens = reference_tokens.concat(getTokenSublist("[", "]"));
             reference_tokens.push(["separator", "]"]);
+          }
+          else if (identifiedTokens[0][1] == "."){
+            reference_tokens.push(identifiedTokens.shift());
+            handleUndefined(identifiedTokens[0]);
+            if (identifiedTokens[0][0] != "identifier"){
+              errors.syntax.keywordhaswrongtype("reference", [["identifier", null]], identifiedTokens[0][2]);
+            }
+            reference_tokens.push(identifiedTokens.shift());
+          }
           }
           extended_identifiers.push(sub_parser(reference_tokens)[0]);  // Sub parser must be used rather than simply calling parse_reference, as otherwise the identifier will be parsed as an expression
           expression_tokens.pop();  // Replace with extended identifier reference
