@@ -104,7 +104,7 @@ var TokenTests = {"character": function(char){
     return false;
   }
 },
-"removableSeparator": function(char){
+"removableSeparator": function(char){  return false;
   if (char.search(/[\ \r\n]/) != -1){
     return true;
   }
@@ -373,6 +373,7 @@ var openComment = false;
 var currentToken = null;
 var tokenName = null;
 var previousToken = "undefined";
+var startPos = [];  // Contains the location of the first character in a token
 
 identifiedTokens = [];
 chars = [];
@@ -385,6 +386,7 @@ function identifyTokens(char){
   var stop = false;
   previousToken = "undefined";
   if (chars.length == 0 && TokenTests.character(char) === true){  // Identify first character in a new token
+    startPos = [line, column];  // Record location of first char in token
     currentToken = Tokens["character"];
   }
   while (stop === false){
@@ -416,7 +418,7 @@ function identifyTokens(char){
 }
 
 function createToken(){
-  var token = [tokenName, chars.join(""), [line, column]];  // Create token
+  var token = [tokenName, chars.join(""), [startPos, [line, column]]];  // Create token
   if (token[0] == "identifier"){
     token = isKeyword(token[1]);  // Check if identifier name is a keyword
   }
@@ -429,15 +431,15 @@ function isKeyword(name){
   for (var i = 0; i < keywords.length; i++){
     if (name == keywords[i]){
       if (name == "true" || name == "false"){
-        return ["bool", keywords[i], [line, column]];  // If true or false, then create a bool token
+        return ["bool", keywords[i], [startPos, [line, column]]];  // If true or false, then create a bool token
       }
       else if (name == "null"){
-        return ["null", keywords[i], [line, column]];  // If null, the create token for null
+        return ["null", keywords[i], [startPos, [line, column]]];  // If null, the create token for null
       }
-      return ["keyword", keywords[i], [line, column]];  // Change token from identifier to keyword
+      return ["keyword", keywords[i], [startPos, [line, column]]];  // Change token from identifier to keyword
     }
   }
-  return ["identifier", name, [line, column]];  // Name is nt a keyword, so return token unchanged
+  return ["identifier", name, [startPos, [line, column]]];  // Name is nt a keyword, so return token unchanged
 }
 function lexicalAnalyser(code){
   code = code.split("");  // Split string into array of characters
@@ -451,7 +453,8 @@ function lexicalAnalyser(code){
     else{
       char = code.shift();  // Remove first character from code array
     }
-    column++;  // Increment column to allow the correct position to be shown in error messages
+    //column++;  // Increment column to allow the correct position to be shown in error messages
     identifyTokens(char);
+    column++;
 }
 }
