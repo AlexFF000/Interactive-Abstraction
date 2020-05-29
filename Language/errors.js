@@ -13,13 +13,13 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
 "syntax": {"message": "Syntax Error: ",
 "unexpected": function(expected, got, pos){
   var message = errors.syntax.message + ("Expected " + expectedMessage(expected) + " but got '"+ typeOrValue(got) + "'");
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;  // Raise exception to stop execution
 },
 "invalidkeytype": function(got, pos){
   var message = errors.syntax.message + ("Invalid Key: '" + got + "' Dictionary keys must be a number, float, string, or valid identifier");
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;
 },
@@ -30,13 +30,13 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
 },
 "invaliddefinitionparams": function(pos){
   var message = errors.syntax.message + "Parameter provided to function definition is not an identifier";
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;
 },
 "noconditionprovided": function(pos){
   var message = errors.syntax.message + "A valid condition has not been provided to the for loop";
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;
 },
@@ -55,36 +55,36 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
     }
   }
   var message = errors.syntax.message + keyword + " is not followed by " + allowedTypesStatement;
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;
 },
 "nocatchorfinally": function(pos){
   var message = errors.syntax.message = "No catch or finally clause provided for try";
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;
 },
 "invalidexpression": {"unmatchedparantheses": function(pos){
   var message = errors.syntax.message + "Unmatched Parentheses";
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;},
 "unusabletokens": function(pos){
   var message = errors.syntax.message + "Tokens do not create a valid expression";
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;
 },
 "noleftoperand": function(pos){
   var message = errors.syntax.message + "Operator not preceded by a value";
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;
 },
 "norightoperand": function(pos){
   var message = errors.syntax.message + "Operator not followed by a suitable value";
-  message = addPosition(message, pos);
+  message = addPositionParser(message, pos);
   outputConsole(message);
   throw message;
 },
@@ -105,6 +105,12 @@ function errors(char, pos){
 function addPosition(message, pos){  // Add position information to error message
   // pos format: [line, column]
   position = " Line " + pos[0] + ", Column " + pos[1];
+  return message + position;
+}
+
+function addPositionParser(message, pos){
+  // pos format: [[starting line, starting column], [end line, end column]]
+  position = " Line " + pos[0][0] + ", Column " + pos[0][1] + " to" + " Line " + pos[1][0] + ", Column " + pos[1][1];
   return message + position;
 }
 
