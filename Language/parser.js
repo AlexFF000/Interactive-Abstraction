@@ -1159,7 +1159,7 @@ function parse_list_args(){
   var args = {};
   var argscount = 0;  // Number of arguments supplied
   var end = false;
-  var argument = {};
+  var argument = null;
 
   while (end == false){
     let token = identifiedTokens.shift()  // Get next token
@@ -1167,14 +1167,16 @@ function parse_list_args(){
       errors.syntax.incomplete();
     }
     if (token[1] == "]"){  // End of args
-      args[argscount] = argument;  // Add final argument to args
+      if (argument != null){
+        args[argscount] = argument;  // Add final argument to args
+    }
       end = true;
       break;
     }
     else if (token[1] == ","){  // End of one argument, but another has been supplied
       args[argscount] = argument;  // Add argument to args
       argscount++;  // Increment argscount
-      argument = {};  // Clear argument ready for next argument
+      argument = null;  // Clear argument ready for next argument
     }
     argument = parsers[token[0]](token);  // Parse list argument using correct parsing function
     if (identifiedTokens[0] == undefined){
