@@ -453,8 +453,8 @@ function lexicalAnalyser(code){
     else{
       char = code.shift();  // Remove first character from code array
     }
-    //column++;  // Increment column to allow the correct position to be shown in error messages
+    column++;  // Increment column to allow the correct position to be shown in error messages
     identifyTokens(char);
-    column++;
+
 }
 }
