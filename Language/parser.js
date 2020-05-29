@@ -215,6 +215,7 @@ function parse_definition_identifier(token){  // For parsing identifiers used in
 
 function parse_expression(token, left){
   parserStack.push("parse_expression");
+  try{
     //  Get all the tokens that make up the expression
     var expression_tokens = [];
     var extended_identifiers = [];  // List for identifiers that point to an index in a list or dict e.g. example[0]
@@ -439,7 +440,15 @@ function parse_expression(token, left){
     }
     // Convert expression to postfix notation and translate to AST
     return parse_postfix(postfix(expression_tokens, extended_identifiers));
-
+}
+catch (err){
+  if (err.name == "TypeError"){
+    errors.syntax.invalidexpression.unusabletokens();
+  }
+  else{
+    throw err;  // Re throw the error
+  }
+}
 }
 
 function postfix(tokens, extended_identifiers){  // Convert to postfix notation using Dijkstra's shunting yard algorithm
