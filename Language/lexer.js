@@ -437,7 +437,7 @@ function isKeyword(name){
       return ["keyword", keywords[i], [line, column]];  // Change token from identifier to keyword
     }
   }
-  return ["identifier", name];  // Name is nt a keyword, so return token unchanged
+  return ["identifier", name, [line, column]];  // Name is nt a keyword, so return token unchanged
 }
 function lexicalAnalyser(code){
   code = code.split("");  // Split string into array of characters
