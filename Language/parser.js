@@ -39,31 +39,55 @@ function isExpected(token, tokenPos){  // Check if token is a top of expectedSta
   }
 }
 
+var tokenLocations = [];
+
+function start_parser(){
+  for (i in identifiedTokens){  // Copy locations from identifiedTokens to create list of locations for each token
+    tokenLocations.push(identifiedTokens[i][2]);
+  }
+  parse_program();
+}
 
 function parse_program(){  // Parse program from top level
   while (identifiedTokens.length > 0){
     parserStack.push("parse_program");
+    var tree = {};
     var token = identifiedTokens.shift()  // Get next token
+    var startLocation = getTokenIndex();  // Get index of token starting the statement
     if (token[0] == "keyword"){
-      syntaxTree.push(parse_keyword(token));
+      tree = addLocation(parse_keyword(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "identifier"){
-      syntaxTree.push(parse_identifier(token));
+      tree = addLocation(parse_identifier(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "number" || token[0] == "float" || token[0] == "string"){
-      syntaxTree.push(parse_expression(token));
+      tree = addLocation(parse_expression(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "bool"){
-      syntaxTree.push(parse_literal(token));
+      tree = addLocation(parse_literal(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "null"){
-      syntaxTree.push(parse_literal(token));
+      tree = addLocation(parse_literal(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "operator"){  // Numbers may begin with +/- to denote whether they are positive or negative, or the ! operator
-      syntaxTree.push(parse_operator(token));
+      tree = addLocation(parse_operator(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "separator"){
-      syntaxTree.push(parse_separator(token));
+      tree = addLocation(parse_separator(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
 }
 }
@@ -1407,4 +1431,34 @@ function sub_parser(token_list){  // Run the parser with a different version of 
   syntaxTree = currentTree;
 
   return newTree;
+}
+
+function getTokenIndex(){  // Get index of most recent token
+  return (tokenLocations.length - identifiedTokens.length) - 1;  // JS implements .length as a property of array object, so this does not require iterating and counting
+}
+
+function addLocation(tree, token_index, overwrite){  // Add position to tree
+  let tokenIdx;
+  if (token_index == undefined){
+    tokenIdx = getTokenIndex();  // If no index provided, then use the most recent token
+  }
+  else{
+    tokenIdx = token_index;
+  }
+  if (tree["position"] == undefined){  // Create position key if it doesn't already exist
+    tree["position"] = [];
+  }
+  if (tree["position"].length == 2){  // If both positions are alrady set, then overwrite the first unless otherwise specified by overwrite
+    if (overwrite == undefined || overwrite == 0){
+      tree["position"][0] = tokenIdx;
+    }
+    else if (overwrite == 1){  // If overwite is 1, then overwrite 1st index (i.e. 2nd position)
+      tree["position"][1] = tokenIdx;
+    }
+    else;  // If it is anything else, then do not overwrite at all
+  }
+  else{
+    tree["position"].push(tokenIdx);
+  }
+  return tree;
 }
