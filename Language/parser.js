@@ -51,27 +51,43 @@ function start_parser(){
 function parse_program(){  // Parse program from top level
   while (identifiedTokens.length > 0){
     parserStack.push("parse_program");
+    var tree = {};
     var token = identifiedTokens.shift()  // Get next token
+    var startLocation = getTokenIndex();  // Get index of token starting the statement
     if (token[0] == "keyword"){
-      syntaxTree.push(parse_keyword(token));
+      tree = addLocation(parse_keyword(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "identifier"){
-      syntaxTree.push(parse_identifier(token));
+      tree = addLocation(parse_identifier(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "number" || token[0] == "float" || token[0] == "string"){
-      syntaxTree.push(parse_expression(token));
+      tree = addLocation(parse_expression(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "bool"){
-      syntaxTree.push(parse_literal(token));
+      tree = addLocation(parse_literal(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "null"){
-      syntaxTree.push(parse_literal(token));
+      tree = addLocation(parse_literal(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "operator"){  // Numbers may begin with +/- to denote whether they are positive or negative, or the ! operator
-      syntaxTree.push(parse_operator(token));
+      tree = addLocation(parse_operator(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
     else if (token[0] == "separator"){
-      syntaxTree.push(parse_separator(token));
+      tree = addLocation(parse_separator(token), startLocation);
+      tree = addLocation(tree);
+      syntaxTree.push(tree);
     }
 }
 }
@@ -121,14 +137,13 @@ function parse_keyword(token){
 
 function parse_identifier(token){
   parserStack.push("parse_identifier")
-  var tree = addLocation({"type": "identifier", "name": token[1]});
-  var startPos = getTokenIndex();
+  var tree = {"type": "identifier", "name": token[1]};
   var next = identifiedTokens[0];  // Get next token without removing it
   if (next == undefined){
-    return addLocation(tree);
+    return tree;
   }
   if (next[0] == "operator"){  // An assignment or expression
-    return addLocation(parse_expression(tree), startPos);
+    return parse_expression(tree);
   }
   while (next[1] == "("){  // A function call
     identifiedTokens.shift()  // Remove next token from list
