@@ -39,6 +39,14 @@ function isExpected(token, tokenPos){  // Check if token is a top of expectedSta
   }
 }
 
+var tokenLocations = [];
+
+function start_parser(){
+  for (i in identifiedTokens){  // Copy locations from identifiedTokens to create list of locations for each token
+    tokenLocations.push(identifiedTokens[i][2]);
+  }
+  parse_program();
+}
 
 function parse_program(){  // Parse program from top level
   while (identifiedTokens.length > 0){
@@ -113,13 +121,14 @@ function parse_keyword(token){
 
 function parse_identifier(token){
   parserStack.push("parse_identifier")
-  var tree = {"type": "identifier", "name": token[1]};
+  var tree = addLocation({"type": "identifier", "name": token[1]});
+  var startPos = getTokenIndex();
   var next = identifiedTokens[0];  // Get next token without removing it
   if (next == undefined){
-    return tree;
+    return addLocation(tree);
   }
   if (next[0] == "operator"){  // An assignment or expression
-    return parse_expression(tree);
+    return addLocation(parse_expression(tree), startPos);
   }
   while (next[1] == "("){  // A function call
     identifiedTokens.shift()  // Remove next token from list
@@ -1407,4 +1416,34 @@ function sub_parser(token_list){  // Run the parser with a different version of 
   syntaxTree = currentTree;
 
   return newTree;
+}
+
+function getTokenIndex(){  // Get index of most recent token
+  return (tokenLocations.length - identifiedTokens.length) - 1;  // JS implements .length as a property of array object, so this does not require iterating and counting
+}
+
+function addLocation(tree, token_index, overwrite){  // Add position to tree
+  let tokenIdx;
+  if (token_index == undefined){
+    tokenIdx = getTokenIndex();  // If no index provided, then use the most recent token
+  }
+  else{
+    tokenIdx = token_index;
+  }
+  if (tree["position"] == undefined){  // Create position key if it doesn't already exist
+    tree["position"] = [];
+  }
+  if (tree["position"].length == 2){  // If both positions are alrady set, then overwrite the first unless otherwise specified by overwrite
+    if (overwrite == undefined || overwrite == 0){
+      tree["position"][0] = tokenIdx;
+    }
+    else if (overwrite == 1){  // If overwite is 1, then overwrite 1st index (i.e. 2nd position)
+      tree["position"][1] = tokenIdx;
+    }
+    else;  // If it is anything else, then do not overwrite at all
+  }
+  else{
+    tree["position"].push(tokenIdx);
+  }
+  return tree;
 }
