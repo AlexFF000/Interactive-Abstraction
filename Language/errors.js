@@ -126,7 +126,9 @@ function addPositionParser(message, pos){
 
 function addPositionSemantic(message, pos){
   // Pos must first be converted from token numbers to actual line/column Numbers
-  
+  let startPos = tokenLocations[pos[0]][0];  // Start position of first token in the tree
+  let endPos = tokenLocations[pos[1]][1];  // End position of the last token in the tree
+  return addPositionParser(message, [startPos, endPos]);
 }
 
 function outputConsole(text){
