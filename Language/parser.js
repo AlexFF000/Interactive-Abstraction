@@ -1,44 +1,6 @@
 var syntaxTree = [];  // index: [item, parent];
-var treeIndexes = 0;
 var parserStack = []  // Stack of parser functions for debugging purposes
 var parsers = {"identifier": parse_identifier, "keyword": parse_keyword, "operator": parse_operator, "string": parse_literal, "number": parse_literal, "float": parse_literal, "bool": parse_literal, "null": parse_literal, "separator": parse_separator};
-function addToTree(item, parent){
-  treeIndexes++;  // Increment to create a new index for the new node
-  syntaxTree[treeIndexes] = [item, parent];
-  treeStack.push(treeIndexes);
-}
-
-
-var expectedStack = [];  // Stack containing tokens that are expected.  Format: [[[token type, value], [Multiple can be specified]], needed immediately (true or false)]  // Needed immediately specifies whether the expected token needs to be the next character
-var tokenPos;  // Will hold the position of the token in the original input
-
-function isExpected(token, tokenPos){  // Check if token is a top of expectedStack
-  var expected = expectedStack[expectedStack.length -1];  // Get expected token
-  var found = false;
-  for (var i = 0; i < expected[0].length; i++){
-    if (token[0] == expected[0][i][0]){
-      if (expected[0][i][1] !== null){  // The value of the token must also match
-        if (token[1] == expected[0][i][1]){  //  Value matches
-          found = true;
-          break;
-        }
-      }
-      else{
-        found = true;
-        break;
-      }
-    }
-  }
-  if (found === true){  // The expected token was found
-    expectedStack.pop();  // Remove from expected stack
-  }
-  else{
-    if (expected[1] === true){  // The expected token was wanted immediately, but not found
-      errors.syntax.unexpected(expectedMessage(expected), token[1], tokenPos);
-    }
-  }
-}
-
 var tokenLocations = [];
 
 function start_parser(){
@@ -613,34 +575,6 @@ function parse_args(){
     args.push(sub_parser(all_args[i])[0]);
   }
   return args;
-
-/*
-  var args = {};
-  var argscount = 0;  // Number of arguments supplied
-  var end = false;
-  var argument = {};
-  while (end == false){
-    let token = identifiedTokens.shift()  // Get next token
-    if (token[1] == ")"){  // End of args
-      args[argscount] = argument;  // Add final argument to args
-      end = true;
-      break;
-    }
-    else if (token[1] == ","){  // End of one argument, but another has been supplied
-      args[argscount] = argument;  // Add argument to args
-      argscount++;  // Increment argscount
-      argument = {};  // Clear argument ready for next argument
-      //break;
-    }
-    if (isConstant(token) && identifiedTokens[0] != undefined && identifiedTokens[0][0] == "operator"){
-      argument = parse_expression(token);  // If the token is a literal type, and is followed by an operator then send it to parse_expression directly (as parse_literal will not check for an operator after so only the first token of the expression will be parsed)
-    }
-    else{
-      argument = parsers[token[0]](token);
-  }
-  }
-  return args;
-  */
 }
 
 function parse_operator(token, left){
@@ -884,20 +818,11 @@ function parse_if(token){
   }
   next = identifiedTokens.shift();
   var condition = parse_expression(next);
-  //next = identifiedTokens.shift();
-  //if (next[1] != ")"){  // Expression must be followed by close bracket
-  //  errors.syntax.unexpected([["separator", ")"]], next, next[2]);
-  //}
   next = identifiedTokens.shift();
   if (next == undefined || next[1] != "{"){
     errors.syntax.unexpected([["separator", "{"]], next, next[2]);
   }
   var innerCode = [];  // Syntax tree for code within the loop
-  /* while (next[1] != "}"){
-    next = identifiedTokens.shift();
-    if (next == undefined) {errors.syntax.incomplete;}
-    innerCode.push(parsers[next[0]](next));
-  } */
   let innerTokens = getTokenSublist("{", "}");
   innerCode = sub_parser(innerTokens);
   next = identifiedTokens[0];
