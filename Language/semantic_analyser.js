@@ -1,4 +1,13 @@
 var symbol_table = {};
+var scope = symbol_table;  // Contains reference to the symbol table for the current scope
+var startScope = symbol_table;  // Contains reference to most immediate scope (e.g. the most immediate scope for code in an if statement would be the scope of that if statement)
+var identifier_flags = {
+  "public": false,
+"private": false,
+"static": false,
+"global": false
+};  // Flags for use when analysing identifiers
+
 function semantic_analyser(tree){
   // Traverse through syntax trees, calling correct semantic anlaysis function for each
   if (getObjectType(tree) == "array"){  // If an array of trees, iterate through and call analyser on each
@@ -50,7 +59,7 @@ function analyse_tree(tree){
 }
 
 function analyse_identifier(tree){
-  console.log("analyse_identifier");
+  
 }
 
 function analyse_modifier(tree){
