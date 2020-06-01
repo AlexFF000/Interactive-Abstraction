@@ -12,5 +12,21 @@ function semantic_analyser(tree){
 }
 
 function analyse_tree(tree){
-
+  switch (tree["type"]){
+    case "identifier":
+      analyse_identifier(tree);
+      break;
+    case ("public" || "private" || "static" || "global"):
+      analyse_modifier(tree);
+      break;
+    case ("function" || "class"):
+      analyse_definition(tree);
+      break;
+    case ("if" || "for" || "while"):
+      analyse_block(tree);
+      break;
+    case ("=" || "==" || "<" || ">" || "<=" || ">=" || "&" || "|" || "+" || "-" || "*" || "/"):
+      analyse_operator(tree);
+      break;
+  }
 }
