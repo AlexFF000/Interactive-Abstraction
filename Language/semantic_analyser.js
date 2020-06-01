@@ -1,6 +1,6 @@
-var symbol_table = {};
-var scope = symbol_table;  // Contains reference to the symbol table for the current scope
-var startScope = symbol_table;  // Contains reference to most immediate scope (e.g. the most immediate scope for code in an if statement would be the scope of that if statement)
+var symbol_table = {"symbols": {}, "sub_scopes": [], "parent": null};
+var mainScope = symbol_table;  // Contains reference to the symbol table for the current scope
+var mainStartScope = symbol_table;  // Contains reference to most immediate scope (e.g. the most immediate scope for code in an if statement would be the scope of that if statement)
 var identifier_flags = {
   "public": false,
 "private": false,
@@ -58,8 +58,29 @@ function analyse_tree(tree){
   }
 }
 
-function analyse_identifier(tree){
-  
+function analyse_identifier(tree){  // Prevent an identifier being declared with a name that is already accessible in an accessible scope
+  var scope = mainScope;
+  var startScope = mainScope;
+  var found = false;
+  if (identifier_flags["global"] == true){  // If global then move to the global scope
+    scope = symbol_table;
+    startScope = symbol_table;
+  }
+  // Check if identifier exists in current scope
+  while (scope.symbols[tree.name] == undefined){
+    if (scope.parent == null){  // Scope is global
+      // Add new symbol, as there is no symbol with that name already
+      startScope.symbols[tree.name] = null;
+      resetIdentifierFlags();
+    }
+    else{
+      scope = scope.parent;  // Move up to the parent scope, and see if the identifier already exists there
+    }
+  }
+  if (identifier_flags["public"] || identifier_flags["private"] || identifier_flags["static"] || identifier_flags["global"]){
+    errors.semantic.nameexists(tree["position"]);
+  }
+
 }
 
 function analyse_modifier(tree){
@@ -76,4 +97,11 @@ function analyse_block(tree){
 
 function analyse_operator(tree){
   console.log("analyse_operator");
+}
+
+function resetIdentifierFlags(){  // Reset identifier flags to false
+  identifier_flags["public"] = false;
+  identifier_flags["private"] = false;
+  identifier_flags["static"] = false;
+  identifier_flags["global"] = false;
 }
