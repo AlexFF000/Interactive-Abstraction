@@ -95,7 +95,7 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
   "message": "Semantic Error: ",
   "nameexists": function(pos){  // Do not use this error, as a similar error will exist at runtime so catch staements would have to check for both
     var message = errors.semantic.message + "Name is not unique in all accessible scopes";
-    message = addPositionParser(message, pos);
+    message = addPositionSemantic(message, pos);
     outputConsole(message);
     throw message;
   }
@@ -122,6 +122,11 @@ function addPositionParser(message, pos){
   // pos format: [[starting line, starting column], [end line, end column]]
   position = " Line " + pos[0][0] + ", Column " + pos[0][1] + " to" + " Line " + pos[1][0] + ", Column " + pos[1][1];
   return message + position;
+}
+
+function addPositionSemantic(message, pos){
+  // Pos must first be converted from token numbers to actual line/column Numbers
+  
 }
 
 function outputConsole(text){
