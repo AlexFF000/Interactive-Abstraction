@@ -16,17 +16,55 @@ function analyse_tree(tree){
     case "identifier":
       analyse_identifier(tree);
       break;
-    case ("public" || "private" || "static" || "global"):
+    case "public":
+    case "private":
+    case "static":
+    case "global":
       analyse_modifier(tree);
       break;
-    case ("function" || "class"):
+    case "function":
+    case "class":
       analyse_definition(tree);
       break;
-    case ("if" || "for" || "while"):
+    case "if":
+    case "for":
+    case "foreach":
+    case "while":
       analyse_block(tree);
       break;
-    case ("=" || "==" || "<" || ">" || "<=" || ">=" || "&" || "|" || "+" || "-" || "*" || "/"):
+    case "=":
+    case "==":
+    case "<":
+    case ">":
+    case "<=":
+    case ">=":
+    case "&":
+    case "|":
+    case "+":
+    case "-":
+    case "*":
+    case "/":
       analyse_operator(tree);
       break;
   }
+}
+
+function analyse_identifier(tree){
+  console.log("analyse_identifier");
+}
+
+function analyse_modifier(tree){
+  console.log("analyse_modifier");
+}
+
+function analyse_definition(tree){
+  console.log("analyse_definition");
+}
+
+function analyse_block(tree){
+  console.log("analyse_block");
+}
+
+function analyse_operator(tree){
+  console.log("analyse_operator");
 }
