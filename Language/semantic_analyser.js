@@ -1,15 +1,16 @@
-var expression_rules = {"+": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}, {"left": ["identifier", "call", "index", "string"], "right": ["identifier", "call", "index", "string"]}],
-"-": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
-"*": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
-"/": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
-">": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
-"<": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
-">=": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
-"<=": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
-"==": [{"left": ["identifier", "call", "index", "number", "float", "bool"], "right": ["identifier", "call", "index", "number", "float", "bool"]}],
-"|": [{"left": ["identifier", "call", "index", "bool"], "right": ["identifier", "call", "index", "bool"]}],
-"&": [{"left": ["identifier", "call", "index", "bool"], "right": ["identifier", "call", "index", "bool"]}],
-"!": [{"right": ["identifier", "call", "index", "bool"]}]
+var expression_rules = {"+": [{"left": ["identifier", "call", "index", "child", "number", "float"], "right": ["identifier", "call", "index", "child", "number", "float"]}, {"left": ["identifier", "call", "index", "child", "string"], "right": ["identifier", "call", "index", "child", "string"]}],
+"-": [{"left": ["identifier", "call", "index", "child", "number", "float"], "right": ["identifier", "call",  "index", "child", "number", "float"]}],
+"*": [{"left": ["identifier", "call", "index", "child", "number", "float"], "right": ["identifier", "call", "index", "child", "number", "float"]}],
+"/": [{"left": ["identifier", "call", "index", "child", "number", "float"], "right": ["identifier", "call", "index", "child", "number", "float"]}],
+">": [{"left": ["identifier", "call", "index", "child", "number", "float"], "right": ["identifier", "call", "index", "child", "number", "float"]}],
+"<": [{"left": ["identifier", "call", "index", "child", "number", "float"], "right": ["identifier", "call", "index", "child", "number", "float"]}],
+">=": [{"left": ["identifier", "call", "index", "child", "number", "float"], "right": ["identifier", "call", "index", "child", "number", "float"]}],
+"<=": [{"left": ["identifier", "call", "index", "child", "number", "float"], "right": ["identifier", "call", "index", "child", "number", "float"]}],
+"==": [{"left": ["identifier", "call", "index", "child", "number", "float", "bool"], "right": ["identifier", "call", "index", "child", "number", "float", "bool"]}],
+"|": [{"left": ["identifier", "call", "index", "child", "bool"], "right": ["identifier", "call", "index", "child", "bool"]}],
+"&": [{"left": ["identifier", "call", "index", "child", "bool"], "right": ["identifier", "call", "index", "child", "bool"]}],
+"!": [{"right": ["identifier", "call", "index", "child", "bool"]}],
+"=": [{"left": ["identifier", "index", "call", "child"], "right": ["identifier", "index", "call", "child", "string", "number", "float", "bool"]}]
 };
 
 
@@ -162,12 +163,24 @@ function analyse_operator(tree){
     }
   }
   else{
-
+    expressionMatchesRule(tree);
   }
 }
 
 function expressionMatchesRule(tree){  // Check if the expression meets the type rules
-
+  var rules = expression_rules[tree.type];  // The rules for the operator
+  var rulesMet = false;
+  for (var possibility in rules){  // A rule may contain multiple possibilities, only one possibility needs to be met
+    if (arrayContains(rules[possibility]["right"], tree.right.type)){
+      if (rules[possibility]["left"] == undefined || arrayContains(rules[possibility]["left"], tree.left.type)){
+        rulesMet = true;
+        break;
+      }
+    }
+  }
+  if (rulesMet == false){
+    errors.semantic.invalidoperand(tree, tree.position);
+  }
 }
 
 function resetIdentifierFlags(){  // Reset identifier flags to false
@@ -187,6 +200,7 @@ function isType(tree){  // Return true if the tree type is a type (i.e. a litera
     case "identifier":
     case "call":
     case "index":
+    case "child":
     case "string":
     case "number":
     case "float":
@@ -195,4 +209,13 @@ function isType(tree){  // Return true if the tree type is a type (i.e. a litera
     default:
       return false;
   }
+}
+
+function arrayContains(arrayToSearch, query){  // Return true if given item is in array, false otherwise
+  for (var i in arrayToSearch){
+    if (arrayToSearch[i] == query){
+      return true;
+    }
+  }
+  return false;
 }
