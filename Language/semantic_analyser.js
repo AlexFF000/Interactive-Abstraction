@@ -1,3 +1,18 @@
+var expression_rules = {"+": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}, {"left": ["identifier", "call", "index", "string"], "right": ["identifier", "call", "index", "string"]}],
+"-": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
+"*": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
+"/": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
+">": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
+"<": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
+">=": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
+"<=": [{"left": ["identifier", "call", "index", "number", "float"], "right": ["identifier", "call", "index", "number", "float"]}],
+"==": [{"left": ["identifier", "call", "index", "number", "float", "bool"], "right": ["identifier", "call", "index", "number", "float", "bool"]}],
+"|": [{"left": ["identifier", "call", "index", "bool"], "right": ["identifier", "call", "index", "bool"]}],
+"&": [{"left": ["identifier", "call", "index", "bool"], "right": ["identifier", "call", "index", "bool"]}],
+"!": [{"right": ["identifier", "call", "index", "bool"]}]
+};
+
+
 var symbol_table = {"symbols": {}, "sub_scopes": [], "parent": null};
 var mainScope = symbol_table;  // Contains reference to the symbol table for the current scope
 var identifier_flags = {
@@ -46,6 +61,7 @@ function analyse_tree(tree){
     case ">=":
     case "&":
     case "|":
+    case "!":
     case "+":
     case "-":
     case "*":
@@ -133,7 +149,25 @@ function analyse_block(tree){
 }
 
 function analyse_operator(tree){
-  console.log("analyse_operator");
+  // Make sure both sides are analysed first
+  if (tree.type == "!" && !isType(tree.right)){
+    semantic_analyser(tree.right);
+  }
+  else if (!(isType(tree.left) && isType(tree.right))){
+    if (!isType(tree.left)){
+      semantic_analyser(tree.left);
+    }
+    if (!isType(tree.right)){
+      semantic_analyser(tree.right);
+    }
+  }
+  else{
+
+  }
+}
+
+function expressionMatchesRule(tree){  // Check if the expression meets the type rules
+
 }
 
 function resetIdentifierFlags(){  // Reset identifier flags to false
@@ -146,4 +180,19 @@ function resetIdentifierFlags(){  // Reset identifier flags to false
 function create_new_scope(){
   // Parent is the scope of which this new scope is a sub_scope, therefore the scope currenly in mainScope
   return {"symbols": {}, "sub_scopes": [], "parent": mainScope};
+}
+
+function isType(tree){  // Return true if the tree type is a type (i.e. a literal or identifier)
+  switch (tree.type){
+    case "identifier":
+    case "call":
+    case "index":
+    case "string":
+    case "number":
+    case "float":
+    case "bool":
+      return true;
+    default:
+      return false;
+  }
 }
