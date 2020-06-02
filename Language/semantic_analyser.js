@@ -1,6 +1,5 @@
 var symbol_table = {"symbols": {}, "sub_scopes": [], "parent": null};
 var mainScope = symbol_table;  // Contains reference to the symbol table for the current scope
-var mainStartScope = symbol_table;  // Contains reference to most immediate scope (e.g. the most immediate scope for code in an if statement would be the scope of that if statement)
 var identifier_flags = {
   "public": false,
 "private": false,
@@ -25,9 +24,7 @@ function analyse_tree(tree){
     case "identifier":
       analyse_identifier(tree);
       break;
-    case "public":
-    case "private":
-    case "static":
+    case "modifier":
     case "global":
       analyse_modifier(tree);
       break;
@@ -70,8 +67,9 @@ function analyse_identifier(tree){  // Prevent an identifier being declared with
   while (scope.symbols[tree.name] == undefined){
     if (scope.parent == null){  // Scope is global
       // Add new symbol, as there is no symbol with that name already
-      startScope.symbols[tree.name] = null;
+      startScope.symbols[tree.name] = true;
       resetIdentifierFlags();
+      break;
     }
     else{
       scope = scope.parent;  // Move up to the parent scope, and see if the identifier already exists there
@@ -84,11 +82,44 @@ function analyse_identifier(tree){  // Prevent an identifier being declared with
 }
 
 function analyse_modifier(tree){
-  console.log("analyse_modifier");
+  var next;
+  // Set correct flag
+  if (tree.type == "global"){
+    identifier_flags["global"] = true;
+    next = tree.identifier;
+  }
+  else{
+  switch (tree.modifier){
+    case "public":
+      identifier_flags["public"] = true;
+      break;
+    case "private":
+      identifier_flags["private"] = true;
+      break;
+    case "static":
+      identifier_flags["static"] = true;
+      break;
+  }
+  next = tree.subject;
+}
+//  Analyse the subtree that the keyword applies to
+  semantic_analyser(next);
 }
 
 function analyse_definition(tree){
-  console.log("analyse_definition");
+  // First analyse name of function / class
+  semantic_analyser(tree.name);
+  // Then create new scope
+  // Keep a reference to the current scope to go back to it once the definition has been analysed
+  var currentScope = mainScope;
+  // Create a new scope for this definition
+  mainScope.sub_scopes.push(create_new_scope());
+  // Make the new scope the one currently in use
+  mainScope = mainScope.sub_scopes[mainScope.sub_scopes.length - 1];
+  // Analyse the code inside the definition
+  semantic_analyser(tree.code);
+  // Finally, return to previous scope
+  mainScope = currentScope;
 }
 
 function analyse_block(tree){
@@ -104,4 +135,9 @@ function resetIdentifierFlags(){  // Reset identifier flags to false
   identifier_flags["private"] = false;
   identifier_flags["static"] = false;
   identifier_flags["global"] = false;
+}
+
+function create_new_scope(){
+  // Parent is the scope of which this new scope is a sub_scope, therefore the scope currenly in mainScope
+  return {"symbols": {}, "sub_scopes": [], "parent": mainScope};
 }
