@@ -123,7 +123,13 @@ function analyse_definition(tree){
 }
 
 function analyse_block(tree){
-  console.log("analyse_block");
+  // Create new scope
+  var currentScope = mainScope;
+  mainScope.sub_scopes.push(create_new_scope());
+  mainScope = mainScope.sub_scopes[mainScope.sub_scopes.length - 1];
+  // Analyse the code in the block
+  semantic_analyser(tree.code);
+  mainScope = currentScope;
 }
 
 function analyse_operator(tree){
