@@ -98,6 +98,18 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
     message = addPositionSemantic(message, pos);
     outputConsole(message);
     throw message;
+  },
+  "invalidoperand": function (tree, pos){
+    var message;
+    if (tree.type == "!"){
+      message = "! operator cannot be followed by type: " + tree.right.type;
+    }
+    else{
+      message = tree.type + " operator cannot be preceded by type: " + tree.left.type + " and followed by type: " + tree.right.type;
+    }
+    message = addPositionSemantic(message, pos);
+    outputConsole(message);
+    throw message;
   }
 }
 }
