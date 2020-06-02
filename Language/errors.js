@@ -89,6 +89,28 @@ var errors = {"lexical": {"message": "Lexical Error: ", "InvalidCharacter": func
   throw message;
 },
 }
+},
+
+"semantic": {
+  "message": "Semantic Error: ",
+  "nameexists": function(pos){  // Do not use this error, as a similar error will exist at runtime so catch staements would have to check for both
+    var message = errors.semantic.message + "Name is not unique in all accessible scopes";
+    message = addPositionSemantic(message, pos);
+    outputConsole(message);
+    throw message;
+  },
+  "invalidoperand": function (tree, pos){
+    var message;
+    if (tree.type == "!"){
+      message = "! operator cannot be followed by type: " + tree.right.type;
+    }
+    else{
+      message = tree.type + " operator cannot be preceded by type: " + tree.left.type + " and followed by type: " + tree.right.type;
+    }
+    message = addPositionSemantic(message, pos);
+    outputConsole(message);
+    throw message;
+  }
 }
 }
 
@@ -112,6 +134,13 @@ function addPositionParser(message, pos){
   // pos format: [[starting line, starting column], [end line, end column]]
   position = " Line " + pos[0][0] + ", Column " + pos[0][1] + " to" + " Line " + pos[1][0] + ", Column " + pos[1][1];
   return message + position;
+}
+
+function addPositionSemantic(message, pos){
+  // Pos must first be converted from token numbers to actual line/column Numbers
+  let startPos = tokenLocations[pos[0]][0];  // Start position of first token in the tree
+  let endPos = tokenLocations[pos[1]][1];  // End position of the last token in the tree
+  return addPositionParser(message, [startPos, endPos]);
 }
 
 function outputConsole(text){

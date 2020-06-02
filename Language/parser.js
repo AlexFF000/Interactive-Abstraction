@@ -1303,15 +1303,6 @@ function isConstant(token){  // Return true if the token is one of the constant 
   }
 }
 
-function getObjectType(obj){  // Determine whether an object is an array or object
-  if (obj.constructor == Array){
-    return "array";
-  }
-  else{
-    return "object";
-  }
-}
-
 function handleUndefined(token){  // Check if a token is undefined, and raise the "incomplete code" error if necessary  Function should only be in cases where a) an undefined token is syntactically incorrect (i.e. in the middle of a statement) and b) a case specific error is not unnecessary
   if (token == undefined){
     errors.syntax.incomplete();

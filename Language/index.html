@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <head>
+  <script src="functions.js"></script>
   <script src="errors.js"></script>
 <script src="lexer.js"></script>
 <script src="parser.js"></script>
 <script src="config.js"></script>
+<script src="semantic_analyser.js"></script>
 </head>
 <body>
   <textarea id="testInput" name="name" rows="8" cols="80"></textarea>
   <button value="go" onclick="lexicalAnalyser(document.getElementById('testInput').value);"></button>
   <button value="parse" onclick="start_parser();">parse</button>
+  <button value="semantic" onclick="semantic_analyser(syntaxTree);">Semantic Analysis</button>
   </body>
