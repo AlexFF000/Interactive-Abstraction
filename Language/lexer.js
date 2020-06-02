@@ -103,15 +103,8 @@ var TokenTests = {"character": function(char){
   else{
     return false;
   }
-},
-"removableSeparator": function(char){  return false;
-  if (char.search(/[\ \r\n]/) != -1){
-    return true;
-  }
-  else{
-    return false;
-  }
-}}
+}
+}
 
 var Tokens = {"character": function(char){
     if (TokenTests.operator(char) === true){
@@ -142,9 +135,6 @@ var Tokens = {"character": function(char){
   if (TokenTests.separator(char) === true){
     endOfToken = true;
     tokenName = "operator";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
   }
 },
 "symbol": function(char){
@@ -182,9 +172,6 @@ var Tokens = {"character": function(char){
     else if (TokenTests.separator(char) === true){
       endOfToken = true;
       tokenName = "number";
-      if (TokenTests.removableSeparator(char) === true){
-        deleteChar = true;
-      }
     }
     else{
       currentToken = Tokens["number"];
@@ -200,9 +187,6 @@ var Tokens = {"character": function(char){
     else if (TokenTests.separator(char) === true){
       endOfToken = true;
       tokenName = "identifier";
-      if (TokenTests.removableSeparator(char) === true){
-        deleteChar = true;
-      }
     }
 },
 "separator": function(char){
@@ -299,9 +283,6 @@ var Tokens = {"character": function(char){
   else if (TokenTests.separator(char) === true){
     endOfToken = true;
     tokenName = "float";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
   }
   else{
     currentToken = "invalid";
@@ -335,9 +316,6 @@ var Tokens = {"character": function(char){
   else if (TokenTests.separator(char) === true){
     endOfToken = true;
     tokenName = "identifier";
-    if (TokenTests.removableSeparator(char) === true){
-      deleteChar = true;
-    }
   }
   else if (TokenTests.operator(char) === true){
     endOfToken = true;
