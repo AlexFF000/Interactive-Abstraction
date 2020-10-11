@@ -55,7 +55,7 @@ function generate_intermediate_code(tree){
   intermediateCode.push(["SETUP", []])
   while (tree.length > 0){
     item = tree.shift();
-
+    Instructions[item.type](item);
   }
 }
 
@@ -99,8 +99,22 @@ function intermediate_catch(item){}
 function intermediate_finally(item){}
 function intermediate_list(item){}
 function intermediate_dict(item){}
-function intermediate_string(item){}
-function intermediate_int(item){}
-function intermediate_float(item){}
-function intermediate_bool(item){}
-function intermediate_null(item){}
+function intermediate_string(item){
+  intermediateCode.push(["STRING", [item.value]]);
+}
+
+function intermediate_int(item){
+  intermediateCode.push(["INT", [item.value]]);
+}
+
+function intermediate_float(item){
+  intermediateCode.push(["FLOAT", [item.value]]);
+}
+
+function intermediate_bool(item){
+  intermediateCode.push(["BOOL", [item.value]]);
+}
+
+function intermediate_null(item){
+  intermediateCode.push(["NULL", []]);
+}
