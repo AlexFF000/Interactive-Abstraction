@@ -63,20 +63,98 @@ function intermediate_identifier(item){}
 function intermediate_call(item){}
 function intermediate_index(item){}
 function intermediate_child(item){}
-function intermediate_add(item){}
-function intermediate_sub(item){}
-function intermediate_div(item){}
-function intermediate_mult(item){}
-function intermediate_not(item){}
-function intermediate_and(item){}
-function intermediate_or(item){}
-function intermediate_lesser(item){}
-function intermediate_greater(item){}
-function intermediate_lesserequal(item){}
-function intermediate_greaterequal(item){}
-function intermediate_equal(item){}
-function intermediate_notequal(item){}
-function intermediate_assign(item){}
+function intermediate_add(item){
+  // Generate instructions to put left value on evaluation stack
+  generate_intermediate_code(item.left);
+  // Generate instructions to put right value on evaluation stack
+  generate_intermediate_code(item.right);
+  // Push ADD instruction
+  intermediateCode.push(["ADD", []]);
+}
+
+function intermediate_sub(item){
+  // Generate instructions to put left value on evaluation Stack
+  generate_intermediate_code(item.left);
+  // Place right value on stack
+  generate_intermediate_code(item.right);
+  // Push SUB instruction
+  intermediateCode.push(["SUB", []]);
+}
+
+function intermediate_div(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["DIV", []]);
+}
+
+function intermediate_mult(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["MULT", []]);
+}
+
+function intermediate_not(item){
+  // Not only has a right value
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["BOOLEANNOT", []]);
+}
+
+function intermediate_and(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["BOOLEANAND", []]);
+}
+
+function intermediate_or(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["BOOLEANOR", []]);
+}
+
+function intermediate_lesser(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["LESSER", []]);
+}
+
+function intermediate_greater(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["GREATER"], []);
+}
+
+function intermediate_lesserequal(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["LESSEREQUAL", []]);
+}
+
+function intermediate_greaterequal(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["GREATEREQUAL", []]);
+}
+
+function intermediate_equal(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["EQUAL", []]);
+}
+
+function intermediate_notequal(item){
+  generate_intermediate_code(item.left);
+  generate_intermediate_code(item.right);
+  intermediateCode.push(["NOTEQUAL", []]);
+}
+
+function intermediate_assign(item){
+  // Place value on stack
+  generate_intermediate_code(item.right);
+  // Need to store name on stack
+  intermediate_name(item.left);
+  intermediateCode.push(["STORE", []]);
+}
+
 function intermediate_classdef(item){}
 function intermediate_functiondef(item){}
 function intermediate_while(item){}
@@ -117,4 +195,9 @@ function intermediate_bool(item){
 
 function intermediate_null(item){
   intermediateCode.push(["NULL", []]);
+}
+
+function intermediate_name(item){
+  // Generate name and store reference to it on the evaluation stack
+  intermediateCode.push(["NAME", [item.name]]);
 }
