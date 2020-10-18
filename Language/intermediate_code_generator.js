@@ -9,7 +9,7 @@ var Instructions = {
   "index": intermediate_index,
   "child": intermediate_child,
   "+": intermediate_add,
-  "-": intermdiate_sub,
+  "-": intermediate_sub,
   "/": intermediate_div,
   "*": intermediate_mult,
   "!": intermediate_not,
@@ -52,9 +52,16 @@ var Instructions = {
 }
 
 function generate_intermediate_code(tree){
-  while (tree.length > 0){
-    item = tree.shift();
-    Instructions[item.type](item);
+  if (getObjectType(tree) == "object"){
+    // The tree is a single syntax tree
+    Instructions[tree.type](tree);
+  }
+  else{
+    // The "tree" is a list of syntax trees
+    while (tree.length > 0){
+      item = tree.shift();
+      Instructions[item.type](item);
+    }
   }
 }
 
@@ -71,14 +78,14 @@ function return_intermediate_code(tree){
 function intermediate_identifier(item){
   // Declare a variable
   // Place name on top of stack
-  intermediate_name(item.name);
-  intermediateCode.push(["DECLARE", []]);
+  intermediate_name(item);
+  intermediateCode.push(["LOAD", []]);
 }
 
 function intermediate_call(item){
   // The args must be loaded in reverse, so that the first arg will be on top of the stack
   // The args will be converted to intermediate instructions, but will be given as an argument to PREPARECALL instead of being inserted into intermediateCode directly
-  args = return_intermediate_code(reverse(item.args));
+  args = return_intermediate_code(item.args.reverse());
   argsCount = args.length;
   intermediateCode.push(["PREPARECALL", [args, argsCount]]);
 }
@@ -103,7 +110,21 @@ function intermediate_index_store(item){
 }
 
 function intermediate_child(item){
+  // First place parent object on eval stack
+  generate_intermediate_code(item.parent);
+  intermediateCode.push(["CHILD", []]);  // The child instruction tells the program to get the next requested object ("the child") from the object on top of the stack ("the parent") instead of from the variable table
+  // Then code to get child object
+  generate_intermediate_code(item.name);
+}
+
+function intermediate_child_store(item){
+  // A different instruction must be used if storing into child object than for loading from one
+  // Place parent on eval stack as normal
+  generate_intermediate_code(item.parent);
   intermediateCode.push(["CHILD", []]);
+  // Instead of loading the value at the child name onto stack, simply load the name
+  intermediate_name(item.name);
+  intermediateCode.push(["STORE", []]);
 }
 
 function intermediate_add(item){
@@ -193,9 +214,12 @@ function intermediate_notequal(item){
 function intermediate_assign(item){
   // Place value on stack
   generate_intermediate_code(item.right);
-  // The following code will be different if the object being loaded into is an index
+  // The following code will be different if the object being loaded into is an index or a child of another object
   if (item.left.type == "index"){
     intermediate_index_store(item.left);
+  }
+  else if (item.left.type == "child"){
+    intermediate_child_store(item.left);
   }
   else
   {
