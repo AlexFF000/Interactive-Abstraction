@@ -52,17 +52,60 @@ var Instructions = {
 }
 
 function generate_intermediate_code(tree){
-  intermediateCode.push(["SETUP", []])
   while (tree.length > 0){
     item = tree.shift();
     Instructions[item.type](item);
   }
 }
 
-function intermediate_identifier(item){}
-function intermediate_call(item){}
-function intermediate_index(item){}
-function intermediate_child(item){}
+function return_intermediate_code(tree){
+  // generate_intermediate_code but return the code instead of adding it to intermediateCode list
+  generatedCode = [];
+  tmpIntermediateCode = intermediateCode;
+  intermediateCode = generatedCode;
+  generate_intermediate_code(tree);
+  intermediateCode = tmpIntermediateCode;
+  return generatedCode;
+}
+
+function intermediate_identifier(item){
+  // Declare a variable
+  // Place name on top of stack
+  intermediate_name(item.name);
+  intermediateCode.push(["DECLARE", []]);
+}
+
+function intermediate_call(item){
+  // The args must be loaded in reverse, so that the first arg will be on top of the stack
+  // The args will be converted to intermediate instructions, but will be given as an argument to PREPARECALL instead of being inserted into intermediateCode directly
+  args = return_intermediate_code(reverse(item.args));
+  argsCount = args.length;
+  intermediateCode.push(["PREPARECALL", [args, argsCount]]);
+}
+
+function intermediate_index(item){
+  // First load the object being indexed onto the eval stack
+  generate_intermediate_code(item.name);
+  // Then place the index on top of eval stack
+  generate_intermediate_code(item.index);
+  // Then use LOADINDEX instruction
+  intermediateCode.push(["LOADINDEX", []]);
+}
+
+function intermediate_index_store(item){
+  // A different instruction must be used if storing into an index than for loading from an index
+  // The object to be stored will already be on the eval stack
+  // Place the object being indexed onto stack
+  generate_intermediate_code(item.name);
+  // Place index on top of stack
+  generate_intermediate_code(item.index);
+  intermediateCode.push(["STOREINDEX", []]);
+}
+
+function intermediate_child(item){
+  intermediateCode.push(["CHILD", []]);
+}
+
 function intermediate_add(item){
   // Generate instructions to put left value on evaluation stack
   generate_intermediate_code(item.left);
@@ -150,9 +193,16 @@ function intermediate_notequal(item){
 function intermediate_assign(item){
   // Place value on stack
   generate_intermediate_code(item.right);
-  // Need to store name on stack
-  intermediate_name(item.left);
-  intermediateCode.push(["STORE", []]);
+  // The following code will be different if the object being loaded into is an index
+  if (item.left.type == "index"){
+    intermediate_index_store(item.left);
+  }
+  else
+  {
+    // Need to store name on stack
+    intermediate_name(item.left);
+    intermediateCode.push(["STORE", []]);
+}
 }
 
 function intermediate_classdef(item){}
@@ -168,9 +218,25 @@ function intermediate_return(item){}
 function intermediate_reference(item){}
 function intermediate_dereference(item){}
 function intermediate_address(item){}
-function intermediate_global(item){}
+function intermediate_global(item){
+  intermediateCode.push(["GLOBAL", []]);
+  generate_intermediate_code(item.identifier);
+}
 function intermediate_as(item){}
-function intermediate_modifier(item){}
+function intermediate_modifier(item){
+  switch(item.modifier){
+    case "static":
+      intermediateCode.push(["STATIC", []]);
+      break;
+    case "private":
+      intermediateCode.push(["PRIVATE", []]);
+      break;
+    case "public":
+      intermediateCode.push(["PUBLIC", []]);
+      break;
+  }
+  generate_intermediate_code(item.subject);
+}
 function intermediate_throw(item){}
 function intermediate_try(item){}
 function intermediate_catch(item){}
