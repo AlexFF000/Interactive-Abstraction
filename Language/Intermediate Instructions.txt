@@ -3230,6 +3230,11 @@ DEFINE (Define a function or class)
 	Memory[EvalTop + 1: + 3] = vNameLocation
 	STORE
 	VarTable = Memory[Scope + 32: + 3]  // Go back to proper variable table
+	// Place the location of the new class definition on top of eval stack
+	EvalTop += 5
+	Memory[EvalTop] = 47
+	Memory[EvalTop + 1: + 3] = location
+	
 	
 # Else if tree.type == "function" use:
 	// Calculate size needed for definition object
@@ -3278,6 +3283,10 @@ DEFINE (Define a function or class)
 	# For each instruction in instructions insert:
 		Memory[nextInstructionAddress: + 1] = #instruction
 		nextInstructionAddress += 1
+		
+	// Place location of new function on top of eval stack
+	Memory[EvalTop] = 47
+	Memory[EvalTop + 1: + 3] = location
 
 
 PREPARECALL (Place the correct arguments on the stack before calling a function)

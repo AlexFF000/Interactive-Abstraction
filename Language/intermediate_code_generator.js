@@ -67,8 +67,8 @@ function generate_intermediate_code(tree){
 
 function return_intermediate_code(tree){
   // generate_intermediate_code but return the code instead of adding it to intermediateCode list
-  generatedCode = [];
-  tmpIntermediateCode = intermediateCode;
+  var generatedCode = [];
+  var tmpIntermediateCode = intermediateCode;
   intermediateCode = generatedCode;
   generate_intermediate_code(tree);
   intermediateCode = tmpIntermediateCode;
@@ -230,17 +230,66 @@ function intermediate_assign(item){
 }
 
 function intermediate_classdef(item){
-  name = item.name.name;  // Get name part of identifier object in the name field
-  code = return_intermediate_code(item.code);  // Convert the code inside the class definition (e.g. method and attribute definitions) into intermediate instructions to be passed as arguments so they can be run inside the class scope when it is defined
+  var name = item.name.name;  // Get name part of identifier object in the name field
+  var code = return_intermediate_code(item.code);  // Convert the code inside the class definition (e.g. method and attribute definitions) into intermediate instructions to be passed as arguments so they can be run inside the class scope when it is defined
   // Pass parent class as argument (if applicable)
-  parent = "None";
+  var parent = "None";
   if (item.inherits != undefined){
     parent = return_intermediate_code(item.inherits);
   }
   intermediateCode.push(["DEFINE", ["class", name, parent, code]]);
+  // Store the class in a variable
+  intermediate_name(item.name);
+  intermediateCode.push(["STORE", []]);
 }
 
-function intermediate_functiondef(item){}
+function intermediate_functiondef(item){
+  var args = return_intermediate_args(item.args);
+  // Add an empty return statement to the end of the function code if the last statement is not already return (this ensures all logical paths through the code will return at some point)
+  var returnNeeded = false;
+  if (item.code.length == 0 || item.code[item.code.length - 1].type != "return"){
+    returnNeeded = true;
+  }
+  var code = return_intermediate_code(item.code);
+  if (returnNeeded){
+    code.push(intermediate_return({"type": "return", "value": null}));
+  }
+  // Create the function definition
+  intermediateCode.push(["DEFINE", ["function", args, code]]);
+  // Store the function in a variable
+  intermediate_name(item.name);  // Get name part of name identifier
+  intermediateCode.push(["STORE", []]);
+}
+
+function return_intermediate_args(args){  // Generate intermediate code for arguments in function definitions
+  /*
+  Arguments in function definitions must call DECLARE directly rather than going through LOAD or STORE
+  Otherwise, it will not work if a function argument shares a name with a variable in a higher scope
+  as the program will try to LOAD that variable instead.
+  It also saves time, as otherwise the program would have to search every higher scope for the varible first
+  */
+  var intermediateArgs = [];
+  var tmpIntermediateCode = intermediateCode;
+  intermediateCode = intermediateArgs;
+  for (var i in args){
+    item = args[i];
+    if (item.type == "identifier"){
+      // Insert a name
+      intermediate_name(item);
+      intermediateCode.push(["DECLARE", []]);
+    }
+    else if (item.type == "="){
+      // If an "="" for a default argument, we first need to declare the left value (the argument)
+      intermediate_name(item.left);
+      intermediateCode.push(["DECLARE", []]);
+      // Now we can just run STORE as normal
+      generate_intermediate_code(item);
+    }
+  }
+  intermediateCode = tmpIntermediateCode;
+  return intermediateArgs;
+}
+
 function intermediate_while(item){}
 function intermediate_foreach(item){}
 function intermediate_for(item){}
