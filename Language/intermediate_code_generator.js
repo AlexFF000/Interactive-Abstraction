@@ -86,7 +86,7 @@ function intermediate_call(item){
   // The args must be loaded in reverse, so that the first arg will be on top of the stack
   // The args will be converted to intermediate instructions, but will be given as an argument to PREPARECALL instead of being inserted into intermediateCode directly
   args = return_intermediate_code(item.args.reverse());
-  argsCount = args.length;
+  argsCount = item.args.length;
   intermediateCode.push(["PREPARECALL", [args, argsCount]]);
 }
 
@@ -229,7 +229,17 @@ function intermediate_assign(item){
 }
 }
 
-function intermediate_classdef(item){}
+function intermediate_classdef(item){
+  name = item.name.name;  // Get name part of identifier object in the name field
+  code = return_intermediate_code(item.code);  // Convert the code inside the class definition (e.g. method and attribute definitions) into intermediate instructions to be passed as arguments so they can be run inside the class scope when it is defined
+  // Pass parent class as argument (if applicable)
+  parent = "None";
+  if (item.inherits != undefined){
+    parent = return_intermediate_code(item.inherits);
+  }
+  intermediateCode.push(["DEFINE", ["class", name, parent, code]]);
+}
+
 function intermediate_functiondef(item){}
 function intermediate_while(item){}
 function intermediate_foreach(item){}
