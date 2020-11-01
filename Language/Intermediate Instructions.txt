@@ -3182,19 +3182,7 @@ DEFINE (Define a function or class)
 	parentAddress = VarTable
 	# If inherits insert:
 		// If the new class inherits from another one, then the parent entry must contain the prototype table of that class
-		EvalTop += 5
-		Memory[EvalTop] = # ceil(log2(2 + parentClassName.length))
-		ALLOCATE
-		tempNameStore = Memory[EvalTop: + 3]
-		Memory[tempNameStore] = 55
-		Memory[tempNameStore + 1] = # parentClassName.length
-		currentChar = tempNameStore + 2
-		# For char in parentClassName insert:
-			Memory[currentChar] = ascii(char)
-			currentChar += 1
-		Memory[EvalTop] = 46
-		Memory[EvalTop + 1: + 3] = tempNameStore
-		LOAD
+		# Insert compile(tree.inherits)  // Run code to fetch the parent definition
 		if Memory[EvalTop] != 47 then
 			THROW CANNOT INHERIT  // The item provided to inherit from is not a class definition
 		parentAddress = Memory[EvalTop + 1: + 3]
