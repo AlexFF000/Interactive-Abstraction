@@ -311,11 +311,12 @@ else
 		newVariableCreated = true
 		table = FirstTable  // Declare new variable in most local scope
 		subTable = table
-		EvalTop += 5
-		Memory[EvalTop] = 0  // No modifiers set
+		oldVarTable = VarTable
+		VarTable = table  // Point VarTable to table so DECLARE will create the new variable in the right table
 		DECLARE
 		entryStart = Memory[EvalTop: + 3]
 		EvalTop -= 5
+		VarTable - oldVarTable
 		goto _entryFound_
 	else
 		// restart the process but using the parent table
@@ -525,10 +526,10 @@ VarTable = Memory[Scope + 32: + 3]
 		
 
 
-DECLARE (Add a new variable to the table, with an initial value of null)
+DECLARE (Add a new variable to VarTable, with the modifiers specified in Modifiers global, and the name referenced on top of eval stack. Set initial value to null)
 
-Modifiers = Memory[EvalTop]
-EvalTop -= 5
+Modifiers = Memory[Modifiers]
+table = Memory[VarTable: + 3]
 name = Memory[EvalTop : + 4]
 EvalTop -= 5
 if name[0] == 46 then
@@ -3277,7 +3278,6 @@ DEFINE (Define a function or class)
 	# For each instruction in instructions insert:
 		Memory[nextInstructionAddress: + 1] = #instruction
 		nextInstructionAddress += 1
-	
 
 
 PREPARECALL (Place the correct arguments on the stack before calling a function)
