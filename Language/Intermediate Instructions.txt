@@ -3303,17 +3303,33 @@ Memory[EvalTop + 1: + 3] =  (Memory[Scope + 44: + 3] + # instructionOffset of in
 CALL
 
 
-PREPARECONDITIONAL  (Place correct arguments on stack before starting a conditional statement)
+
+PREPARECONDITIONAL (Place correct arguments on stack before starting a conditional statement)
+// Compile the code to get the offsets, but do not yet write it to the program 
+#compiledIf = Compile(if.code)
+# compiledIf.append(goto #conditionalEndAddressPlaceholder#)
+#ifBranchInstructionOffset = currentOffset + PrepareConditionalLengthConstant  // The if code starts after the CONDITIONAL code
+# for each (else in elses) do
+	# if (else.type == "ELSEIF") then
+		# repeat prepareconditional code, but using the next else (if there is one) as the else address.  And using the same #conditionalAddressPlaceholder# and put the result in #compiledElse
+	else
+		# compiledElse.append(Compile(else.code).append(goto #conditionalEndAddressPlaceholder#))
+#elseBranchInstructionOffset = ifBranchInstructionOffset + compiledIf.length + length of goto  // Also add the length of the goto that will be appended to the end of each branch to jump to the end of the statement
+#conditionalEndAddressPlaceholder# = elseBranchInstructionOffset + #compiledElse.length
+# Go replace each #conditionalEndAddressPlaceholder# with the new value of #conditionalEndAddressPlaceholder#
 
 // First place address for if condition is true
 EvalTop += 5
 // Calculate address
-Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + # ifBranchInstructionOffset  // The number of instructions from the start of the scope
-// Second place address for if condition is false
+Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #ifBranchInstructionOffset)  // The number of instructions from the start of the scope
+// Then place address for if condition is false
 EvalTop += 5
-Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + # elseBranchInstructionOffset
-// Last place (top of stack) for condition
-# Insert Compile(tree.condition)
+Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #elseBranchInstructionOffset)
+// Lastly place condition (so its result will be on top of the stack)
+#Insert Compile(tree.condition)
+// Then insert code
+#Insert compiledIf
+# Insert compiledElse
 CONDITIONAL
 
 
