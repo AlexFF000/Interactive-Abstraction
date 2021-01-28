@@ -290,12 +290,35 @@ function return_intermediate_args(args){  // Generate intermediate code for argu
   return intermediateArgs;
 }
 
-function intermediate_while(item){}
+function intermediate_while(item){
+  
+}
+
 function intermediate_foreach(item){}
 function intermediate_for(item){}
-function intermediate_if(item){}
-function intermediate_else_if(item){}
-function intermediate_else(item){}
+
+function intermediate_if(item){
+  let condition = return_intermediate_code(item.condition);
+  let code = return_intermediate_code(item.code);
+  let elses = return_intermediate_code(item.else);
+  intermediateCode.push(["PREPARECONDITIONAL", [condition, code, elses]]);
+  // Set up else.  If else if then the else address used for that else if should be this if's next else's start address (or end of the if/else block if there is no next else)
+  // This must be done in the next stage, as the addresses are not yet known.  Therefore else ifs must be passed in to the next stage as its own type of instruction so next stage knows to use parent if's else address
+}
+
+function intermediate_else_if(item){
+  let condition = return_intermediate_code(item.condition);
+  let code = return_intermediate_code(item.code);
+  // Else ifs don't have elses as these belong to the parent if
+  intermediateCode.push(["ELSEIF", [condition, code]]);
+}
+
+function intermediate_else(item){
+  // Else's have neither conditions or elses
+  let code = return_intermediate_code(item.code);
+  intermediateCode.push(["ELSE", [code]]);
+}
+
 function intermediate_import(item){}
 function intermediate_return(item){}
 function intermediate_reference(item){}
