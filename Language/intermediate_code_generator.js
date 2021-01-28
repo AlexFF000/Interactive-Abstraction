@@ -302,8 +302,6 @@ function intermediate_if(item){
   let code = return_intermediate_code(item.code);
   let elses = return_intermediate_code(item.else);
   intermediateCode.push(["PREPARECONDITIONAL", [condition, code, elses]]);
-  // Set up else.  If else if then the else address used for that else if should be this if's next else's start address (or end of the if/else block if there is no next else)
-  // This must be done in the next stage, as the addresses are not yet known.  Therefore else ifs must be passed in to the next stage as its own type of instruction so next stage knows to use parent if's else address
 }
 
 function intermediate_else_if(item){
