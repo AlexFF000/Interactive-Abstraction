@@ -3356,6 +3356,29 @@ CONDITIONAL
 # Replace all #conditionalEndAddressPlaceholder# with the address of the first instruction after the loop
 
 
+PREPAREFOR (A while loop with extra steps)
+
+// First insert initialiser code to setup the counter
+# Insert Compile(tree.initialisation)
+
+// Place address for if condition is true
+EvalTop += 5
+// Calculate address
+#recordOffset1# Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #codeInstructionOffset)
+// Then place the address for if the condition is false (this will be the address of the first instruction after the loop)
+EvalTop += 5
+Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #conditionalEndAddressPlaceholder#)
+// Lastly place condition
+# Insert Compile(tree.condition)
+// Then insert Conditional (must be inserted before code, or code will be run before Conditional)
+CONDITIONAL
+// Then insert loop code
+# Insert Compile(tree.code)
+// Then add iterator code to end of loop code
+# Insert Compile(tree.iterator)
+// Then add goto to jump back to the instruction marked here with #recordOffset1#
+# Insert (goto #recordOffset1#)
+# Replace all #conditionalEndAddressPlaceholder# with the address of the first instruction after the loop
 
 // Modifiers
 
