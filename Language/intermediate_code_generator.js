@@ -291,11 +291,26 @@ function return_intermediate_args(args){  // Generate intermediate code for argu
 }
 
 function intermediate_while(item){
-  
+  let condition = return_intermediate_code(item.condition);
+  let code = return_intermediate_code(item.code);
+  intermediateCode.push(["PREPAREWHILE", [condition, code]]);
 }
 
-function intermediate_foreach(item){}
-function intermediate_for(item){}
+function intermediate_foreach(item){
+  // Foreach works in the same way as for, but the initialisation and iterator code will be different
+}
+
+function intermediate_for(item){
+  // For loops work like while loop but have two parts in addition to the condition and code
+  // The initialisation creates the counter, it will be run once before starting the loop
+  let initialisation = return_intermediate_code(item.initialisation);
+  // The iterator will modify the value of the counter at the end of each loop. It is inserted right before the goto at the end of the loop code
+  let iterator = return_intermediate_code(item.statement);
+  // The condition works in the same way to a normal while loop
+  let condition = return_intermediate_code(item.condition);
+  let code = return_intermediate_code(item.code);
+  intermediateCode.push(["PREPAREFOR", [initialisation, condition, iterator, code]]);
+}
 
 function intermediate_if(item){
   let condition = return_intermediate_code(item.condition);
@@ -318,7 +333,16 @@ function intermediate_else(item){
 }
 
 function intermediate_import(item){}
-function intermediate_return(item){}
+
+function intermediate_return(item){
+  let value = item.value;
+  // If value is null, then replace it with actual null value in the language
+  if (value == null){
+    value = {"type": "null", "value": null};
+  }
+  intermediateCode.push(["PREPARERETURN", [return_intermediate_code(value)]]);
+}
+
 function intermediate_reference(item){}
 function intermediate_dereference(item){}
 function intermediate_address(item){}
@@ -347,6 +371,7 @@ function intermediate_catch(item){}
 function intermediate_finally(item){}
 function intermediate_list(item){}
 function intermediate_dict(item){}
+
 function intermediate_string(item){
   intermediateCode.push(["STRING", [item.value]]);
 }
