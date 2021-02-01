@@ -252,7 +252,7 @@ function intermediate_functiondef(item){
   }
   var code = return_intermediate_code(item.code);
   if (returnNeeded){
-    code.push(intermediate_return({"type": "return", "value": null}));
+    code.push(return_intermediate_code({"type": "return", "value": null})[0]);
   }
   // Create the function definition
   intermediateCode.push(["DEFINE", ["function", args, code]]);
