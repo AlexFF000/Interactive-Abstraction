@@ -3380,6 +3380,11 @@ CONDITIONAL
 # Insert (goto #recordOffset1#)
 # Replace all #conditionalEndAddressPlaceholder# with the address of the first instruction after the loop
 
+PREPARERETURN (Load the value to be returned on to the eval stack before calling the Return procedure)
+
+# Insert Compile(tree.value)
+RETURN
+
 // Modifiers
 
 GLOBAL (Set DeclareGlobal so next variable is declared in global scope)
