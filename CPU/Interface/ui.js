@@ -701,7 +701,7 @@ function start_expanded_mode(){
     // Convert operand to binary
     if (Number(opr) < 4294967296){
       opr = Number(opr).toString(2);
-      var neededZeroes = (1 - ((opr.length / 8) % 1)) * 8;  // Get number of zeroes needed
+      var neededZeroes = (8 - (opr.length % 8)) % 8;  // Get number of zeroes needed.  8 - First mod operation gets the number of bits needed to the next full byte, second mod turns this to 0 if it is 8
       var prestr = "";
       for (var i = 0; i < neededZeroes; i++){
         prestr = prestr + "0";
