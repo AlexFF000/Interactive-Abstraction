@@ -20,3 +20,8 @@ var operator_associativity = {
   "!": "right"
 
 }
+
+// Dictionary containing the parameters for setting up the runtime environment (stack size etc...)
+var runtime_options = {
+  "StackSize": 65536,
+}
