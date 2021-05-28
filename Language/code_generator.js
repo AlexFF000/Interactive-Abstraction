@@ -20,6 +20,19 @@ const Addresses = {
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
     "GlobalArea": 36,
 }
+// Positions of important memory addresses within structures (e.g. frames, tables)
+const offsets = {
+    "frame": {
+        "EvalTopPointer": 0,
+        "EvalStartPointer": 4,
+        "StartChunkPointer": 8,
+        "StartChunkEndPointer": 12,
+        "LastChunkStartPointer": 16,
+        "HeapEndPointer": 20,
+        "PreviousFramePointer": 24,
+        "ReturnPointer": 28,
+    }
+}
 
 /*
     Certain instructions will need data that isn't ready until compilation is complete (e.g. the number of instructions in the program)
