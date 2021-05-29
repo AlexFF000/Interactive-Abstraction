@@ -17,8 +17,16 @@ const Addresses = {
     "Modifiers": 35,
     // 1 byte value set when global keyword used (indicates next variable must be created in global scope)
     "DeclareGlobal": 36,
+    /* 
+        The pseudo registers are a set of 4 byte areas in memory used to temporarily hold data that is being worked on (this avoids the need to allocate memory for minor operations like addition, subtraction etc...) 
+        These are useful as the only usable "hardware" register is the accumulator, which is only 8 bits.  But we will usually be working with 32 bits.
+    */
+    "ps0": 37,
+    "ps1": 41,
+    "ps2":45,
+    "ps3": 49,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
-    "GlobalArea": 36,
+    "GlobalArea": 53,
     // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
     "IntFloatPool": null,
     // The start address of first instruction to be run in global scope
@@ -86,6 +94,53 @@ function writeMultiByte(value, address, addressesNeeded){
         instructs.push("AND 0");
     }
     return instructs;
+}
+
+function copy(srcAddress, dstAddress, bytes){
+    // Return a list of instructions to copy specified number of bytes from source starting at srcAddress to destination starting at dstAddress
+    let instructs = [];
+    for (let i = 0; i < bytes; i++){
+        instructs.push(`ADD A ${srcAddress + i}`);
+        instructs.push(`WRT ${dstAddress + i}`);
+        // Clear ACC ready for next instruction
+        instructs.push("AND 0");
+    }
+    return instructs;
+}
+
+function add32BitIntegers(int1, int2, int1IsLiteral=false, int2IsLiteral=false){
+    // Return list of instructions to add the two 32 bit integers from the given addresses (unless they are literals), and leave the result in ps3
+    let instructs = [];
+    // First load the operands into ps0 and ps1 if they are literals
+    if (int1IsLiteral){
+        instructs = writeMultiByte(int1, Addresses.ps0, 4);
+        int1 = Addresses.ps0;
+    }
+    if (int2IsLiteral){
+        instructs = instructs.concat(writeMultiByte(int2, Addresses.ps1, 4));
+        int2 = Addresses.ps1;
+    }
+    // USING LABELS HERE WONT WORK AS FUNCTION WILL BE CALLED MULTIPLE TIMES
+    instructs.push(
+        // The first byte of ps2 is used to hold carry flags, so make sure it is clear
+        "AND 0",
+        `WRT ${Addresses.ps2}`,
+        // Start adding one byte at a time, starting from LSB
+        `RED ${int1 + 3}`,
+        `ADD A ${int2 + 3}`,
+        `WRT ${Addresses.ps3 + 3}`,
+        // Check if there is a carry
+        "BIC #carryByte3",
+        "byte2: "
+    );
+    // Instructions for handling carries
+    instructs.push(
+        "carryByte3: ADD 1",
+        `WRT ${Addresses.ps3}`,
+        "GTO #byte2",
+    );
+    
+
 }
 
 function SETUP(){
