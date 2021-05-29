@@ -19,18 +19,30 @@ const Addresses = {
     "DeclareGlobal": 36,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
     "GlobalArea": 36,
+    // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
+    "IntFloatPool": null,
+    // The start address of first instruction to be run in global scope
+    "FirstInstruction": null,
 }
 // Positions of important memory addresses within structures (e.g. frames, tables)
-const offsets = {
+const Offsets = {
     "frame": {
+        // Pointers to important locations
+
         "EvalTopPointer": 0,
-        "EvalStartPointer": 4,
-        "StartChunkPointer": 8,
-        "StartChunkEndPointer": 12,
-        "LastChunkStartPointer": 16,
-        "HeapEndPointer": 20,
-        "PreviousFramePointer": 24,
-        "ReturnPointer": 28,
+        "StartChunkPointer": 4,
+        "StartChunkEndPointer": 8,
+        "LastChunkStartPointer": 12,
+        "HeapEndPointer": 16,
+        "PreviousFramePointer": 20,
+        "ReturnPointer": 24,
+        // A pointer to the first instruction in the frame is needed for calculating return addresses when calling other functions (as the value of Program Counter cannot be read using an instruction)
+        "FirstInstructionPointer": 28,
+        // Locations of structures in the frame
+
+        // The start of the evaluation stack
+        "EvalStart": 28,
+        
     }
 }
 
@@ -112,7 +124,19 @@ function SETUP(){
         `WRT ${Addresses.AllParents}`,
         `WRT ${Addresses.Modifiers}`,
         `WRT ${Addresses.DeclareGlobal}`,
+    ]).concat(
         // Initialise global area
-    ]);
+        // Point EvalTop pointer to start of eval stack as there is nothing on it yet
+        writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.GlobalArea + Offsets.frame.EvalTopPointer, 4),
+        // As this is global, there is no return address or previous frame.  So set return and previous frame pointers to point to null
+        writeMultiByte(Addresses.NullAddress, Addresses.GlobalArea + Offsets.frame.PreviousFramePointer, 4),
+        writeMultiByte(Addresses.NullAddress, Addresses.GlobalArea + Offsets.frame.ReturnPointer, 4),
+        // Global heap uses a different allocation system to normal frames, so LastChunkStart is not needed so set that to null as well
+        writeMultiByte(Addresses.NullAddress, Addresses.GlobalArea + Offsets.frame.LastChunkStartPointer, 4),
+        writeMultiByte(Addresses.FirstInstruction, Addresses.GlobalArea + Offsets.frame.FirstInstructionPointer, 4),
+
+        // Setup int / float pool
+        
+    )
     
 }
