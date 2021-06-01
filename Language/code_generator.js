@@ -2,35 +2,40 @@
 
 // Important memory addresses (for data that use multiple addresses, this contains the first address)
 const Addresses = {
-    "StackSize": 5,
-    "StackStart": 9,
-    "StackPointer": 13,
-    "ScopePointer": 17,
-    // Pointers for the int/float pool
-    "PoolStartPointer": 21,
-    "PoolFreePointer": 25,
+    "StackPointer": 5,
+    "ScopePointer": 9,
+    // Free pointer for the int/float pool
+    "PoolFreePointer": 13,
     // The address that null values point to
-    "NullAddress": 33,
+    "NullAddress": 17,
     // 1 byte value used when traversing variable tables.  Set if all tables so far have been accessed through the parent or "this" attribute (used to enforce private keyword)
-    "AllParents": 34,
+    "AllParents": 18,
     // 1 byte value used as flags for representing access modifiers for a new variable
-    "Modifiers": 35,
+    "Modifiers": 19,
     // 1 byte value set when global keyword used (indicates next variable must be created in global scope)
-    "DeclareGlobal": 36,
+    "DeclareGlobal": 20,
     /* 
         The pseudo registers are a set of 4 byte areas in memory used to temporarily hold data that is being worked on (this avoids the need to allocate memory for minor operations like addition, subtraction etc...) 
         These are useful as the only usable "hardware" register is the accumulator, which is only 8 bits.  But we will usually be working with 32 bits.
     */
-    "ps0": 37,
-    "ps1": 41,
-    "ps2":45,
-    "ps3": 49,
+    "ps0": 21,
+    "ps1": 25,
+    "ps2":29,
+    "ps3": 33,
+    // Pseudo register specifically for manipulating addresses, useful for pointers
+    "psAddr": 37,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
-    "GlobalArea": 53,
+    "GlobalArea": 41,
+    // The stack starts immediately after the global area
+    "StackStart": 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
     // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
-    "IntFloatPool": null,
-    // The start address of first instruction to be run in global scope
-    "FirstInstruction": null,
+    "IntFloatPool": 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
+    /* 
+        The start address of first instruction to be run in global scope, it will immediately follow the int / float pool
+        FirstInstruction is the last address that can be known before compilation
+        Anything afterwards requires us to know the length of all the compiled instructions, which we cannot know until after they are compiled
+    */
+    "FirstInstruction": 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize + runtime_options.IntFloatPoolSize,
 }
 // Positions of important memory addresses within structures (e.g. frames, tables)
 const Offsets = {
@@ -41,15 +46,16 @@ const Offsets = {
         "StartChunkPointer": 4,
         "StartChunkEndPointer": 8,
         "LastChunkStartPointer": 12,
-        "HeapEndPointer": 16,
-        "PreviousFramePointer": 20,
-        "ReturnPointer": 24,
+        "HeapStartPointer": 16,
+        "HeapEndPointer": 20,
+        "PreviousFramePointer": 24,
+        "ReturnPointer": 28,
         // A pointer to the first instruction in the frame is needed for calculating return addresses when calling other functions (as the value of Program Counter cannot be read using an instruction)
-        "FirstInstructionPointer": 28,
+        "FirstInstructionPointer": 32,
         // Locations of structures in the frame
 
         // The start of the evaluation stack
-        "EvalStart": 28,
+        "EvalStart": 36,
         
     }
 }
@@ -205,32 +211,17 @@ function SETUP(){
     assemblyCode = assemblyCode.concat(
         writeMultiByte(runtime_options.StackSize, Addresses.StackSize, 4)
     );
-    // Load location of start of stack into reserved area.  This won't be known until all instructions are compiled
-    assemblyCode = assemblyCode.concat([
-        registerReplacement("InstructionsEndAddress[0]", assemblyCode.length, "ADD #"),
-        `WRT ${Addresses.StackStart}`,
-        // Also write same values to StackPointer, as it will initially be the same as stack start (as the stack is empty)
-        `WRT ${Addresses.StackPointer}`,
-        "AND 0",
-        registerReplacement("InstructionEndAddess[1]", assemblyCode.length + 3, "ADD #"),
-        `WRT ${Addresses.StackStart + 1}`,
-        `WRT ${Addresses.StackPointer + 1}`,
-        "AND 0",
-        registerReplacement("InstructionsEndAddress[2]", assemblyCode.length + 6, "ADD #"),
-        `WRT ${Addresses.StackStart + 2}`,
-        `WRT ${Addresses.StackPointer + 2}`,
-        "AND 0",
-        registerReplacement("InstructionsEndAddress[3]", assemblyCode.length + 9, "ADD #"),
-        `WRT ${Addresses.StackStart + 3}`,
-        `WRT ${Addresses.StackPointer + 3}`,
-        "AND 0",
-    ]);
+    // Load location of start of stack into StackPointer
+    assemblyCode = assemblyCode.concat(
+        writeMultiByte(Addresses.StackStart, Addresses.StackPointer, 4)
+    );
+    
     // Set initial scope to global
     assemblyCode = assemblyCode.concat(
         writeMultiByte(Addresses.GlobalArea, Addresses.ScopePointer, 4)
     );
     // Make sure certain memory addresses are cleared
-    assemblyCode.concat([
+    assemblyCode = assemblyCode.concat([
         `WRT ${Addresses.NullAddress}`,
         `WRT ${Addresses.AllParents}`,
         `WRT ${Addresses.Modifiers}`,
@@ -247,7 +238,127 @@ function SETUP(){
         writeMultiByte(Addresses.FirstInstruction, Addresses.GlobalArea + Offsets.frame.FirstInstructionPointer, 4),
 
         // Setup int / float pool
-        
-    )
-    
+        [
+            // Make sure first 4 bytes of pool contain 0
+            "AND 0",
+            `WRT ${Addresses.IntFloatPool}`,
+            `WRT ${Addresses.IntFloatPool + 1}`,
+            `WRT ${Addresses.IntFloatPool + 2}`,
+            `WRT ${Addresses.IntFloatPool + 3}`,
+        ],
+        // Set free pointer to point to first position
+        writeMultiByte(Addresses.IntFloatPool, Addresses.PoolFreePointer, 4),
+    );
+    // Setup heap
+    // Location of start of heap can't be known until after instructions compiled as they are placed before the heap in memory
+    // First bytes of free block contain info about that block and pointers to next free one
+    assemblyCode = assemblyCode.concat([
+        // Also write start address of heap into StartChunkPointer and address pseudo-register as we will need to add to it to get pointers
+        registerReplacement("InstructionsEndAddress[0]", assemblyCode.length, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapStartPointer}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer}`,
+        `WRT ${Addresses.psAddr}`,
+        "AND 0",
+        registerReplacement("InstructionsEndAddress[1]", assemblyCode.length + 5, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapStartPointer + 1}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer + 1}`,
+        `WRT ${Addresses.psAddr + 1}`,
+        "AND 0",
+        registerReplacement("InstructionsEndAddress[2]", assemblyCode.length + 10, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapStartPointer + 2}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer + 2}`,
+        `WRT ${Addresses.psAddr + 2}`,
+        "AND 0",
+        registerReplacement("InstructionsEndAddress[3]", assemblyCode.length + 15, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapStartPointer + 3}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer + 3}`,
+        `WRT ${Addresses.psAddr + 3}`,
+        "AND 0",
+        // Write heap end address (this could be worked out at runtime, but requires finding a logarithm so it is much more efficient to calculate it at compile time).  Also write to StartChunkEnd
+        registerReplacement("HeapEndAddress[0]", assemblyCode.length + 20, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer}`,
+        "AND 0",
+        registerReplacement("HeapEndAddress[1]", assemblyCode.length + 24, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 1}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 1}`,
+        "AND 0",
+        registerReplacement("HeapEndAddress[2]", assemblyCode.length + 28, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 2}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 2}`,
+        "AND 0",
+        registerReplacement("HeapEndAddress[3]", assemblyCode.length + 32, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 3}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 3}`,
+        "AND 0",
+        // Place size of first block (which will be size of whole heap as nothing has been allocated yet) in first position
+        registerReplacement("HeapSizeBase2", assemblyCode.length + 35, "ADD #"),
+        `WRT A ${Addresses.psAddr}`,
+        "AND 0",
+    ]);
+    let assCodeLength = calculateInstructionsLength(assemblyCode);
+    // Bytes 1-4 (indexing from 0) of free block contain pointer to start of next free block, bytes 5-9 pointer to end of next free block
+    // Currently this is the only block, so make sure the pointers contain 0 
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
 }
