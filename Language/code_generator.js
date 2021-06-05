@@ -87,6 +87,8 @@ function generate_code(intermediates){
     for (let i = 0; i < intermediates.length; i++){
         IntermediateFunctions[intermediates[i][0]](intermediates[i][1]);
     }
+    calculateReplacementVariables();
+    performReplacements(assemblyCode, replacements, replacementVariables);
 }
 
 function calculateReplacementVariables(){
@@ -249,9 +251,6 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
 function SETUP(){
     // Setup the runtime environment
     // Start loading values into reserved area
-    assemblyCode = assemblyCode.concat(
-        writeMultiByte(runtime_options.StackSize, Addresses.StackSize, 4)
-    );
     // Load location of start of stack into StackPointer
     assemblyCode = assemblyCode.concat(
         writeMultiByte(Addresses.StackStart, Addresses.StackPointer, 4)
