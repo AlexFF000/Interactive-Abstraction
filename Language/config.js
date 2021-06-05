@@ -26,4 +26,5 @@ var runtime_options = {
   "StackSize": 65536,
   "EvalStackSize": 100,
   "IntFloatPoolSize": 4096,
+  "MemorySize": 2 ** 32,
 }

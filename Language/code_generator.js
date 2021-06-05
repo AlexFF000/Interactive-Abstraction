@@ -1,4 +1,31 @@
+const IntermediateFunctions = {
+    "SETUP": SETUP,
+}
+
 // Data is stored in big-endian format
+
+// Positions of important memory addresses within structures (e.g. frames, tables)
+const Offsets = {
+    "frame": {
+        // Pointers to important locations
+
+        "EvalTopPointer": 0,
+        "StartChunkPointer": 4,
+        "StartChunkEndPointer": 8,
+        "LastChunkStartPointer": 12,
+        "HeapStartPointer": 16,
+        "HeapEndPointer": 20,
+        "PreviousFramePointer": 24,
+        "ReturnPointer": 28,
+        // A pointer to the first instruction in the frame is needed for calculating return addresses when calling other functions (as the value of Program Counter cannot be read using an instruction)
+        "FirstInstructionPointer": 32,
+        // Locations of structures in the frame
+
+        // The start of the evaluation stack
+        "EvalStart": 36,
+        
+    }
+}
 
 // Important memory addresses (for data that use multiple addresses, this contains the first address)
 const Addresses = {
@@ -37,28 +64,7 @@ const Addresses = {
     */
     "FirstInstruction": 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize + runtime_options.IntFloatPoolSize,
 }
-// Positions of important memory addresses within structures (e.g. frames, tables)
-const Offsets = {
-    "frame": {
-        // Pointers to important locations
 
-        "EvalTopPointer": 0,
-        "StartChunkPointer": 4,
-        "StartChunkEndPointer": 8,
-        "LastChunkStartPointer": 12,
-        "HeapStartPointer": 16,
-        "HeapEndPointer": 20,
-        "PreviousFramePointer": 24,
-        "ReturnPointer": 28,
-        // A pointer to the first instruction in the frame is needed for calculating return addresses when calling other functions (as the value of Program Counter cannot be read using an instruction)
-        "FirstInstructionPointer": 32,
-        // Locations of structures in the frame
-
-        // The start of the evaluation stack
-        "EvalStart": 36,
-        
-    }
-}
 
 /*
     Certain instructions will need data that isn't ready until compilation is complete (e.g. the number of instructions in the program)
@@ -66,6 +72,7 @@ const Offsets = {
     The format for this is [<Name of variable to replace with>, <Position of instruction in assemblyCode>, <String containing the instruction, with a "#" symbol to be replaced by the actual value>]
 */
 var replacements = [];
+var replacementVariables = {};
 
 function registerReplacement(varToReplaceWith, instructionIndex, instruction){
     // Adds the instruction to replacements and returns a suitable placeholder
@@ -74,10 +81,43 @@ function registerReplacement(varToReplaceWith, instructionIndex, instruction){
 }
 
 // Scan intermediateCode and generate assembly code instructions
-var assemblyCode = []
+var assemblyCode = [];
 
 function generate_code(intermediates){
+    for (let i = 0; i < intermediates.length; i++){
+        IntermediateFunctions[intermediates[i][0]](intermediates[i][1]);
+    }
+}
+
+function calculateReplacementVariables(){
+    // Calculate variables to be used for replacements (only works once code has been compiled)
+    // InstructionsEndAddress (the first address following the end of global instructions)
+    let instructionsEndAddr = Addresses.FirstInstruction + calculateInstructionsLength(assemblyCode);
+    replacementVariables["InstructionsEndAddress"] = instructionsEndAddr;
+    replacementVariables["InstructionsEndAddress[0]"] = getByte(instructionsEndAddr, 0);
+    replacementVariables["InstructionsEndAddress[1]"] = getByte(instructionsEndAddr, 1);
+    replacementVariables["InstructionsEndAddress[2]"] = getByte(instructionsEndAddr, 2);
+    replacementVariables["InstructionsEndAddress[3]"] = getByte(instructionsEndAddr, 3);
     
+    // Calculate Heap details
+    let heapSizeBase2 = Math.floor((Math.log2(runtime_options.MemorySize) - 1) - instructionsEndAddr);
+    replacementVariables["HeapSizeBase2"] = heapSizeBase2;
+    let heapEndAddress = instructionsEndAddr + 2 ** heapSizeBase2;
+    replacementVariables["HeapEndAddress"] = heapEndAddress;
+    replacementVariables["HeapEndAddress[0]"] = getByte(heapEndAddress, 0);
+    replacementVariables["HeapEndAddress[1]"] = getByte(heapEndAddress, 1);
+    replacementVariables["HeapEndAddress[2]"] = getByte(heapEndAddress, 2);
+    replacementVariables["HeapEndAddress[3]"] = getByte(heapEndAddress, 3);
+}
+
+function performReplacements(intermediates, requestedReplacements, variables){
+    // Perform requested replacements once variables to replace with have been calculated
+    for (let i = 0; i < requestedReplacements.length; i++){
+        let replaceWith = requestedReplacements[i][0];
+        let instructionPos = requestedReplacements[i][1];
+        let instruction = requestedReplacements[i][2];
+        intermediates[instructionPos] = instruction.replace("#", variables[replaceWith]);
+    }
 }
 
 function calculateInstructionsLength(instructions){
@@ -203,6 +243,7 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
         `WRT ${Addresses.ps2 + 1}`,
         `GTO ${instructionsLength + 65}`
     );
+    return instructs;
 }
 
 function SETUP(){
