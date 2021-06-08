@@ -28,41 +28,37 @@ const Offsets = {
 }
 
 // Important memory addresses (for data that use multiple addresses, this contains the first address)
+// Reserved area contains the stack, important pointers and data, and a stack frame for the global scope.  It goes at the end of memory so its position can always be known at compile time while allowing the instructions to be placed at the start of memory.
+var reservedArea = (runtime_options.MemorySize - 1) - (runtime_options.StackSize + runtime_options.EvalStackSize + runtime_options.IntFloatPoolSize + 36)
 const Addresses = {
-    "StackPointer": 5,
-    "ScopePointer": 9,
+    "StackPointer": reservedArea,
+    "ScopePointer": reservedArea + 4,
     // Free pointer for the int/float pool
-    "PoolFreePointer": 13,
+    "PoolFreePointer": reservedArea + 8,
     // The address that null values point to
-    "NullAddress": 17,
+    "NullAddress": reservedArea + 12,
     // 1 byte value used when traversing variable tables.  Set if all tables so far have been accessed through the parent or "this" attribute (used to enforce private keyword)
-    "AllParents": 18,
+    "AllParents": reservedArea + 13,
     // 1 byte value used as flags for representing access modifiers for a new variable
-    "Modifiers": 19,
+    "Modifiers": reservedArea + 14,
     // 1 byte value set when global keyword used (indicates next variable must be created in global scope)
-    "DeclareGlobal": 20,
+    "DeclareGlobal": reservedArea + 15,
     /* 
         The pseudo registers are a set of 4 byte areas in memory used to temporarily hold data that is being worked on (this avoids the need to allocate memory for minor operations like addition, subtraction etc...) 
         These are useful as the only usable "hardware" register is the accumulator, which is only 8 bits.  But we will usually be working with 32 bits.
     */
-    "ps0": 21,
-    "ps1": 25,
-    "ps2":29,
-    "ps3": 33,
+    "ps0": reservedArea + 16,
+    "ps1": reservedArea + 20,
+    "ps2":reservedArea + 24,
+    "ps3": reservedArea + 28,
     // Pseudo register specifically for manipulating addresses, useful for pointers
-    "psAddr": 37,
+    "psAddr": reservedArea + 32,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
-    "GlobalArea": 41,
+    "GlobalArea": reservedArea + 36,
     // The stack starts immediately after the global area
-    "StackStart": 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
+    "StackStart": reservedArea + 36 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
     // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
-    "IntFloatPool": 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
-    /* 
-        The start address of first instruction to be run in global scope, it will immediately follow the int / float pool
-        FirstInstruction is the last address that can be known before compilation
-        Anything afterwards requires us to know the length of all the compiled instructions, which we cannot know until after they are compiled
-    */
-    "FirstInstruction": 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize + runtime_options.IntFloatPoolSize,
+    "IntFloatPool": reservedArea + 36 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
 }
 
 
@@ -94,7 +90,7 @@ function generate_code(intermediates){
 function calculateReplacementVariables(){
     // Calculate variables to be used for replacements (only works once code has been compiled)
     // InstructionsEndAddress (the first address following the end of global instructions)
-    let instructionsEndAddr = Addresses.FirstInstruction + calculateInstructionsLength(assemblyCode);
+    let instructionsEndAddr = calculateInstructionsLength(assemblyCode);
     replacementVariables["InstructionsEndAddress"] = instructionsEndAddr;
     replacementVariables["InstructionsEndAddress[0]"] = getByte(instructionsEndAddr, 0);
     replacementVariables["InstructionsEndAddress[1]"] = getByte(instructionsEndAddr, 1);
@@ -102,7 +98,7 @@ function calculateReplacementVariables(){
     replacementVariables["InstructionsEndAddress[3]"] = getByte(instructionsEndAddr, 3);
     
     // Calculate Heap details
-    let heapSizeBase2 = Math.floor((Math.log2(runtime_options.MemorySize) - 1) - instructionsEndAddr);
+    let heapSizeBase2 = Math.floor(Math.log2((reservedArea - 1) - instructionsEndAddr));
     replacementVariables["HeapSizeBase2"] = heapSizeBase2;
     let heapEndAddress = instructionsEndAddr + 2 ** heapSizeBase2;
     replacementVariables["HeapEndAddress"] = heapEndAddress;
@@ -332,7 +328,7 @@ function SETUP(){
         `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 3}`,
         "AND 0",
         // Place size of first block (which will be size of whole heap as nothing has been allocated yet) in first position
-        registerReplacement("HeapSizeBase2", assemblyCode.length + 35, "ADD #"),
+        registerReplacement("HeapSizeBase2", assemblyCode.length + 36, "ADD #"),
         `WRT A ${Addresses.psAddr}`,
         "AND 0",
     ]);
@@ -340,7 +336,7 @@ function SETUP(){
     // Bytes 1-4 (indexing from 0) of free block contain pointer to start of next free block, bytes 5-9 pointer to end of next free block
     // Currently this is the only block, so make sure the pointers contain 0 
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -348,7 +344,7 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -356,7 +352,7 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -364,22 +360,14 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
         ]
     );
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -387,7 +375,7 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -395,7 +383,15 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, int2IsLiteral=true),
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(
+        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
