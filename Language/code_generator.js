@@ -169,6 +169,20 @@ function copy(srcAddress, dstAddress, bytes){
     return instructs;
 }
 
+function copyFromAddress(dstAddress, bytes, instructionsLength){
+    // Return a list of instructions to copy specified number of bytes from source starting at the address in psAddr to destination starting at dstAddress
+    let instructs = [];
+    for (let i = 0; i < bytes; i++){
+        if (i != 0){
+            // Increment psAddr to get the address of next byte
+            instructs = instructs.concat(incrementAddress(instructionsLength + calculateInstructionsLength(instructs)));
+        }
+        instructs.push(`RED A ${Addresses.psAddr}`);
+        instructs.push(`WRT ${dstAddress + i}`);
+    }
+    return instructs;
+}
+
 function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, int2IsLiteral=false){
     // Return list of instructions to add the two 32 bit integers from the given addresses (unless they are literals), and leave the result in ps3
     // instructionLength is the number of bytes that will be used by the existing instructions in assemblyCode

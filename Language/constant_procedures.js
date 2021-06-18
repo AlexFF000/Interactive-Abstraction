@@ -16,5 +16,5 @@
     Upon completion, the first address of the newly allocated space is placed in the first 4 bytes of EvalTop
 */
 const AllocationProc = [
-
+    "#allocate: "
 ];
