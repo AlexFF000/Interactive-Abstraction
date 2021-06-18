@@ -244,6 +244,32 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
     return instructs;
 }
 
+function incrementAddress(instructionsLength){
+    // Increment the value in psAddr by 1
+    return [
+        // Add 1 to LSB, and only modify the other bytes if there is a carry
+        `RED ${Addresses.psAddr + 3}`,
+        "ADD 1",
+        `WRT ${Addresses.psAddr + 3}`,
+        `BIC ${instructionsLength + 22}`,
+        `GTO ${instructionsLength + 78}`,
+        // There is a carry so also need to add 1 to next byte
+        `RED ${Addresses.psAddr + 2}`,
+        "ADD 1",
+        `WRT ${Addresses.psAddr + 2}`,
+        `BIC ${instructionsLength + 44}`,
+        `GTO ${instructionsLength + 78}`,
+        `RED ${Addresses.psAddr + 1}`,
+        "ADD 1",
+        `WRT ${Addresses.psAddr + 1}`,
+        `BIC ${instructionsLength + 66}`,
+        `GTO ${instructionsLength + 78}`,
+        `RED ${Addresses.psAddr}`,
+        "ADD 1",
+        `WRT ${Addresses.psAddr}`,
+    ]
+}
+
 function SETUP(){
     // Setup the runtime environment
     // Start loading values into reserved area
