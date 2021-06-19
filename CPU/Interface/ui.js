@@ -80,9 +80,9 @@ function start(){
     // Get operand
     word = word.replace(/[^0-9]/g, ""); // Remove any non numerical chars to leave only operand
     var wdlen = word.length;
-    if (!(0 < wdlen <= 3)){
-      if (opc == allowedInstructions[5, 0] || opc == allowedInstructions[13, 0]
-      || opc == allowedInstructions[14, 0] || opc == allowedInstructions[15, 0]){ // Opcode is not, out, inp or end (does not require operand)
+    if (!(0 < wdlen && wdlen <= 3)){
+      if (opc == allowedInstructions[5][0] || opc == allowedInstructions[13][0]
+      || opc == allowedInstructions[14][0] || opc == allowedInstructions[15][0]){ // Opcode is not, out, inp or end (does not require operand)
         word = "000";
       }
       else{
@@ -687,10 +687,10 @@ function start_expanded_mode(){
     // Get operand
     word = word.replace(/[^0-9]/g, ""); // Remove any non numerical chars to leave only operand
     var wdlen = word.length;
-    if (!(0 < wdlen <= 3)){
-      if (opc == allowedInstructions[5, 0] || opc == allowedInstructions[13, 0]
-      || opc == allowedInstructions[14, 0] || opc == allowedInstructions[15, 0]){ // Opcode is not, out, inp or end (does not require operand)
-        word = "000";
+    if (!(0 < wdlen && wdlen <= 3)){
+      if (opc == allowedInstructions[5][0] || opc == allowedInstructions[13][0]
+      || opc == allowedInstructions[14][0] || opc == allowedInstructions[15][0]){ // Opcode is not, out, inp or end (does not require operand)
+        word = "none";
       }
       else{
         badInput(word, line) // Operand is either too small or too big (or not given)
@@ -701,28 +701,26 @@ function start_expanded_mode(){
     // Convert operand to binary
     if (Number(opr) < 4294967296){
       opr = Number(opr).toString(2);
-      var neededZeroes = (8 - (opr.length % 8)) % 8;  // Get number of zeroes needed.  8 - First mod operation gets the number of bits needed to the next full byte, second mod turns this to 0 if it is 8
-      var prestr = "";
-      for (var i = 0; i < neededZeroes; i++){
-        prestr = prestr + "0";
+      // If the operand is an address (if mode is A or the instruction takes an address as data e.g. GTO) then the operand will use 4 bytes, else it will use 1
+      if (mode == "1" || [allowedInstructions[6][0], allowedInstructions[7][0], allowedInstructions[8][0], allowedInstructions[9][0], allowedInstructions[10][0], allowedInstructions[11][0], allowedInstructions[12][0]].includes(opc)){
+        // Right pad to 32 bits
+        opr = opr.padStart(32, "0");
+        var oprLength = "100";
       }
-      opr = prestr.concat(opr);
-      var oprLength = Math.ceil(opr.length / 8);  // Get number of bytes needed for operand
+      else{
+        // Right pad to 8 bits
+        opr = opr.padStart(8, "0");
+        var oprLength = "001";
+      }
     }
-    else {
+    else if (word === "none"){
+      // There is no operand, as the opcode does not need one
+      oprLength = "000";
+      opr = "";
+    }
+    else{
       badInput(opr, line);
     }
-
-    // Convert byte length to 3 bit binary
-    oprLength = Number(oprLength).toString(2);
-    var tmp = (3 - oprLength.length);
-    var prestr = "";
-    for (var i = 0; i < tmp; i++){
-      prestr = prestr + "0";
-    }
-    oprLength = prestr.concat(oprLength);
-
-
     // Combine into one machine instruction
     word = opc.concat(mode, oprLength, opr);
     var command = [];
