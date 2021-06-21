@@ -6,6 +6,11 @@ var allowedInstructions;
 var expanded_memory = false;  // 32 bit mode
 var unlimitSpeed = false;
 var watchlist = {};  // List of memory addresses being watched (32 bit mode)
+
+var labels = {};  // Maps labels to memory addresses
+
+var currentInstructionAddress = 0;  // Start address in memory of the next instruction to be parsed (assembler only)
+
 function getOutputs(){
   // Contains DOM IDs of elements on HTML page
   input_box = "instructionBox"; // Input for entering instructions
@@ -38,6 +43,7 @@ function getOutputs(){
   choose_IO = "selectIOModule"  // Selection of IO modules
   help_table = "helpTable";  // Table containing buttons to open help pop-ups
 }
+
 function start(){
   function assToBin(word, line){ // Convert assembly instructions to machine code
     word = word.toLowerCase();
@@ -105,6 +111,7 @@ function start(){
     for (var i = 0; i < 14; i++){
       command.push(word[i]);
     }
+    currentInstructionAddress += 2;  // Each instruction uses 2 bytes in memory
     return command;
   }
 
@@ -112,13 +119,14 @@ function start(){
   var speed = document.getElementById(speed_field).value;
   var usrInput = document.getElementById(input_box).value;
   var instructions = [];
+  currentInstructionAddress = 0;
   usrInput = usrInput.split(/[\r?\n]/g);
 
   if (inputType == 0){ // Convert assembly code instructions
     // Remove all but letters and numbers
     var quantity = usrInput.length;
     for (var i = 0; i < quantity; i++){
-      var instStr = usrInput[i].replace(/[^A-Z0-9]/ig, "");
+      var instStr = handleLabels(usrInput[i]).replace(/[^A-Z0-9#]/ig, "");
       instructions.push(assToBin(instStr, i));
   }
 }
@@ -149,6 +157,40 @@ else { // prepare machine code instructions
 function badInput(word, line){ // Input has failed validation
   reporting("Error (line " + line + "): " + word + " is not a valid option");
   throw "Invalid input";
+}
+
+function handleLabels(instruction){
+  // Process any labels in the assembly instruction and return the instruction
+  // Labels at the start of an instruction are label definitions.  They should be removed and the address of the instruction recorded
+  // Labels at the end of an instruction should be replaced with the address of the definition
+  
+  let splitInstruction = instruction.split(" ");
+  let instructionPartFound = false;  // Has the for loop iterated over the non label part yet?
+  let outputStr = [];
+  for (let i = 0; i < splitInstruction.length; i++){
+    if (splitInstruction[i][0] === "#"){
+      // It starts with # so is a label
+      if (instructionPartFound){
+        // The label appears after the instruction, so should be replaced with the actual value for the label
+        if (labels[splitInstruction[i]] == undefined) {
+          reporting(`Error: Label ${splitInstruction[i]} is used before definition`);
+          throw "Label used before definition";
+        }
+        outputStr.push(labels[splitInstruction[i]]);
+        splitInstruction[i] = labels[splitInstruction[i]];
+      }
+      else{
+        // The label appears before the instruction, so is a label definition
+        labels[splitInstruction[i]] = currentInstructionAddress;
+        splitInstruction[i] = "";
+      } 
+    }
+    else{
+      instructionPartFound = true;
+      outputStr.push(splitInstruction[i]);
+    }
+  }
+  return outputStr.join(" ");
 }
 
 function formatEntry(type){
@@ -706,17 +748,20 @@ function start_expanded_mode(){
         // Right pad to 32 bits
         opr = opr.padStart(32, "0");
         var oprLength = "100";
+        currentInstructionAddress += 5;  // Instruction uses 5 bytes in memory
       }
       else{
         // Right pad to 8 bits
         opr = opr.padStart(8, "0");
         var oprLength = "001";
+        currentInstructionAddress += 2;  // Instruction uses 2 bytes in memory
       }
     }
     else if (word === "none"){
       // There is no operand, as the opcode does not need one
-      oprLength = "000";
+      var oprLength = "000";
       opr = "";
+      currentInstructionAddress += 1;  // Instruction uses 1 byte in memory
     }
     else{
       badInput(opr, line);
@@ -734,13 +779,14 @@ function start_expanded_mode(){
   var speed = document.getElementById(speed_field).value;
   var usrInput = document.getElementById(input_box).value;
   var instructions = [];
+  currentInstructionAddress = 0;
   usrInput = usrInput.split(/[\r?\n]/g);
 
   if (inputType == 0){ // Convert assembly code instructions
     // Remove all but letters and numbers
     var quantity = usrInput.length;
     for (var i = 0; i < quantity; i++){
-      var instStr = usrInput[i].replace(/[^A-Z0-9]/ig, "");
+      var instStr = handleLabels(usrInput[i]).replace(/[^A-Z0-9#]/ig, "");
       instructions.push(assToBin(instStr, i));
   }
 }
