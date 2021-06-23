@@ -6,6 +6,11 @@ var allowedInstructions;
 var expanded_memory = false;  // 32 bit mode
 var unlimitSpeed = false;
 var watchlist = {};  // List of memory addresses being watched (32 bit mode)
+
+var labels = {};  // Maps labels to memory addresses
+
+var currentInstructionAddress = 0;  // Start address in memory of the next instruction to be parsed (assembler only)
+
 function getOutputs(){
   // Contains DOM IDs of elements on HTML page
   input_box = "instructionBox"; // Input for entering instructions
@@ -38,9 +43,9 @@ function getOutputs(){
   choose_IO = "selectIOModule"  // Selection of IO modules
   help_table = "helpTable";  // Table containing buttons to open help pop-ups
 }
+
 function start(){
   function assToBin(word, line){ // Convert assembly instructions to machine code
-    word = word.toLowerCase();
     var opc = word.slice(0, 3);
     //var mode = word.slice(3, 4);
     var opr = word.slice(4, 8);
@@ -80,9 +85,9 @@ function start(){
     // Get operand
     word = word.replace(/[^0-9]/g, ""); // Remove any non numerical chars to leave only operand
     var wdlen = word.length;
-    if (!(0 < wdlen <= 3)){
-      if (opc == allowedInstructions[5, 0] || opc == allowedInstructions[13, 0]
-      || opc == allowedInstructions[14, 0] || opc == allowedInstructions[15, 0]){ // Opcode is not, out, inp or end (does not require operand)
+    if (!(0 < wdlen && wdlen <= 3)){
+      if (opc == allowedInstructions[5][0] || opc == allowedInstructions[13][0]
+      || opc == allowedInstructions[14][0] || opc == allowedInstructions[15][0]){ // Opcode is not, out, inp or end (does not require operand)
         word = "000";
       }
       else{
@@ -105,6 +110,7 @@ function start(){
     for (var i = 0; i < 14; i++){
       command.push(word[i]);
     }
+    currentInstructionAddress += 2;  // Each instruction uses 2 bytes in memory
     return command;
   }
 
@@ -112,13 +118,18 @@ function start(){
   var speed = document.getElementById(speed_field).value;
   var usrInput = document.getElementById(input_box).value;
   var instructions = [];
+  currentInstructionAddress = 0;
   usrInput = usrInput.split(/[\r?\n]/g);
 
   if (inputType == 0){ // Convert assembly code instructions
     // Remove all but letters and numbers
     var quantity = usrInput.length;
-    for (var i = 0; i < quantity; i++){
-      var instStr = usrInput[i].replace(/[^A-Z0-9]/ig, "");
+    for (let i = 0; i < quantity; i++){
+      // Must run through and define labels first (otherwise labels will only be usable for previous instructions)
+      usrInput[i] = defineLabels(usrInput[i].toLowerCase());
+    }
+    for (let i = 0; i < quantity; i++){
+      var instStr = replaceLabels(usrInput[i]).replace(/[^A-Z0-9#]/ig, "");
       instructions.push(assToBin(instStr, i));
   }
 }
@@ -149,6 +160,62 @@ else { // prepare machine code instructions
 function badInput(word, line){ // Input has failed validation
   reporting("Error (line " + line + "): " + word + " is not a valid option");
   throw "Invalid input";
+}
+
+function defineLabels(instruction){
+  // If there is a label at the start of the instruction, it is a label definition
+  // Record the address of the instruction, and then return the instruction with the label removed
+  let splitInstruction = instruction.split(" ");
+  // Multiple labels may be defined on the same instruction (not useful but user might try it anyway so it makes sense to handle it)
+  let i = 0;
+  for (; i < splitInstruction.length; i++){
+    if(splitInstruction[i][0] === "#"){
+      labels[splitInstruction[i]] = currentInstructionAddress;
+    }
+    else break;
+  }
+  // Calculate the amount of memory the instruction will use in order to find the address of the next instruction
+  if (expanded_memory === true){
+    // In 32 bit mode memory use varies by instruction
+    if (splitInstruction[i] === allowedInstructions[5][1] || splitInstruction[i] === allowedInstructions[14][1] || splitInstruction[i] === allowedInstructions[15][1]){
+      // NOT, INP, and END are always 1 byte
+      currentInstructionAddress++;
+    }
+    else if (splitInstruction[i + 1] === "a" || [allowedInstructions[6][1], allowedInstructions[7][1], allowedInstructions[8][1], allowedInstructions[9][1], allowedInstructions[10][1], allowedInstructions[11][1], allowedInstructions[12][1]].includes(splitInstruction[i])){
+      // If addressing mode is A, or the instruction is one that takes an address as operand, then instruction uses 5 bytes
+      currentInstructionAddress += 5;
+    }
+    else if (splitInstruction[i] === allowedInstructions[13][1]){
+      // OUT without addressing mode A takes only 1 byte
+      currentInstructionAddress++;
+    }
+    else{
+      currentInstructionAddress += 2;
+    }
+  }
+  else{
+    currentInstructionAddress += 2;  // Instructions always use 2 bytes in 8 bit mode
+  }
+  // Return only the portion after the labels
+  return splitInstruction.slice(i).join(" ");
+}
+
+function replaceLabels(instruction){
+  // Replace labels in instruction with the address of the instruction where the label was defined and return the instruction
+  // Labels at the end of an instruction should be replaced with the address of the definition
+  let splitInstruction = instruction.split(" ");
+  for (let i = 0; i < splitInstruction.length; i++){
+    if (splitInstruction[i][0] === "#"){
+      // It starts with # so is a label
+      // The label appears after the instruction, so should be replaced with the actual value for the label
+      if (labels[splitInstruction[i]] == undefined) {
+        reporting(`Error: Label ${splitInstruction[i]} is not defined`);
+        throw "Undefined Label";
+      }
+      splitInstruction[i] = labels[splitInstruction[i]];
+    }
+  }
+  return splitInstruction.join(" ");
 }
 
 function formatEntry(type){
@@ -647,7 +714,6 @@ function changeIOModule(io_function){
 
 function start_expanded_mode(){
   function assToBin(word, line){ // Convert assembly instructions to machine code
-    word = word.toLowerCase();
     var opc = word.slice(0, 3);
     //var mode = word.slice(3, 4);
     var opr = word.slice(4, 36);  // Instruction can be maximum of 36 chars
@@ -687,13 +753,13 @@ function start_expanded_mode(){
     // Get operand
     word = word.replace(/[^0-9]/g, ""); // Remove any non numerical chars to leave only operand
     var wdlen = word.length;
-    if (!(0 < wdlen <= 3)){
-      if (opc == allowedInstructions[5, 0] || opc == allowedInstructions[13, 0]
-      || opc == allowedInstructions[14, 0] || opc == allowedInstructions[15, 0]){ // Opcode is not, out, inp or end (does not require operand)
-        word = "000";
+    if (wdlen <= 0){
+      if (opc == allowedInstructions[5][0] || opc == allowedInstructions[13][0]
+      || opc == allowedInstructions[14][0] || opc == allowedInstructions[15][0]){ // Opcode is not, out, inp or end (does not require operand)
+        word = "none";
       }
       else{
-        badInput(word, line) // Operand is either too small or too big (or not given)
+        badInput(word, line) // Operand is not given
     }
     }
     opr = word;
@@ -701,28 +767,29 @@ function start_expanded_mode(){
     // Convert operand to binary
     if (Number(opr) < 4294967296){
       opr = Number(opr).toString(2);
-      var neededZeroes = (8 - (opr.length % 8)) % 8;  // Get number of zeroes needed.  8 - First mod operation gets the number of bits needed to the next full byte, second mod turns this to 0 if it is 8
-      var prestr = "";
-      for (var i = 0; i < neededZeroes; i++){
-        prestr = prestr + "0";
+      // If the operand is an address (if mode is A or the instruction takes an address as data e.g. GTO) then the operand will use 4 bytes, else it will use 1
+      if (mode == "1" || [allowedInstructions[6][0], allowedInstructions[7][0], allowedInstructions[8][0], allowedInstructions[9][0], allowedInstructions[10][0], allowedInstructions[11][0], allowedInstructions[12][0]].includes(opc)){
+        // Right pad to 32 bits
+        opr = opr.padStart(32, "0");
+        var oprLength = "100";
+        currentInstructionAddress += 5;  // Instruction uses 5 bytes in memory
       }
-      opr = prestr.concat(opr);
-      var oprLength = Math.ceil(opr.length / 8);  // Get number of bytes needed for operand
+      else{
+        // Right pad to 8 bits
+        opr = opr.padStart(8, "0");
+        var oprLength = "001";
+        currentInstructionAddress += 2;  // Instruction uses 2 bytes in memory
+      }
     }
-    else {
+    else if (word === "none"){
+      // There is no operand, as the opcode does not need one
+      var oprLength = "000";
+      opr = "";
+      currentInstructionAddress += 1;  // Instruction uses 1 byte in memory
+    }
+    else{
       badInput(opr, line);
     }
-
-    // Convert byte length to 3 bit binary
-    oprLength = Number(oprLength).toString(2);
-    var tmp = (3 - oprLength.length);
-    var prestr = "";
-    for (var i = 0; i < tmp; i++){
-      prestr = prestr + "0";
-    }
-    oprLength = prestr.concat(oprLength);
-
-
     // Combine into one machine instruction
     word = opc.concat(mode, oprLength, opr);
     var command = [];
@@ -736,13 +803,18 @@ function start_expanded_mode(){
   var speed = document.getElementById(speed_field).value;
   var usrInput = document.getElementById(input_box).value;
   var instructions = [];
+  currentInstructionAddress = 0;
   usrInput = usrInput.split(/[\r?\n]/g);
 
   if (inputType == 0){ // Convert assembly code instructions
     // Remove all but letters and numbers
     var quantity = usrInput.length;
-    for (var i = 0; i < quantity; i++){
-      var instStr = usrInput[i].replace(/[^A-Z0-9]/ig, "");
+    for (let i = 0; i < quantity; i++){
+      // Must run through and define labels first (otherwise labels will only be usable for previous instructions)
+      usrInput[i] = defineLabels(usrInput[i].toLowerCase());
+    }
+    for (let i = 0; i < quantity; i++){
+      var instStr = replaceLabels(usrInput[i]).replace(/[^A-Z0-9#]/ig, "");
       instructions.push(assToBin(instStr, i));
   }
 }
