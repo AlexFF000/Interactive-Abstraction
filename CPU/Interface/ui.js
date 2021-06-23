@@ -46,7 +46,6 @@ function getOutputs(){
 
 function start(){
   function assToBin(word, line){ // Convert assembly instructions to machine code
-    word = word.toLowerCase();
     var opc = word.slice(0, 3);
     //var mode = word.slice(3, 4);
     var opr = word.slice(4, 8);
@@ -125,8 +124,12 @@ function start(){
   if (inputType == 0){ // Convert assembly code instructions
     // Remove all but letters and numbers
     var quantity = usrInput.length;
-    for (var i = 0; i < quantity; i++){
-      var instStr = handleLabels(usrInput[i]).replace(/[^A-Z0-9#]/ig, "");
+    for (let i = 0; i < quantity; i++){
+      // Must run through and define labels first (otherwise labels will only be usable for previous instructions)
+      usrInput[i] = defineLabels(usrInput[i].toLowerCase());
+    }
+    for (let i = 0; i < quantity; i++){
+      var instStr = replaceLabels(usrInput[i]).replace(/[^A-Z0-9#]/ig, "");
       instructions.push(assToBin(instStr, i));
   }
 }
@@ -159,38 +162,60 @@ function badInput(word, line){ // Input has failed validation
   throw "Invalid input";
 }
 
-function handleLabels(instruction){
-  // Process any labels in the assembly instruction and return the instruction
-  // Labels at the start of an instruction are label definitions.  They should be removed and the address of the instruction recorded
-  // Labels at the end of an instruction should be replaced with the address of the definition
-  
+function defineLabels(instruction){
+  // If there is a label at the start of the instruction, it is a label definition
+  // Record the address of the instruction, and then return the instruction with the label removed
   let splitInstruction = instruction.split(" ");
-  let instructionPartFound = false;  // Has the for loop iterated over the non label part yet?
-  let outputStr = [];
+  // Multiple labels may be defined on the same instruction (not useful but user might try it anyway so it makes sense to handle it)
+  let i = 0;
+  for (; i < splitInstruction.length; i++){
+    if(splitInstruction[i][0] === "#"){
+      labels[splitInstruction[i]] = currentInstructionAddress;
+    }
+    else break;
+  }
+  // Calculate the amount of memory the instruction will use in order to find the address of the next instruction
+  if (expanded_memory === true){
+    // In 32 bit mode memory use varies by instruction
+    if (splitInstruction[i] === allowedInstructions[5][1] || splitInstruction[i] === allowedInstructions[14][1] || splitInstruction[i] === allowedInstructions[15][1]){
+      // NOT, INP, and END are always 1 byte
+      currentInstructionAddress++;
+    }
+    else if (splitInstruction[i + 1] === "a" || [allowedInstructions[6][1], allowedInstructions[7][1], allowedInstructions[8][1], allowedInstructions[9][1], allowedInstructions[10][1], allowedInstructions[11][1], allowedInstructions[12][1]].includes(splitInstruction[i])){
+      // If addressing mode is A, or the instruction is one that takes an address as operand, then instruction uses 5 bytes
+      currentInstructionAddress += 5;
+    }
+    else if (splitInstruction[i] === allowedInstructions[13][1]){
+      // OUT without addressing mode A takes only 1 byte
+      currentInstructionAddress++;
+    }
+    else{
+      currentInstructionAddress += 2;
+    }
+  }
+  else{
+    currentInstructionAddress += 2;  // Instructions always use 2 bytes in 8 bit mode
+  }
+  // Return only the portion after the labels
+  return splitInstruction.slice(i).join(" ");
+}
+
+function replaceLabels(instruction){
+  // Replace labels in instruction with the address of the instruction where the label was defined and return the instruction
+  // Labels at the end of an instruction should be replaced with the address of the definition
+  let splitInstruction = instruction.split(" ");
   for (let i = 0; i < splitInstruction.length; i++){
     if (splitInstruction[i][0] === "#"){
       // It starts with # so is a label
-      if (instructionPartFound){
-        // The label appears after the instruction, so should be replaced with the actual value for the label
-        if (labels[splitInstruction[i]] == undefined) {
-          reporting(`Error: Label ${splitInstruction[i]} is used before definition`);
-          throw "Label used before definition";
-        }
-        outputStr.push(labels[splitInstruction[i]]);
-        splitInstruction[i] = labels[splitInstruction[i]];
+      // The label appears after the instruction, so should be replaced with the actual value for the label
+      if (labels[splitInstruction[i]] == undefined) {
+        reporting(`Error: Label ${splitInstruction[i]} is not defined`);
+        throw "Undefined Label";
       }
-      else{
-        // The label appears before the instruction, so is a label definition
-        labels[splitInstruction[i]] = currentInstructionAddress;
-        splitInstruction[i] = "";
-      } 
-    }
-    else{
-      instructionPartFound = true;
-      outputStr.push(splitInstruction[i]);
+      splitInstruction[i] = labels[splitInstruction[i]];
     }
   }
-  return outputStr.join(" ");
+  return splitInstruction.join(" ");
 }
 
 function formatEntry(type){
@@ -689,7 +714,6 @@ function changeIOModule(io_function){
 
 function start_expanded_mode(){
   function assToBin(word, line){ // Convert assembly instructions to machine code
-    word = word.toLowerCase();
     var opc = word.slice(0, 3);
     //var mode = word.slice(3, 4);
     var opr = word.slice(4, 36);  // Instruction can be maximum of 36 chars
@@ -785,8 +809,12 @@ function start_expanded_mode(){
   if (inputType == 0){ // Convert assembly code instructions
     // Remove all but letters and numbers
     var quantity = usrInput.length;
-    for (var i = 0; i < quantity; i++){
-      var instStr = handleLabels(usrInput[i]).replace(/[^A-Z0-9#]/ig, "");
+    for (let i = 0; i < quantity; i++){
+      // Must run through and define labels first (otherwise labels will only be usable for previous instructions)
+      usrInput[i] = defineLabels(usrInput[i].toLowerCase());
+    }
+    for (let i = 0; i < quantity; i++){
+      var instStr = replaceLabels(usrInput[i]).replace(/[^A-Z0-9#]/ig, "");
       instructions.push(assToBin(instStr, i));
   }
 }
