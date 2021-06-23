@@ -40,6 +40,12 @@ function update(register){ // Put contents of DATABUS into given array
 }
 }
 
+function updatePart(register, offset){  // Put contents of DATABUS into given array starting at specific offset (for 32 bit mode only)
+  for (var i = 0; i < 8; i++){
+    register[offset + i] = parseInt(DATABUS[i], 2);
+  }
+}
+
 function rotate(register, times, direction){  // Shift bits a given number of places in a given direction
   if (direction == "l"){  // Rotate left
     for (var i = 0; i < times; i++){

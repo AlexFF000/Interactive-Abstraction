@@ -441,18 +441,67 @@ function fetch(){ // Get instuction from memory and load into the correct regist
 function getOperand(){ // Put operand data into MDR ready for instruction execution
   if (expanded_memory == true){
     if (mode == "1"){ // Operand is memory address, actual data must be fetched
-      var oprLen = parseInt(CIR.slice(5, 8).join(""), 2);  // Get number of bytes used by address
-      subqueue = [
-        "CONTROLBUS.read = 1",
-        "loadOperand(MAR);",
-        "updateBus(ADDRESSBUS, MAR)",
-        "getAddress()",
-        "dataRequest()",
-        "busGrant()",
-        "outputData()",
-        "update(MDR)",
-        "CONTROLBUS.read = 0"
-      ]
+      if ([allowedInstructions[6][0], allowedInstructions[7][0], allowedInstructions[8][0], allowedInstructions[9][0], allowedInstructions[10][0], allowedInstructions[11][0], allowedInstructions[12][0]].includes(opcode)){
+        // Instruction is one that takes an address (RED, WRT, GTO, BIZ, BIN, BIO, BIC) and mode is 1 so it takes an address of an address
+        // As addresses are 4 bytes, load the 4 bytes starting from the one specified in operand into MDR
+        subqueue = [
+          // Load value of first byte into MDR
+          "CONTROLBUS.read = 1",
+          "loadOperand(MAR);",
+          "updateBus(ADDRESSBUS, MAR)",
+          "getAddress()",
+          "dataRequest()",
+          "busGrant()",
+          "outputData()",
+          "updatePart(MDR, 0)",
+          "CONTROLBUS.read = 0",
+          // Increment the MAR for second byte
+          "increment(MAR)",
+          "updateBus(ADDRESSBUS, MAR)",
+          "CONTROLBUS.read = 1",
+          "getAddress()",
+          "dataRequest()",
+          "busGrant()",
+          "outputData()",
+          "updatePart(MDR, 8)",
+          "CONTROLBUS.read = 0",
+          // Third byte
+          "increment(MAR)",
+          "updateBus(ADDRESSBUS, MAR)",
+          "CONTROLBUS.read = 1",
+          "getAddress()",
+          "dataRequest()",
+          "busGrant()",
+          "outputData()",
+          "updatePart(MDR, 16)",
+          "CONTROLBUS.read = 0",
+          // Fourth byte
+          "increment(MAR)",
+          "updateBus(ADDRESSBUS, MAR)",
+          "CONTROLBUS.read = 1",
+          "getAddress()",
+          "dataRequest()",
+          "busGrant()",
+          "outputData()",
+          "updatePart(MDR, 24)",
+          "CONTROLBUS.read = 0",
+        ];
+      }
+      else{
+        var oprLen = parseInt(CIR.slice(5, 8).join(""), 2);  // Get number of bytes used by address
+        subqueue = [
+          "CONTROLBUS.read = 1",
+          "loadOperand(MAR);",
+          "updateBus(ADDRESSBUS, MAR)",
+          "getAddress()",
+          "dataRequest()",
+          "busGrant()",
+          "outputData()",
+          "update(MDR)",
+          "CONTROLBUS.read = 0"
+        ]
+      }
+      
 
   }
   else{

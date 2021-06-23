@@ -729,13 +729,13 @@ function start_expanded_mode(){
     // Get operand
     word = word.replace(/[^0-9]/g, ""); // Remove any non numerical chars to leave only operand
     var wdlen = word.length;
-    if (!(0 < wdlen && wdlen <= 3)){
+    if (wdlen <= 0){
       if (opc == allowedInstructions[5][0] || opc == allowedInstructions[13][0]
       || opc == allowedInstructions[14][0] || opc == allowedInstructions[15][0]){ // Opcode is not, out, inp or end (does not require operand)
         word = "none";
       }
       else{
-        badInput(word, line) // Operand is either too small or too big (or not given)
+        badInput(word, line) // Operand is not given
     }
     }
     opr = word;
