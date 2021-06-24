@@ -29,36 +29,39 @@ const Offsets = {
 
 // Important memory addresses (for data that use multiple addresses, this contains the first address)
 // Reserved area contains the stack, important pointers and data, and a stack frame for the global scope.  It goes at the end of memory so its position can always be known at compile time while allowing the instructions to be placed at the start of memory.
-var reservedArea = (runtime_options.MemorySize - 1) - (runtime_options.StackSize + runtime_options.EvalStackSize + runtime_options.IntFloatPoolSize + 36)
+var reservedArea = (runtime_options.MemorySize - 1) - (runtime_options.StackSize + runtime_options.EvalStackSize + runtime_options.IntFloatPoolSize + 41)
 const Addresses = {
     "StackPointer": reservedArea,
     "ScopePointer": reservedArea + 4,
+    // Details of the Evaluation Stack of the current stack frame (quicker to store these globally as they will be used very regularly)
+    "EvalTop": reservedArea + 8,  // Pointer to the top item on the EvalStack
+    "EvalSlotsUsed": reservedArea + 12,  // 1 byte counter recording number of items on the eval stack (used to check if it is full or empty)
     // Free pointer for the int/float pool
-    "PoolFreePointer": reservedArea + 8,
+    "PoolFreePointer": reservedArea + 13,
     // The address that null values point to
-    "NullAddress": reservedArea + 12,
+    "NullAddress": reservedArea + 17,
     // 1 byte value used when traversing variable tables.  Set if all tables so far have been accessed through the parent or "this" attribute (used to enforce private keyword)
-    "AllParents": reservedArea + 13,
+    "AllParents": reservedArea + 18,
     // 1 byte value used as flags for representing access modifiers for a new variable
-    "Modifiers": reservedArea + 14,
+    "Modifiers": reservedArea + 19,
     // 1 byte value set when global keyword used (indicates next variable must be created in global scope)
-    "DeclareGlobal": reservedArea + 15,
+    "DeclareGlobal": reservedArea + 20,
     /* 
         The pseudo registers are a set of 4 byte areas in memory used to temporarily hold data that is being worked on (this avoids the need to allocate memory for minor operations like addition, subtraction etc...) 
         These are useful as the only usable "hardware" register is the accumulator, which is only 8 bits.  But we will usually be working with 32 bits.
     */
-    "ps0": reservedArea + 16,
-    "ps1": reservedArea + 20,
-    "ps2":reservedArea + 24,
-    "ps3": reservedArea + 28,
+    "ps0": reservedArea + 21,
+    "ps1": reservedArea + 25,
+    "ps2":reservedArea + 29,
+    "ps3": reservedArea + 33,
     // Pseudo register specifically for manipulating addresses, useful for pointers
-    "psAddr": reservedArea + 32,
+    "psAddr": reservedArea + 37,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
-    "GlobalArea": reservedArea + 36,
+    "GlobalArea": reservedArea + 41,
     // The stack starts immediately after the global area
-    "StackStart": reservedArea + 36 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
+    "StackStart": reservedArea + 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
     // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
-    "IntFloatPool": reservedArea + 36 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
+    "IntFloatPool": reservedArea + 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
 }
 
 
