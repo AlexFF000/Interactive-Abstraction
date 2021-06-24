@@ -49,6 +49,7 @@ const Addresses = {
     /* 
         The pseudo registers are a set of 4 byte areas in memory used to temporarily hold data that is being worked on (this avoids the need to allocate memory for minor operations like addition, subtraction etc...) 
         These are useful as the only usable "hardware" register is the accumulator, which is only 8 bits.  But we will usually be working with 32 bits.
+        These MUST be contiguous in memory and consecutive (ps1 must follow ps0, ps2 must follow ps1 etc...) as sometimes data will use multiple pseudo-registers
     */
     "ps0": reservedArea + 21,
     "ps1": reservedArea + 25,
@@ -285,6 +286,33 @@ function incrementAddress(instructionsLength){
         "ADD 1",
         `WRT ${Addresses.psAddr}`,
     ]
+}
+
+function checkEqual(address1, address2, branchAddressIfEqual, branchAddressIfUnequal, address1IsLiteral=false, address2IsLiteral=false){
+    // Return list of instructions to check whether the values at the two addresses (or literals) are equal to one another, and branch to given addresses accordingly
+    let instructs = ["AND 0"];
+    for (let i = 0; i < 4; i++){
+        if (address1IsLiteral){
+            instructs.push(`ADD ${getByte(address1, i)}`)
+        }
+        else{
+            instructs.push(`RED ${address1 + i}`);
+        }
+        if (address2IsLiteral){
+            instructs.push(`SUB ${getByte(address2, i)}`);
+        }
+        else{
+            instructs.push(`SUB A ${address2 + i}`);
+        }
+        // If the bytes are equal, the accumulator will now contain 0.  But we only want to branch if it isn't 0 so add 255 and check for carry (as 0 is the only value that won't carry if 255 is added)
+        instructs.push(
+            `ADD 255`,
+            `BIC ${branchAddressIfUnequal}`,
+            "AND 0"
+        );
+    }
+    instructs.push(`GTO ${branchAddressIfEqual}`);
+    return instructs;
 }
 
 function SETUP(){
