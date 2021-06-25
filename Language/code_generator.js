@@ -315,6 +315,19 @@ function checkEqual(address1, address2, branchAddressIfEqual, branchAddressIfUne
     return instructs;
 }
 
+function checkZero(address, bytes, branchAddressIfZero, branchAddressIfNotZero){
+    // Return instructions to check if the bytes starting at the given address are all 0 and branch accordingly
+    let instructs = ["AND 0"];
+    for (let i = 0; i < bytes; i++){
+        instructs.push(`BOR A ${address + i}`);
+    }
+    instructs.push(
+        `BIZ ${branchAddressIfZero}`,
+        `GTO ${branchAddressIfNotZero}`
+    );
+    return instructs;
+}
+
 function SETUP(){
     // Setup the runtime environment
     // Start loading values into reserved area
