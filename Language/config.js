@@ -24,7 +24,7 @@ var operator_associativity = {
 // Dictionary containing the parameters for setting up the runtime environment (stack size etc...)
 var runtime_options = {
   "StackSize": 65536,
-  "EvalStackSize": 100,
-  "IntFloatPoolSize": 4096,
+  "EvalStackSize": 100,  // Must be 255 or less
+  "IntFloatPoolSize": 4095,  // Must be a multiple of 5
   "MemorySize": 2 ** 32,
 }
