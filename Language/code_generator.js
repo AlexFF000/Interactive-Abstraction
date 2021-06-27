@@ -29,7 +29,7 @@ const Offsets = {
 
 // Important memory addresses (for data that use multiple addresses, this contains the first address)
 // Reserved area contains the stack, important pointers and data, and a stack frame for the global scope.  It goes at the end of memory so its position can always be known at compile time while allowing the instructions to be placed at the start of memory.
-var reservedArea = (runtime_options.MemorySize - 1) - (runtime_options.StackSize + runtime_options.EvalStackSize + runtime_options.IntFloatPoolSize + 41)
+var reservedArea = (runtime_options.MemorySize - 1) - (runtime_options.StackSize + runtime_options.EvalStackSize + runtime_options.IntFloatPoolSize + 57)
 const Addresses = {
     "StackPointer": reservedArea,
     "ScopePointer": reservedArea + 4,
@@ -49,20 +49,25 @@ const Addresses = {
     /* 
         The pseudo registers are a set of 4 byte areas in memory used to temporarily hold data that is being worked on (this avoids the need to allocate memory for minor operations like addition, subtraction etc...) 
         These are useful as the only usable "hardware" register is the accumulator, which is only 8 bits.  But we will usually be working with 32 bits.
-        These MUST be contiguous in memory and consecutive (ps1 must follow ps0, ps2 must follow ps1 etc...) as sometimes data will use multiple pseudo-registers
+        These MUST be contiguous in memory and consecutive (ps1 must follow ps0, ps2 must follow ps1 etc...) as sometimes data that is more than 4 bytes will be spread across multiple pseudo-registers
     */
     "ps0": reservedArea + 21,
     "ps1": reservedArea + 25,
     "ps2":reservedArea + 29,
     "ps3": reservedArea + 33,
+    "ps4": reservedArea + 37,
+    "ps5": reservedArea + 41,
+    "ps6": reservedArea + 45,
     // Pseudo register specifically for manipulating addresses, useful for pointers
-    "psAddr": reservedArea + 37,
+    "psAddr": reservedArea + 49,
+    // Pseudo register for holding the address to be jumped to after using one of the constant procedures
+    "psReturnAddr": reservedArea + 53,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
-    "GlobalArea": reservedArea + 41,
+    "GlobalArea": reservedArea + 57,
     // The stack starts immediately after the global area
-    "StackStart": reservedArea + 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
+    "StackStart": reservedArea + 57 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
     // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
-    "IntFloatPool": reservedArea + 41 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
+    "IntFloatPool": reservedArea + 57 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
 }
 
 

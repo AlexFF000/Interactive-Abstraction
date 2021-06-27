@@ -17,6 +17,12 @@ var ProcedureOffset;  // The location in memory of the procedures
 
     Upon completion, the first address of the newly allocated space is placed in the first 4 bytes of EvalTop
 */
+
+let chunkStart = Addresses.ps2;
+let chunkEnd = Addresses.ps3;
+let blockStart = Addresses.ps4;
+let smallestFound = Addresses.ps5;
+let lastChunk = Addresses.ps1 + 1;
 var AllocationProc = [
     "#allocate AND 0"  // Clear accumulator
     // First, copy the top item on the Eval stack into ps0 and ps1 (as items are 5 bytes each, it will take the first byte of ps1) as it contains the details of the allocation request
@@ -44,9 +50,58 @@ AllocationProc = AllocationProc.concat(
         "SUB 33",
         "BIZ #allocate_check_pool_full",
         
-        // Can't use the pool so allocate from heap
-        "#allocate_from_global_heap",
-
+        /*
+            Can't use the pool so allocate from heap
+            chunkStart = ps2  (pointer to the first address in the chunk currently being searched)
+            chunkEnd = ps3 (pointer to the last address in the chunk currently being searched)
+            blockStart = ps4 (pointer to the first address of the current block)
+            smallestFound = ps5 (pointer to the smallest block found)
+            lastChunk = ps1 + 1 (boolean, set to 0 if this is the last chunk (0 used for true to allow BIZ to be used to test for it))
+            
+        */
+        "#allocate_from_global_heap AND 0",
+        // Set smallestFound to 0 initially
+        `WRT ${smallestFound}`,
+        `WRT ${smallestFound + 1}`,
+        `WRT ${smallestFound + 2}`,
+        `WRT ${smallestFound + 3}`,
+        // Set lastChunk to false
+        "ADD 1",
+        `WRT ${lastChunk}`
+        // Pointers for first chunk are stored in global area
+    ],
+    copy(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, chunkStart, 4),
+    copy(Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, chunkEnd, 4),
+    [
+        `#allocate_global_search_chunks RED ${lastChunk}`,  // If not all free chunks have been searched
+        "BIZ #allocate_global_all_chunks_searched",
+        // if chunkEnd == 0, throw NOT ENOUGH SPACE
+    ],
+    checkZero(chunkEnd, 4, "#allocate_insufficient_space", "#allocate_global_check_if_last_chunk"),
+    [
+        // if chunkStart + 1 (the pointer to the next chunk) == 0, then this is the last chunk
+        "#allocate_global_check_if_last_chunk AND 0"
+    ],
+    copy(chunkStart, Addresses.psAddr)
+);
+AllocationProc = AllocationProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
+    );
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps6, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    checkZero(Addresses.ps6, 4, "#allocate_global_set_last_chunk", "#allocate_global_set_blockStart"),
+    [
+        "#allocate_global_set_last_chunk AND 0",
+        `WRT ${lastChunk}`,
+        // Start searching the blocks in the chunk, starting from the first one
+        "#allocate_global_set_blockStart AND 0"
+    ],
+    copy(chunkStart, blockStart),
+    [
+        "#allocate_global_search_blocks AND 0",  // LINE 986
+    ],
+    
+    [
         // Int or float so allocate from int/float pool (if isn't full)
         "#allocate_check_pool_full AND 0"
     ],
@@ -93,3 +148,75 @@ AllocationProc = AllocationProc.concat(
     copy(Addresses.ps2, Addresses.PoolFreePointer, 4),
     "GTO #allocate_finish"
 );
+
+/*
+    Procedure for checking if one 4 byte unsigned int value is greater than another
+    The details are provided in the pseudoregisters:
+        - psReturnAddr = the address to branch to if x is greater
+        - psAddr = the address to branch to if x is not greater
+        - ps0 = x
+        - ps1 = y
+*/
+var CheckGreaterProc = [
+    // First XOR corresponding bytes together to identify the first byte that differs (as XORing will leave only bytes that are different, so if the result is 0 we know the bytes are identical)
+    `#checkGreater RED ${Addresses.ps0}`,
+    `XOR A ${Addresses.ps1}`,
+    // If the bytes are the same, then move on the the next byte
+    "BIZ #checkGreater_byte2",
+    // Otherwise do the check on this byte
+    "GTO #checkGreater_check",
+
+    `#checkGreater_byte2 RED ${Addresses.ps0 + 1}`,
+    `XOR A ${Addresses.ps1 + 1}`,
+    "BIZ #checkGreater_byte3",
+    // Otherwise load the bytes into the first position in the registers and jump to checkGreater_check
+    `RED ${Addresses.ps0 + 1}`,
+    `WRT ${Addresses.ps0}`,
+    `RED ${Addresses.ps1 + 1}`,
+    `WRT ${Addresses.ps1}`,
+    "GTO #checkGreater_check",
+
+    `#checkGreater_byte3 RED ${Addresses.ps0 + 2}`,
+    `XOR A ${Addresses.ps1 + 2}`,
+    "BIZ #checkGreater_byte4",
+    `RED ${Addresses.ps0 + 2}`,
+    `WRT ${Addresses.ps0}`,
+    `RED ${Addresses.ps1 + 2}`,
+    `WRT ${Addresses.ps1}`,
+    "GTO #checkGreater_check",
+
+    `#checkGreater_byte4 RED ${Addresses.ps0 + 3}`,
+    `XOR A ${Addresses.ps1 + 3}`,
+    // All the bytes are the same, so x is not greater
+    `BIZ A ${Addresses.psAddr}`,
+    `RED ${Addresses.ps0 + 3}`,
+    `WRT ${Addresses.ps0}`,
+    `RED ${Addresses.ps1 + 3}`,
+    `WRT ${Addresses.ps1}`,
+    "GTO #checkGreater_check",
+
+    // The process for actually checking if the byte is greater or smaller (we only need to check one byte as we are working from MSB)
+    // Important to keep in mind here than "negative" numbers are larger than positive ones (as this is unsigned, so we don't care about negativity.  But if the negative flag is set it will mean the MSb is set)
+    `#checkGreater_check RED ${Addresses.ps0}`,
+    // Check if x is negative.  If it is negative and y is positive then x is bigger (as negative will mean sign bit is set and this is unsigned)
+    "BOR 0",  // ORed with 0 as read operations do not set the flags
+    "BIN #checkGreater_x_neg",
+    
+    // x is not negative, check if y is
+    `RED ${Addresses.ps1}`,
+    "BOR 0",
+    // x is not negative, but y is.  So y must be larger.
+    `BIN A ${Addresses.psAddr}`,
+    // Both have the same sign, so subtract y from x.  If x is bigger, the result will be positive
+    `#checkGreater_same_sign RED ${Addresses.ps0}`,
+    `SUB A ${Addresses.ps1}`,
+    `BIN A ${Addresses.psAddr}`,  // Result is negative, so x is not greater
+    `GTO A ${Addresses.psReturnAddr}`,  // Result is positive, so IS greater
+
+    `#checkGreater_x_neg RED ${Addresses.ps1}`,
+    // Check if both are negative
+    "BOR 0",
+    "BIN #checkGreater_same_sign",
+    // Otherwise x is neg and y is pos, meaning x must be greater
+    `GTO A ${Addresses.psReturnAddr}`,
+]
