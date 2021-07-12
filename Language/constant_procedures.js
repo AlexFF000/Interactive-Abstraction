@@ -99,8 +99,43 @@ AllocationProc = AllocationProc.concat(
     copy(chunkStart, blockStart),
     [
         "#allocate_global_search_blocks AND 0",  // LINE 986
+        // if chunkEnd < blockStart then all blocks in this chunk have been searched, so move on to next chunk
     ],
+    // To check if blockStart is greater, load blockStart into ps0 and chunkEnd into ps1 so checkGreater procedure can check them
+    copy(blockStart, Addresses.ps0),
+    copy(chunkEnd, Addresses.ps1),
+    // Load the address for checkGreater to jump to if blockStart is greater into psReturnAddr, and the address to jump to otherwise into psAddr
+);
+// Instead of loading the addresses it is actually supposed to jump to, load addresses of GTO instructions jumping to those addresses.  As calculating these addresses is much easier
+let greaterThanChunkEndJumpAddr = ProcedureOffset + calculateInstructionsLength(AllocationProc);
+AllocationProc.push("GTO #allocate_global_next_chunk")  // greaterThanChunkEndJumpAddr will contain address of this instruction
+let notGreaterThanChunkEndJumpAddr = ProcedureOffset + calculateInstructionsLength(AllocationProc);
+AllocationProc.push("GTO #allocate_global_check_block");  // notGreaterThanChunkEndJumpAddr will contain address of this instruction
+AllocationProc = AllocationProc.concat(
+    writeMultiByte(greaterThanChunkEndJumpAddr, Addresses.psReturnAddr, 4),
+    writeMultiByte(notGreaterThanChunkEndJumpAddr, Addresses.psAddr, 4),
+    [
+        "GTO #checkGreater",
+        "#allocate_global_next_chunk AND 0"
+    ],
+    // blockStart is greater, so the next free block is not in this chunk.  So move to next chunk
+    // Load the chunkStart and chunkEnd pointers from positions 1-4 and 5-8 of this chunk
+    copy(chunkStart, Addresses.psAddr)
+)
+AllocationProc = AllocationProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))  // psAddr now contains chunkStart + 1, which is the starting address of this chunks pointer to the next chunkStart
+)
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(chunkStart, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The chunkStart of the next chunk is now loaded into chunkStart
+)
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(chunkEnd, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The chunkEnd of the next chunk is now loaded into chunkEnd
+    [
+        "GTO #allocate_global_search_chunks",  // Search this chunk
+        "#allocate_global_check_block AND 0"
     
+
+    ],
     [
         // Int or float so allocate from int/float pool (if isn't full)
         "#allocate_check_pool_full AND 0"

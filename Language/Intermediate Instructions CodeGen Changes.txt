@@ -1,0 +1,3421 @@
+// Pseudocode for intermediate instructions
+
+Variables / procedures preceded by # are provided by the compiler and evaluated at compile time
+variables / pointers:
+
+
+
+Memory -> Refers to the machines memory.  Accessed using array notation:  Memory[n] refers to byte n of memory (starting from 0)
+PoolStart -> Contains the address of the first byte of int / float pool
+PoolFree -> Contains the address of the next free block in the pool to be used
+StartChunk -> Contains first address of first free chunk in heap
+EndChunk -> Contains last address of first free chunk in heap
+EvalTop -> Contains address of top item in current frame's eval stack
+EvalStart -> Contains first address of the space allocated for current frame's eval stack
+VarTable -> Contains first address of the frame's variable table
+NullAddress -> The address containing the  null value
+AllParents -> Set if all tables traversed so far have been accessed through the parent or this attribute (for use in enforcing the private keyword) Should be cleared on each new statement
+Modifiers -> 1 byte value containing access modifier info for new variables.  Must be reset to 00000000 after each statement
+DeclareGlobal -> Set to true when global keyword is used, meaning next variable to be declared must be declared in global scope.  Must be reset after each statement
+Scope -> Contains the start address of the current stack frame (or of the global area if scope is global)  // A.k.a frame pointer
+StackPointer -> Contains last byte of current stack frame (so incrementing it would give first address of a new frame)
+GlobalAddress -> The start address of the global area
+StackAddress -> The start address of the call stack
+StackSize -> The number of bytes reserved for the call stack
+
+TypeSizes -> Lookup table containing number of bytes for each fixed size type
+
+
+#GlobalAddress = 36
+
+CLEAR (Empty eval stack, used when a line of code completes):
+
+EvalTop = EvalStart
+
+
+SETUP (Set up the runtime environment)
+
+// Setup reserved area
+// Reserved area will start from address 5
+StackSize -> Memory[5:8]
+Memory[5] = 65536
+StackAddress -> Memory[9:12]
+StackAddress = #GlobalInstructionsEndAddress + 1
+StackPointer -> Memory[13:16]
+StackPointer = StackAddress  // Initially same as StackAddress as there is nothing on stack
+Scope -> Memory[17:20]
+Scope = #GlobalAddress
+PoolStart -> Memory[21:24]
+PoolFree -> Memory[25:28]
+VarTable -> Memory[29:32]
+NullAddress -> Memory[33]
+AllParents -> Memory[34]
+Modifiers -> Memory[35]
+DeclareGlobal -> Memory[36]
+// Global area begins at 36
+EvalTop -> Memory[37:40]
+EvalStart -> Memory[41:44]
+EvalTop = 85
+EvalStart = 85
+StartChunk -> Memory[45:48]
+EndChunk -> Memory[49:52]
+HeapStart -> Memory[53:56]
+HeapEnd -> Memory[57:60]
+Memory[61:64] = NullAddress  // If inside a frame this would be previous frame pointer, but it is global so there is no previous frame
+Memory[65:68] = NullAddress  // There is no return address either
+Memory[69:72] = VarTable
+NamePool -> Memory[73:76]
+Memory[77:80] = NullAddress  // No need to keep track of last chunk in global heap as it uses a different allocation system
+Memory[81:84] = 185  // Global instructions will be located after reserved area (address 185 onwards)
+
+
+// Setup name and int pool
+PoolStart = StackAddress + StackSize
+Memory[PoolStart: + 3] = 0
+PoolFree = StackStart + StackSize
+// Setup heap
+HeapStart = PoolStart + 4096
+heapSizeBase2 = floor(log2(((2 ^ 32) - 1) - HeapStart))
+HeapEnd = HeapStart + (2 ^ heapSize)
+Memory[HeapStart] = heapSizeBase2  // Place size of first block
+Memory[HeapStart + 1: + 3] = 0  // There are no more blocks so set pointers to 0
+Memory[HeapStart + 5: + 3] = 0
+StartChunk = HeapStart  // The start address of first chunk
+EndChunk = heapEnd - 1  // The last address in first chunk
+// Setup name pool
+EvalTop += 5
+Memory[EvalTop] = 10  // The name pools are 1024 bytes
+ALLOCATE
+NamePool = Memory[EvalTop: + 3]
+EvalTop -= 5
+Memory[NamePool] = 51
+Memory[NamePool + 1: + 3] = NamePool + 7  // First free chunk
+Memory[NamePool + 5] =  202 // The number of free blocks in first free chunk
+Memory[NamePool + 6] = 0  // No expansion tables
+Memory[NamePool + 7: + 5] = 0  // Make sure pointers in first address are clear
+Memory[NamePool + 1020: + 3] = 0  // Make sure pointer to expansion pools is clear
+
+// Set up variable table
+EvalTop += 5
+Memory[EvalTop] = 10
+Memory[69:72] = Memory[EvalTop: + 3]
+EvalTop -= 5
+VarTable = Memory[69:72]
+Memory[VarTable] = 42
+Memory[VarTable + 1: + 1] = 1  // There will initially be 1 entry (the parent entry)
+Memory[VarTable + 3] = 0  // No expansions tables
+Memory[VarTable + 4: + 1] = 2  // Index of first free slot
+Memory[VarTable + 16: + 1] = 0  // Make sure index pointer in first free slot is clear
+Memory[VarTable + 1020: + 3] = 0  // Make sure pointer to next expansion table is clear (not stricly necessary as code should only go to next expansion table if expansion tables header is not 0, but good to keep clear just in case and to make it clearer that it is reserved)
+// Add parent entry (will contain null to show that this is the global variable table)
+Memory[VarTable + 6] = 48
+Memory[VarTable + 7] = 0  // Parent entries have no name, so name length is 0
+Memory[VarTable + 8: + 3] = NullAddress  // Parent entries have no name, so name address just points to null
+Memory[VarTable + 12: + 3] = NullAddress  // Will point to null to show that there is no parent, as this is the global variable table
+
+// Start running code
+GTO 180
+
+
+
+LOAD (Copy the value of a variable onto the eval stack):
+
+name = Memory[EvalTop: + 4]
+if name[0] == 46 then
+	name = Memory[name[1:4]]
+else
+	THROW NAME EXPECTED
+	
+if name[0] == 55 then
+	name = name[1:name.length]  // Ignore type tag
+else
+	THROW NAME EXPECTED
+
+// First find the value
+table = VarTable  // Search local variable table first
+if AllParents == Unset then
+	AllParents = true  // Must be set back to unset when statement is completed
+	
+(_findEntry_)
+headerLength = 6
+if Memory[table] == 39 or Memory[table] == 44 then
+	entryLength = 11
+	endOfEntriesAddress = table + 1018  // The first address of the unusable space in the table (the space after the last entry, but before the next table pointer.  This space is too small to fit another entry so cannot be used)
+	totalEntriesSize = 1012  // The total size of all entries in a table
+else
+	entryLength = 10
+	endOfEntriesAddress = table + 1016
+	totalEntriesSize = 1010
+	
+entriesSearched = 0
+entryStart = table + 6  // Start address of first entry
+subTable = table  // The table currently being searched
+tablesToSearch = Memory[table + 3] + 1  // How many sub tables does this table consist of?
+(_searchNextEntry_)
+
+if name[0] == Memory[entryStart + 1] then  // Only bother searching each char in name if the lengths are the same
+	character = 0
+	(_compareChars_) if character < name[0] then
+		vNameAddress = Memory[entryStart + 2: + 3]  // The start address of the variables name in the name heap
+		if Memory[vNameAddress + character] == name[character + 1]
+			character += 1
+			goto _compareChars_  // The names match so far, try the next character
+		else  // This entry does not match so try the next one
+			goto _tryNextEntry_
+	else
+		goto _loadEntry_  // This is the correct entry, so jump to the loadEntry code
+else  // This entry does not match so try the next one
+	(_tryNextEntry_) entriesSearched += 1
+	entryStart += entryLength // Add entry length to point to start of next entry
+	if endOfEntriesAddress <= entryStart then
+		// There are no more entries in this table, so move to next expansion table if there is one
+		tablesToSearch -= 1
+		if tablesToSearch != 0 then
+			subTable = Memory[subTable + 1020: + 3]
+			endOfEntriesAddress = subTable + 1 + totalEntriesSize  // Expansion tables only have 1 byte headers, rather than 6 bytes for main tables
+			headerLength = 1
+		else
+			goto _searchParentTable_  // All of this table's subtables have been searched, so move on to parent table if there is one
+	goto _searchNextEntry_
+		
+(_searchParentTable_)
+// The value is not in this table, so search the parent one / this object
+entryStart = table + 6  // Return to first entry, as this will contain the parent
+table = Memory[entryStart + (entryLength - 4): + 3] // Place address of parent table in table pointer
+if table == NullAddress then
+	THROW VARIABLE DOES NOT EXIST // Throw error as requested variable doesn't exist in this scope
+else
+	// restart the process but using the parent table
+	goto _findEntry_
+
+// Now load the value onto the stack
+(_loadEntry_)
+address = Memory[entryStart + (entryLength - 4): + 3]
+
+// Check for private / public
+if entryLength == 11 then  // Only check if entry has flags byte
+	flags = Memory[entryStart + 2 + Memory[entryStart + 1]]  // Get the flags byte for the entry
+	if (flags AND 2) != 0 then
+		// Private flag is set, so check to make sure that the entry is being accessed from inside the class (or one of its children)
+		if AllParents != true then
+			THROW ACCESS FROM OUTSIDE CLASS  // The private attribute is being accessed from outside its class
+if entryStart != subTable + headerLength then
+	// This is not the parent entry, so AllParents is now false
+	AllParents = false
+
+// If name object referenced on stack is non permanent then it must be deallocated
+if Memory[EvalTop] == 46 then
+	Memory[EvalTop: + 3] = Memory[EvalTop + 1: + 3]
+	Memory[EvalTop + 4] = roundUp(log2(2 + name[0]))  // + 2 to take type tag and length byte into account
+	DEALLOCATE
+else
+	EvalTop -= 5
+
+(_fetch_)
+// What happens next depends on type.
+if address == NullAddress then  // If the address points to the null value, then place the address of the null value on the stack
+	EvalTop += 5
+	Memory[EvalTop : EvalTop + 4] == NullAddress
+	
+if Memory[address] == 45 then
+	// The value is a reference, so fetch the actual value
+	address = Memory[address + 1: address + 4]
+	goto _fetch_
+if Memory[address] == 48 || Memory[address] == 50 then
+	// The value is an entry in a variable table and is therefore a reference to a variable, so fetch the actual value of the variable
+	address = Memory[address + 1 + Memory[address + 1] : + 3]
+	goto _fetch_
+if Memory[address] == 49 then
+	// The value is an entry in a prototype table, and is therefore a reference to a variable, so fetch the actual value of the variable
+	address = Memory[address + 2 + Memory[address + 1] : + 3]
+	goto _fetch_
+if Memory[address] == 32 || Memory[address] == 33 || Memory[address] == 34 then  // Int, float, or bool (the types small enough to fit on the stack)
+	EvalTop += 5
+	Memory[EvalTop : EvalTop + 4] = Memory[address : address + 4]
+else
+	EvalTop += 5
+	Memory[EvalTop : EvalTop + 4] = [47, address]  // Place large value reference on stack
+	
+
+
+STORE (Load the value 2nd to top of the stack into the variable specified on top of stack, used for assignment)
+
+name = Memory[EvalTop : + 4]
+
+
+if name[0] == 46 or name[0] == 47 then  // Names won't fit on stack so will be stored as a large object reference
+	entryStart = Memory[name[1:4]]  // To save memory, do not copy into name
+	goto _entryFound_
+else
+	THROW NAME EXPECTED
+	
+if name[0] == 48 or name[0] == 49 or name[0] == 50 then
+	// The slot in the table has been provided instead of a name
+	slot = name
+else if name[0] != 55 then
+	THROW NAME EXPECTED
+
+name = name[1:name.length]  // Ignore type tag from name
+// Find the variable or create it if it does not exist
+newVariableCreated = false  // Will be set to true if a new variable is created
+// First find the value
+
+table = VarTable  // Search local variable table first
+FirstTable = VarTable
+if AllParents == Unset then
+	AllParents = true  // True at first
+
+	
+entriesSearched = 0
+tablesSearched = 0
+expansionTables = Memory[table + 3]  // The number of linked tables there are extending this one (expansion tables are created when a table becomes full)
+entryStart = table + 6  // Start address of first entry
+subTable = table  // This will point to the current expansion table being searched, or just the table if the table being searched is the first one 
+(_findEntry_) if entriesSearched <= Memory[table + 1 : table + 2] then                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+	if name[0] == Memory[entryStart + 1] then  // Only bother searching each char in name if the lengths are the same
+		character = 0
+		entryName = Memory[entryStart + 2: +3]
+		(_compareChars_) if character < name[0] then
+			if entryName[character] == name[character + 1]  // First byte in name contains length, so must add 1 to get correct byte
+				character += 1
+				goto _compareChars_  // The names match so far, try the next character
+			else  // This entry does not match so try the next one
+				goto _tryNextEntry_
+		else
+			goto _entryFound_  // This is the correct entry, so jump to the entryFound code
+	else  // This entry does not match so try the next one
+		(_tryNextEntry_) entriesSearched += 1 
+		entryLength = 10  // Get length of the current entry
+		if Memory[table] == 39 || Memory[table] == 43 || Memory[table] == 44 then
+			entryLength += 1  // Add an extra 1 as protype tables and this objects also have a flags byte
+		entryStart += entryLength // Add entry length to point to start of next entry
+		if expansionTables != 0 and (entryStart + entryLength - 1 >= subTable + 1020) then   // There are expansion tables, and there is not enough space in this table to fit another entry without eating into last 4 bytes (reserved to point to expansion) so move to expansion table
+			tablesSearched += 1
+			if tablesSearched < expansionTables then  // There is at least one more table to search
+				subTable = Memory[table + 1020 : + 3]
+				entryStart = subTable + 1  // Move to first entry of next expansion table
+			else
+				goto _checkParentTable_
+		goto _findEntry_
+else
+	(_checkParentTable_)
+	// The value is not in this table, so search the parent one / this object
+	entryStart = table + 6  // Return to first entry, as this will contain the parent
+	// Place address of parent table in table pointer
+	if Memory[entryStart] == 49 then
+		table = Memory[entryStart + 7: + 3]
+	else
+		table = Memory[entryStart + 6: + 3]
+	
+	if table == NullAddress or Memory[table] == 0 then
+		newVariableCreated = true
+		table = FirstTable  // Declare new variable in most local scope
+		subTable = table
+		oldVarTable = VarTable
+		VarTable = table  // Point VarTable to table so DECLARE will create the new variable in the right table
+		DECLARE
+		entryStart = Memory[EvalTop: + 3]
+		EvalTop -= 5
+		VarTable - oldVarTable
+		goto _entryFound_
+	else
+		// restart the process but using the parent table
+		entriesSearched = 0
+		entryStart = table + 6
+		subTable = table
+		goto _findEntry_
+		
+	(_entryFound_) 
+	if Memory[entryStart] == 49 then  // Class prototype or this entry, so check to make sure that the scope has access if it is private
+		if (Memory[entryStart + 5] AND 2) == 2 then
+			// It is private, so throw error if this scope does not have access
+			if AllParents == false then
+				THROW ACCESS FROM OUTSIDE CLASS
+		address = Memory[entryStart + 7 : + 3]
+	else
+		address = Memory[entryStart + 6 : + 3]
+		
+	// Make sure that there is enough space at the address (and that the address is not null)
+	newValueLength = 5
+	if Memory[EvalTop] == 46 || Memory[EvalTop] == 47 then  // The value is a large object reference, meaning that the actual value is not actually on the stack
+		valueAddress = Memory[EvalTop + 1 : + 3]  // Get address of actual value
+		// How to calculate the number of bytes depends on the type of object
+		if Memory[valueAddress] == 35 then  // An array
+			arrayType = Memory[valueAddress + 1]  // The type of objects stored in the array
+			newValueLength = 4 + (TypeSizes[arrayType] * Memory[valueAddress + 2 : + 1])
+		else if Memory[valueAddress] == 36 then  // A string
+			newValueLength = 3 + Memory[valueAddress + 1 : + 1]
+		else if Memory[valueAddress] == 37 then  // A function definition
+			newValueLength = 9 + (Memory[valueAddress + 1 : + 3] * 2)  // Number of instructions is multiplied by 2 as each instruction uses two bytes
+		else if Memory[valueAddress] == 39 then  // A this object
+			newValueLength = 1024 + (Memory[valueAddress + 3] * 1024)  // Size of main table + size of all expansion tables	
+		else if Memory[valueAddress] == 40 then  // A list (head)
+			newValueLength = TypeSizes[40]
+		else if Memory[valueAddress] == 41 then // A dict
+			// TBD
+		else if Memory[valueAddress] == 56 then  // A bound method
+			newValueLength = TypeSizes[56]
+	else if (poolStart >= address > poolStart + 4095) then
+		if Memory[valueAddress] == 32 || Memory[valueAddress] == 33 then
+			// Replace the value
+			Memory[address : + 4] = Memory[EvalTop : + 4]
+			goto _endStore_
+		else
+			// The current address is in the int / float pool, but the new value is not an int or float so cannot be placed there
+			// Deallocate old address
+			EvalTop += 5
+			Memory[EvalTop : + 3] = address 
+			DEALLOCATE
+			// And allocate a new one
+			goto _newSpace_
+	if address == NullAddress then
+		goto _newSpace_
+	
+	// Get number of bytes allocated to old value
+	oldValueLength = 0  // Space allocated to old value
+	valueAddress = address  // Get address of old value
+	// How to calculate the number of bytes depends on the type of object
+	if Memory[valueAddress] == 35 then  // An array
+		arrayType = Memory[valueAddress + 1]  // The type of objects stored in the array
+		oldValueLength = 4 + (TypeSizes[arrayType] * Memory[valueAddress + 2 : + 1])
+	else if Memory[valueAddress] == 36 then  // A string
+		oldValueLength = 3 + Memory[valueAddress + 1 : + 1]
+	else if Memory[valueAddress] == 37 then  // A function definition
+		oldValueLength = 9 + (Memory[valueAddress + 1 : + 3] * 2)  // Number of instructions is multiplied by 2 as each instruction uses two bytes
+	else if Memory[valueAddress] == 39 then  // A this object
+		oldValueLength = 1024 + (Memory[valueAddress + 3] * 1024)
+	else if Memory[valueAddress] == 40 then  // A list (head)
+		oldValueLength = TypeSizes[40]
+	else
+		oldValueLength = TypeSizes[valueAddress]
+	
+	// Round up oldValueLength as blocks are allocated in powers of base 2 with minimum size being 32
+	if oldValueLength < 32 then
+		oldValueLength = 32
+	else
+		oldValueLength = 2 ^ roundUp(log2(oldValueLength))
+	
+	if Memory[valueAddress] == 39 then
+			// Procedure for this objects is different as they can consist of multiple tables scattered throughout memory
+			// Deallocate the tables from last table to first
+			tablesRemaining =  Memory[valueAddress + 3] + 1
+			(_removeThisTable_)
+			if tablesRemaining != 0 then
+				currentTable = valueAddress
+				tablesChecked = 1
+				(_getLastThisTable_)
+				if tablesChecked == tablesRemaining then
+					// Deallocate the last table
+					EvalTop += 5
+					Memory[EvalTop: + 3] = currentTable
+					Memory[EvalTop + 4] = 10
+					DEALLOCATE
+					tablesRemaining -= 1
+					goto _removeThisTable_
+				else
+					// This is not the last table, so continue traversing
+					currentTable = Memory[currentTable + 1020: +3]
+					tablesChecked += 1
+					goto _getLastThisTable_
+			goto _newSpace_
+			
+	else if oldValueLength < newValueLength then
+		// Deallocate the old block
+		EvalTop += 5
+		Memory[EvalTop : + 3] = valueAddress
+		Memory[EvalTop + 4] = roundUp(log2(oldValueLength))  // The size of the block to deallocate is provided in the fifth byte
+		DEALLOCATE
+		// And write to a new one
+		_newSpace_
+	else
+		// Overwrite the old data with the new
+		// Get address of data to be moved in
+		if Memory[EvalTop] == 46 || Memory[EvalTop] == 47 then
+			srcAddress = Memory[EvalTop + 1 : + 3]
+		else
+			srcAddress = EvalTop
+		bytesOverwrriten = 0
+		(_overwriteBytes_) if bytesOverwrriten < newValueLength then
+			Memory[valueAddress + bytesOverwrriten] = Memory[srcAddress + bytesOverwrriten]
+			bytesOverwrriten += 1
+			goto _overwriteBytes_
+		else
+			goto _endStore_
+			
+			
+		
+	(_newSpace_)  // Allocate new space
+	
+	// Get address of data to be stored
+	if Memory[EvalTop] == 46 || Memory[47] then
+		srcAddress = Memory[EvalTop + 1 : + 3]
+	else
+		srcAddress = EvalTop
+	
+	if Memory[srcAddress] == 39 then
+		// this objects must be copied one table at a time
+		tablesToCopy = Memory[srcAddress + 3] + 1
+		lastTableCopied = 0
+		currentTableSrc = srcAddress
+		(_copyThisTable_)
+		if tablesToCopy != 0 then
+			// Allocate space for table
+			EvalTop += 5
+			Memory[EvalTop] = 10   // 2^10 = 1024
+			Allocate
+			newSpaceAddress = Memory[EvalTop: + 3]
+			EvalTop -= 5
+			byte = 0
+			(_copyTableBytes_)
+			if byte != 1024 then
+				Memory[newSpaceAddress + byte] = Memory[lastTableSrc + byte]
+				byte += 1
+				goto _copyTableBytes_
+			tablesToCopy -= 1
+			if lastTableCopied != 0 then  // If this is not the first able then copy this tables address into the last 4 bytes of previous one
+				Memory[lastTableCopied + 1020: + 3] = newSpaceAddress
+			lastTableCopied = newSpaceAddress
+			currentTableSrc = currentTableSrc + 1020: + 3  // Move to next table
+			goto _copyThisTable_
+		// Point table entry to new address
+		if Memory[entryStart] == 49 then
+			// Entry has flags byte
+			Memory[entryStart + 7: + 3] = newSpaceAddress
+		else
+			Memory[entryStart + 6: + 3] = newSpaceAddress
+		
+		goto _endStore_
+	
+	else
+		newValueLengthBase2 = roundUp(log2(newValueLength))
+		EvalTop += 5
+		Memory[EvalTop] = newValueLength  // Push the amount of memory needed to the stack
+		if Memory[EvalTop - 5] == 32 || Memory[EvalTop - 5] == 33 then
+			Memory[EvalTop + 1] = Memory[EvalTop - 5]  // In the 2nd byte, specify the type if it is an int or float (meaning pool can be used)	
+		ALLOCATE
+		newSpaceAddress = Memory[EvalTop : + 3]  // ALLOCATE will push the start address of the new block to the eval stack
+		EvalTop -= 5  // Remove the address from stack once it is no longer needed
+		// Load the data into the new space
+		bytesWritten = 0
+		(_writeBytes_) if bytesWritten < newValueLength then
+			Memory[newSpaceAddress + bytesWritten] = Memory[srcAddress + bytesWritten]
+			bytesWritten += 1
+			goto _writeBytes_
+		else
+			// Point variable to new address
+			if Memory[table] == 44 then  // Entry has flags byte
+				Memory[entryStart + 3 + Memory[entryStart + 1] : + 3] = newSpaceAddress
+			else
+				Memory[entryStart + 2 + Memory[entryStart + 1] : + 3] = newSpaceAddress
+			goto _endStore_
+	
+		
+		
+(_endStore_) // Remove from stack and finish up
+if Memory[EvalTop] == 46 and newVariableCreated  == false then  // If a new variable was declared then the declare procedure will already have handled this
+	// Name reference was non permanent so must now be deallocated
+	Memory[EvalTop: + 3] = Memory[EvalTop + 1: + 3]
+	Memory[EvalTop + 4] = roundUp(log2(2 + name[0]))  // Must add 2 to include type tag, which name does not include, and the length byte (name[0])
+	DEALLOCATE
+	EvalTop -= 5
+else
+	EvalTop -= 10  // Remove name and value from stack
+// Reset AllParents and VarTable
+AllParents = Unset
+VarTable = Memory[Scope + 32: + 3]
+		
+
+
+DECLARE (Add a new variable to VarTable, with the modifiers specified in Modifiers global, and the name referenced on top of eval stack. Set initial value to null)
+
+Modifiers = Memory[Modifiers]
+table = Memory[VarTable: + 3]
+name = Memory[EvalTop : + 4]
+EvalTop -= 5
+if name[0] == 46 then
+	name = Memory[name[1:4]]
+else
+	THROW NAME EXPECTED
+	
+if name[0] == 55 then
+	name = name[1:name.length]  // Ignore type tag
+else
+	THROW NAME EXPECTED
+	
+hasFlagsByte = 0
+newEntryStart = table + 5  // Start of first entry
+searchComplete = false
+
+// Find space for name in name pool
+nameAddress = 0
+NamePool = Memory[Scope + 36: + 3]  // The address of the scope's name pool
+blocksNeeded = roundUp(name[0] / 5) // Name pools consist of 5 byte blocks, so check how many blocks will be needed for this name
+lastFreeSpace = NamePool + 1
+nextFreeSpace = Memory[NamePool + 1 : + 3]
+nextFreeSpaceSize = Memory[NamePool + 5]  // Number of blocks in the free space
+(_findFreeNameBlocks_)
+if nextFreeSpaceSize == name[0] then
+	// The next free space is exactly the right size
+	// Copy pointer to next free space into last free space's pointer
+	Memory[lastFreeSpace : + 3] = Memory[nextFreeSpace : + 3]  // Copy in address
+	Memory[lastFreeSpace + 4] = Memory[nextFreeSpace + 4]  // Copy in size
+	nameAddress = nextFreeSpace
+else if nextFreeSpaceSize > name[0] then
+	// The next free space is bigger than what we need
+	// Move pointer forward to new start of free space
+	newSpaceStart = nextFreeSpace + 5 * name[0]
+	Memory[newSpaceStart: + 3] = Memory[nextFreeSpace: + 3]
+	Memory[newSpaceStart + 4] = Memory[nextFreeSpace + 4]
+	// Update pointer to this space
+	Memory[lastFreeSpace: + 3] = newSpaceStart
+	Memory[lastFreeSpace + 4] = nextFreeSpaceSize - next[0]
+	nameAddress = nextFreeSpace
+else
+	// This space is too small, so move to next free space
+	lastFreeSpace = nextFreeSpace
+	if Memory[nextFreeSpace: + 3] != 0 then  // But empty pointers wont always contain 0, due to deallocation   // But if we put 0 in first block it will gradually be pushed to end?
+		nextFreeSpaceSize = Memory[nextFreeSpace + 4]
+		nextFreeSpace = Memory[nextFreeSpace: + 3]
+		goto _findFreeNameBlocks_
+	else
+		// Allocate a new expansion name pool
+		totalBlocks = 203
+		EvalTop += 5
+		Memory[EvalTop] = newPoolSize
+		newPoolAddress = Memory[EvalTop : + 3]
+		EvalTop -= 5
+		Memory[newPoolAddress] = 52  // Add type tag
+		// Use first blocks for the new name, and then set the first free block to the block after
+		firstFreeBlock = newPoolAddress + name[0] + 1
+		Memory[firstFreeBlock: + 3] = 0  // Set pointer in first free block to 0
+		Memory[firstFreeBlock: + 4] = 0
+		Memory[lastFreeSpace: + 3] = firstFreeBlock  // Set pointer to first free block
+		Memory[lastFreeSpace + 4] = totalBlocks - name[0]
+		// Link old pool to new one
+		// Find the previous pool's start address
+		previousPool = NamePool
+		poolsRemaining = Memory[NamePool + 1]
+		(_getLastPool_)
+		if poolsRemaining != 0 then
+			previousPool = Memory[previousPool + 1020: + 3]
+			poolsRemaining -= 1
+			goto _getLastPool_
+		else
+			Memory[previousPool + 1020: + 3] = newPoolAddress
+		
+		// Update number of pools
+		Memory[NamePool + 6] += 1
+		if carryFlag is set then
+			THROW NAME POOL LIMIT REACHED  // Number of pools header is only 1 byte
+		nameAddress = newPoolAddress + 1
+		
+	// Load name into new space in name pool
+	count = 0
+	(_storeName_)
+	if count != name[0] then
+		Memory[nameAddress + count] = name[count + 1]  // First byte in name contains the name length, so must + 1 to skip past it (as length is not stored in name pool)
+		count += 1
+		goto _storeName_
+	
+		
+(_addVar_)
+if Memory[table] == 42 then // Variable tables don't have a flags byte
+	hasFlagsByte = 0
+	if searchComplete == false then
+		goto _findNewEntrySpace_
+	// Add new entry
+	Memory[newEntryStart] = 48
+	Memory[newEntryStart + 1] = name[0]
+	Memory[newEntryStart + 2: + 3] = nameAddress
+	// Point address to null value
+	Memory[newEntryStart + 6: + 3] = NullAddress
+	goto _endDeclare_
+	
+else if Memory[table] == 43 then  // function prototype tables do not have flags byte
+	hasFlagsByte = 0
+	if searchComplete == false then
+		goto _findNewEntrySpace_
+	// Add new entry
+	Memory[newEntryStart] = 48
+	Memory[newEntryStart + 1] = name[0]
+	Memory[newEntryStart + 2: + 3] = nameAddress
+	// Point address to null value
+	Memory[newEntryStart + 6 : + 3] = NullAddress
+	goto _endDeclare_
+	
+else if Memory[table] == 39 || Memory[table] == 44 then  // Table is a this object, or class prototype
+	hasFlagsByte = 1
+	if searchComplete == false then
+		goto _findNewEntrySpace_
+	// Add new entry
+	Memory[newEntryStart] = 49  // Type 49 is used for this object entries and class prototype entries
+	Memory[newEntryStart + 1] = name[0]
+	Memory[newEntryStart + 2: + 3] = nameAddress
+	Memory[newEntryStart + 6] = Modifiers
+	// Point address to null value
+	Memory[newEntryStart + 7: + 3] = NullAddress
+	goto _endDeclare_
+	
+	
+(_findNewEntrySpace_)
+// Find the first free slot to place the new entry
+if Memory[table] == 39 or Memory[table] == 44 then
+	slotSize = 11
+else
+	slotSize = 10
+	
+firstFreeSlotIndex = Memory[table + 4: + 1] - 1  // Get the header containing index of first free slot, index is stored as 1 higher to allow 0 to represent no index, so 1 must be subtracted from it before use
+if Memory[table] == 39 or Memory[table] == 44 then
+	tableMaxLen = 92
+else
+	tableMaxLen = 101
+maxLength = (Memory[table + 1: + 1] + 1) * tableMaxLen 
+if Memory[table + 1: + 1] == maxLength then
+	// No more free slots so need to create a new expansion table
+	// First allocate space for new table
+	EvalTop += 5
+	Memory[EvalTop] = 10
+	ALLOCATE
+	newTableAddress = Memory[EvalTop: + 3]
+	EvalTop -= 5
+	// Set up new table
+	if Memory[table] == 39 or Memory[table] == 44 then
+		Memory[newTableAddress] = 54
+	else
+		Memory[newTableAddress] = 53
+	Memory[newTableAddress + 1020: + 3] = 0
+	slotAddress = newTableAddress + 1
+	Memory[slotAddress + slotSize: + 1] = 0  // Make sure next slot's pointer is clear
+	// Link new table to previous one
+	lastTable = table
+	tablesToSearch = Memory[table + 3]
+	(_findLastSubTable_)
+	if tablesToSearch != 0 then
+		lastTable = Memory[lastTable + 1020: + 3]
+		tablesToSearch -= 1
+		goto _findLastSubTable_
+	Memory[lastTable + 1020: + 3] = newTableAddress
+	// Next free space is now 2nd slot in the new table
+	Memory[table + 4: + 1] = maxLength + 1
+	// Increment number of tables header
+	Memory[table + 3] += 1
+	if carryFlag is set then
+		THROW VARIABLE TABLE LIMIT REACHED
+else
+	// Get address of slot from the index
+	// First determine the correct table
+	slotTable = firstFreeSlotIndex / tableMaxLen
+	// Then determine the index within that table
+	localSlotIndex = firstFreeSlotIndex MOD tableMaxLen
+	// Get address of the table
+	slotTableAddress = table
+	(_findSubTable_)
+	if slotTable != 0 then
+		slotTableAddress = Memory[slotTableAddress + 1020: + 3]
+		slotTable -= 1
+	// Get address of slot
+	if Memory[slotTableAddress] == 53 or Memory[slotTableAddress] == 54 then  // Expansion tables have fewer headers
+		slotAddress = slotTableAddress + 1 + (localSlotIndex * slotSize)
+	else
+		slotAddress = slotTableAddress + 6 + (localSlotIndex * slotSize)
+	// Move address of next free slot in header
+	if Memory[slotAddress: + 1] == 0 then
+		// If there is no next free index stored then next slot will be next free
+		Memory[slotAddress + slotSize: + 1] = 0  // Make sure next slots pointer is clear (otherwise it could contain dealloctaed data which would be misread as index)
+		Memory[table + 4: + 1] += 1
+	else
+		// Copy index of next free slot to header
+		Memory[table + 4: + 1] = Memory[slotAddress: + 1]
+
+// Increment table length
+Memory[table + 1: + 1] += 1
+newEntryStart = slotAddress
+	
+	
+goto _addVar_
+(_endDeclare_)
+// If name is not permanent large object reference then deallocate it
+if Memory[EvalTop] == 46 then
+	Memory[EvalTop: + 3] = Memory[EvalTop + 1: + 3]
+	Memory[EvalTop: + 4] = roundUp(log2(2 + name[0]))  // Must add 1 to include type tag and length byte
+	DEALLOCATE
+	EvalTop += 5
+// Reset AllParents and VarTable
+AllParents = Unset
+VarTable = Memory[Scope + 32: + 3]
+// Return the start address of the new entry
+Memory[EvalTop: + 3] = newEntryStart
+
+
+LOADINDEX  (Load onto the stack the value at the index on top of the stack from the object 2nd to top)
+
+// Get address of index
+indexAddress = EvalTop
+objectAddress = EvalTop - 5
+deleteIndex = false  // Should the value provided for index be deleted after use (Set to true if a type 46 (i.e. temporary) reference is given)
+(_getIndexAddress_)
+if Memory[indexAddress] == 45 or Memory[indexAddress] == 47 then
+	// The item is a reference to the actual index, so get the address of actual index
+	indexAddress = Memory[indexAddress + 1: + 3]
+	goto _getIndexAddress_
+else if Memory[indexAddress] == 46 then
+	deleteIndex = true
+	indexAddress = Memory[indexAddress + 1: + 3]
+	goto _getIndexAddress_
+(_getObjectAddress_)
+if Memory[objectAddress] == 45 or Memory[objectAddress] == 47 then
+	objectAddress = Memory[objectAddress + 1: + 3]
+	goto _getObjectAddress_
+
+
+itemAddress = 0  // The address of the fetched item
+if Memory[objectAddress] == 35 then
+	// An array
+	if Memory[indexAddress] != 32 then
+		THROW INVALID INDEX  // Array indeces must be integers
+	// Get length of array to see if integer is in range
+	length = Memory[objectAddress + 2: + 1]
+	if length < Memory[indexAddress + 1: + 3] + 1 or Memory[indexAddress + 1: + 3] < 0 then
+		THROW INDEX OUT OF RANGE
+	// Get address of requested item
+	size = GETSIZE(Memory[indexAddress + 1])  // Get size of each value
+	itemAddress = indexAddress + 4 + (Memory[indexAddress + 1: + 3] * size)
+	
+else if Memory[objectAddress] == 40
+	// A linked list
+	if Memory[indexAddress] != 32 then
+		THROW INVALID INDEX  // List indeces must be integers
+	// Get length of list to see if integer is in range
+	length = Memory[objectAddress + 1: + 1]
+	if length < Memory[indexAddress + 1: + 3] + 1 or Memory[indexAddress + 1: + 3] < 0 then
+		THROW INDEX OUT OF RANGE
+	// Traverse list until requested item is found
+	itemsTraversed = 0
+	itemsToTraverse = Memory[indexAddress + 1: + 3]
+	itemAddress = Memory[objectAddress + 3: + 3]  // Get address of first node
+	(_traverseList_)
+	if itemsTraversed != itemsToTraverse then
+		itemAddress = Memory[itemAddress + 1: + 3]
+		itemsTraversed += 1
+		goto _traverseList_
+	itemAddress = itemAddress + 5  // Get start address of actual data
+else if Memory[objectAddress] == 41 then
+	// TBD
+else
+	THROW NON INDEXABLE OBJECT
+// Place item on eval stack
+EvalTop -= 5
+if Memory[itemAddress] == 32 or Memory[itemAddress] == 33 or Memory[itemAddress] == 34 or Memory[itemAddress] == 0 then
+	// The value can go directly onto stack
+	Memory[EvalTop: + 4] = Memory[itemAddress: + 4]
+else
+	Memory[EvalTop] = 47
+	Memory[EvalTop + 1: + 3] = itemAddress
+if deleteIndex then
+	EvalTop += 5
+	Memory[EvalTop] = ceil(log2(GETSIZE(indexAddress)))
+	Memory[EvalTop + 1: + 3] = indexAddress
+	DEALLOCATE
+
+	
+STOREINDEX (Load object 3rd from top of stack, into object 2nd from top, at index on top of stack)
+
+indexAddress = EvalTop
+destinationAddress = EvalTop - 5
+srcAddress = EvalTop - 10
+deleteIndex = false
+deleteSrc = false
+(_getIndexAddressStore_)
+if Memory[indexAddress] == 45 or Memory[indexAddress] == 47 then
+	indexAddress = Memory[indexAddress + 1: + 3]
+	goto _getIndexAddressStore_
+else if Memory[indexAddress] == 46 then
+	deleteIndex = true
+	indexAddress = Memory[indexAddress + 1: + 3]
+	goto _getIndexAddressStore_
+(_getDstAddress_)
+if Memory[destinationAddressAddress] == 45 or Memory[destinationAddress] == 47 then  
+	destinationAddress = Memory[destinationAddress + 1: + 3]
+	goto _getDstAddress_
+(_getSrcAddress_)
+if Memory[srcAddress] == 47 then  // Not 45 as type 45 (user defined) references are proper objects so will be stored as they are
+	srcAddress = Memory[srcAddress + 1: + 3]
+	goto _getSrcAddress_
+else if Memory[srcAddress] == 46 then
+	deleteSrc = true
+	srcAddress = Memory[srcAddress + 1: + 3]
+	goto _getSrcAddress_
+if Memory[destinationAddress] == 35 then
+	// The destination is in an array
+	if Memory[indexAddress] != 32 then
+		// The index must be an integer
+		THROW INVALID INDEX
+	length = Memory[destinationAddress + 2: + 1]
+	if length < Memory[indexAddress + 1: + 3] + 1 or Memory[indexAddress + 1: + 3] < 0 then
+		// The index provided does not exist in the array
+		THROW INDEX OUT OF RANGE
+	if Memory[srcAddress] != Memory[destinationAddress + 1] then
+		// The object being inserted is not the same type as the objects in the array
+		THROW INCOMPATIBLE OBJECT
+	// Get size of objects in array
+	entrySize = 0
+	if Memory[destinationAddress + 1] == 35 then
+		// The array contains arrays, so need to determine the size of the actual arrays
+		// TBD
+	else
+		entrySize = GETSIZE(Memory[destinationAddress + 1])
+	destinationAddress = destinationAddress + 4 + (Memory[indexAddress + 1: + 3] * entrySize)
+	if Memory[srcAddress] == 0 or srcAddress == NullAddress then
+		// If the value provided is null then set the specified entry to null
+		Memory[destinationAddress] = 0
+	else
+		// Otherwise copy in the value
+		Memory[destinationAddress: destinationAddress + entrySize] = Memory[srcAddress: srcAddress + entrySize]
+else if Memory[destinationAddress] == 40 then
+	// The destination is a list
+	if Memory[indexAddress] != 32 then
+		THROW INVALID INDEX  // Index must be an integer
+	length = Memory[destinationAddress + 1: + 1]
+	if length < Memory[indexAddress + 1: + 3] + 1 or Memory[indexAddress + 1: + 3] < 0 then
+		THROW INDEX OUT OF RANGE
+	// Find the specified node
+	itemsTraversed = 0
+	itemsToTraverse = Memory[indexAddress + 1: + 3]
+	previousNodePointer = destinationAddress + 3  // The address of the previous nodes pointer to the next node (i.e. the pointer to the currently checked node)  (Will be needed if the node has to be moved)
+	destinationAddress = Memory[destinationAddress + 3: + 3]  // Start at the first node
+	(_findSpecifiedNode_)
+	if itemsTraversed != itemsToTraverse then
+		previousNodePointer = destinationAddress + 1
+		destinationAddress = Memory[destinationAddress + 1: + 3]
+		itemsTraversed += 1
+		goto _findSpecifiedNode_
+	// Load the value into the node (recreating the node if neccessary)
+	if GETSIZE(destinationAddress + 5) != GETSIZE(srcAddress) then
+		// The old data and new data are different sizes so recreate the node as if the old data is smaller then the new data wont fit and if it is bigger then space will be wasted (and future deallocations will deallocate the wrong amount)
+		nextNode = Memory[destinationAddress + 1: + 3]
+		nodeSize = GETSIZE(destinationAddress + 5) + 5
+		EvalTop += 5
+		Memory[EvalTop] = ceil(log2(nodeSize))
+		Memory[EvalTop + 1: + 3] = destinationAddress
+		DEALLOCATE
+		EvalTop += 5
+		Memory[EvalTop] = ceil(log2(GETSIZE(srcAddress)))
+		ALLOCATE
+		destinationAddress = Memory[EvalTop: + 3]
+		EvalTop -= 5
+		Memory[destinationAddress] = 57  // List node type tag
+		Memory[destinationAddress + 1: + 3] = nextNode
+		Memory[previousNodePointer: + 3] = destinationAddress  // Update previous node's pointer to point to this nodes new location
+	dataSize = GETSIZE(srcAddress)
+	Memory[destinationAddress + 5: destinationAddress + 5 + dataSize] = Memory[srcAddress: srcAddress + dataSize]
+else if Memory[destinationAddress] == 41 then
+	// A dictionary
+	// TBD
+if deleteIndex == true then
+	Memory[EvalTop] = GETSIZE(indexAddress)
+	Memory[EvalTop + 1: + 3] = indexAddress
+	DEALLOCATE
+if deleteSrc == true then
+	Memory[EvalTop] = GETSIZE(srcAddress)
+	Memory[EvalTop + 1: + 3] = srcAddress
+	DEALLOCATE
+
+		
+
+
+
+CHILD (Place table referenced on top of eval stack in VarTable pointer, so that it is checked first on next variable access)
+// This procedure implements dot operator functionality
+
+table = EvalTop
+// The value on the stack will be a reference to a table, so get address of actual table
+(_getTableAddress_)
+if Memory[table] == 45 or Memory[table] == 47 then
+	table = Memory[table + 1: + 3]
+	goto _getTableAddress_
+if Memory[table] == 48 or Memory[table] == 50 then
+	// The reference is to the table entry that holds the ddress of the table that we want
+	table = Memory[table + 6: + 3]
+	goto _getTableAddress_
+if Memory[table] == 49 then
+	table = Memory[table + 7: + 3]
+	goto _getTableAddress_
+// this objects, variable tables, and class prototypes are the only types of tables that can be used (not function prototypes as they should be immutable, and not dictionaries as they will use the index operators ([]) instead)
+if Memory[table] == 39 or Memory[table] == 42 or Memory[table] == 44 then
+	VarTable = table
+else
+	THROW INVALID PARENT OBJECT
+ 
+
+ALLOCATE (Allocate a block of memory that conforms to parameters on top of eval stack, push the starting address of the block to the stack)
+
+// If the 3rd byte of the parameters on eval stack is 1, then the global space should be used even if the current scope is not global
+if Memory[EvalTop + 2] == 1 then
+	forceGlobal = true
+else
+	forceGlobal = false
+	
+// Check if int / float pool can be used first
+if Scope == GlobalAddress or forceGlobal == true then
+	AllocatedAddress  // The first address in the allocated block
+	if Memory[EvalTop + 1] == 32 || Memory[EvalTop + 1] == 33 then  // An int or float
+		if PoolFree < PoolStart + 4095 then  // Only try to use the pool if it is not full
+			AllocatedAddress = PoolFree
+			// Check to see if the block contains the address of another free block
+			if Memory[PoolFree : + 3] != 0 then
+				PoolFree = Memory[PoolFree : + 3]
+			else  // Otherwise the next free block is simply the next one along (or the pool is now full)
+				PoolFree += 5
+			goto _endAllocate_
+
+// The pool cannot be used, so a block must be allocated from the heap
+if Scope == GlobalAddress or forceGlobal == true then  // Global heap uses buddy allocation system
+	chunkStart = Memory[Scope + 8]
+	chunkEnd = Memory[Scope + 12]
+	spaceNeeded = Memory[EvalTop]
+	lastChunk = false
+	smallestFound = 0  // The address of the smallest block found that is large enough
+	(_searchChunks_) // For each chunk
+	if lastChunk == false then
+		if chunkEnd == 0 then
+			// There are no free chunks
+			THROW NOT ENOUGH SPACE
+		if Memory[chunkStart + 1] == 0 then
+			lastChunk = true  // The next chunk pointer is empty, so this is the last chunk
+		blockStart = chunkStart
+		(_searchBlocks_) // Search each block in the chunk
+		if chunkEnd < blockStart then  // All the blocks in this chunk have been searched, so move on to the next one
+			chunkStart = Memory[chunkStart + 1 : + 3]
+			chunkEnd = Memory[chunkStart + 5 : + 3]
+			goto _searchChunks_
+		blockSizeBytes = 2 ^ Memory[blockStart]  // The sizes are stored as exponents to base 2 so must be converted to actual number of bytes
+		if Memory[blockStart] == spaceNeeded then
+			// End the search, as a block exactly the right size has been found
+			AllocatedAddress = blockStart
+			// Change the chunks so that the block is not included
+			if blockStart == chunkStart then
+				if blockStart + blockSizeBytes > chunkEnd then
+					// The block is the entire chunk, so the whole chunk must be removed (do this by simply overwriting the pointers to this chunk with the pointers to the next)  If there is no next chunk then the pointers will contain 0, so the next allocation can tell that there is no more space
+					chunkStart = Memory[chunkStart + 1 : + 3]
+					chunkEnd = Memory[chunkStart + 5 : + 3]
+				else
+					// The block is right at the start of the chunk, so we can simply move the start forward
+					chunkStart = chunkStart + blockSizeBytes
+			else if chunkEnd < blockStart + blockSizeBytes - 1 then
+				// The block reaches to the end of the chunk, so we can simply bring the end backwards
+				chunkEnd = blockStart - 1
+			else
+				// The block is not at either end of the chunk, so the chunk must be split into two around it
+				// Move the pointers in the current chunk to the newly created next one
+				Memory[blockStart + blockSizeBytes + 1 : + 3] = Memory[chunkStart + 1 : + 3]  // Copy start pointer
+				Memory[blockStart + blockSizeBytes + 5 : + 3] = Memory[chunkStart + 5 : + 3] // Copy end pointer
+				// Point the pointers in current chunk to newly created chunk
+				Memory[chunkStart + 1 : + 3] = blockStart + blockSizeBytes
+				Memory[chunkStart + 5 : + 3] = chunkEnd  // The end of the new chunk will be the same as the where the end of current chunk used to be
+				// Update the pointers to this chunk
+				chunkEnd = blockStart - 1
+			goto _endAllocate_
+		
+		else if smallestFound == 0 || (spaceNeeded < Memory[blockStart] && Memory[blockStart] < Memory[spaceNeeded]) then  // SmallestFound == 0 would indicate that this is the first block to be searched
+			// This block is the smallest found so far that is still large enough (or it is the first block to be searched)
+			smallestFound = blockStart
+		// Try the next block
+		blockStart = blockStart + blockSizeBytes
+		goto _searchBlocks_
+
+	if smallestFound == 0 then
+		// If smallest found is still 0, then there are no blocks big enough
+		THROW NOT ENOUGH SPACE
+	// Split smallestFound until it is the right size
+	(_splitBlock_)
+	if Memory[smallestFound] != spaceNeeded then
+		// Split block in half into two blocks
+		newSize = Memory[smallestFound] - 1
+		Memory[smallestFound] = newSize
+		Memory[smallestFound + (2 ^ newSize)] = newSize
+		goto _splitBlock_
+	else
+		(_findChunk_)
+		// Find chunk that contains the block to avoid having to search every block all over again
+		chunkStart = Memory[Scope + 8]
+		chunkEnd = Memory[Scope + 12]
+		if chunkEnd < smallestFound then
+			// Try next chunk
+			chunkStart = Memory[chunkStart + 1 : + 3]
+			chunkEnd = Memory[chunkStart + 5 : + 3]
+			goto _findChunk_
+		else
+			// The correct chunk has been found, so place the correct block in blockStart (so the search will find the correct block immediately)
+			blockStart = smallestFound
+			goto _searchBlocks_
+			
+else  // Local frame heaps do not use buddy allocation system
+	firstChunkStart = Memory[Scope + 8]
+	firstChunkEnd = Memory[Scope + 12]
+	lastChunkStart = Memory[Scope + 40]  // This points to the next address after the last allocated chunk, so there will never be any allocated chunks beyond this address, the only way this pointer goes backward is if a chunk directly before it is unallocated
+	currentChunkAddrPtr = Scope + 8  // Address of address containing the start address of the current chunk
+	currentChunk = Memory[currentChunkAddrPtr: + 3]  // Actual start address of current chunk
+	spaceNeeded = Memory[EvalTop]
+	(_checkChunk_)
+	if currentChunk == 0 then
+		THROW NOT ENOUGH SPACE  // All chunks have been checked, and none are large enough
+	
+	chunkSize = Memory[currentChunk]
+	if chunkSize == spaceNeeded then
+		// Chunk is exactly the right size, so allocate it and point to next free chunk
+		if currentChunk == lastChunkStart then // This is the last free chunk
+			// Change pointers that point to this chunk to point to 0 to show that there are no more free chunks
+			Memory[currentChunkAddrPtr: + 3] =  0
+			Memory[currentChunkAddrPtr + 4: +3] = 0
+			
+			// Allocate chunk
+			AllocatedAddress = currentChunk
+			Memory[Scope + 20] = StackAddress + StackSize  // Set lastChunkStart to new address (at end of stack)
+			StackPointer = lastChunkStart
+		else
+			// This is not the last free chunk
+			// Change pointers that pointed to this chunk to point to next free one
+			Memory[currentChunkAddrPtr: + 3] = Memory[currentChunk + 1: + 3]
+			Memory[currentChunkAddrPtr + 4: + 3] = Memory[currentChunk + 5: + 3]
+			// Allocate chunk
+			AllocatedAddress = currentChunk
+		goto _endAllocate_
+		
+	else if chunkSize > spaceNeeded then
+		// This chunk can be used, take however much is needed off it
+		newChunkStart = currentChunk + 2 ^ spaceNeeded
+		// Copy the pointers and size info to the new start of the chunk
+		Memory[newChunkStart] = chunkSize - spaceNeeded
+		Memory[newChunkStart + 1: + 3] = Memory[currentChunk + 1: +3]
+		Memory[newChunkStart + 5: + 3] = Memory[currentChunk + 5: +3]
+		// Point the pointer to the start of this chunk to the new start of the chunk (the end will remain the same so that pointer does not need to be changed)
+		Memory[currentChunkAddrPtr: + 3] = newChunkStart
+		if currentChunk == lastChunkStart then
+			// If the chunk being reduced is the last chunk then update the lastChunkStart pointer
+			Memory[Scope + 16: + 3] = newChunkStart
+			StackPointer = lastChunkStart
+		AllocatedAddress = currentChunk
+		goto _endAllocate_
+	else
+		// This chunk is too small, so try the next one
+		currentChunkAddrPtr = currentChunk + 1  // Place address of location that contains the address of the next free chunk
+		currentChunk = Memory[currentChunkAddrPtr: + 3]  // Get the actual address of the next free chunk
+		goto _checkChunk_
+
+(_endAllocate_)  // Remove paramters from stack and push the allocated address
+Memory[EvalTop : + 3] = AllocatedAddress  // Overwirte parameters with address
+
+
+
+DEALLOCATE 	(Deallocate the block starting at the address given in the first 4 bytes in the parameters a the top of stack, of size given in 5th byte)
+
+address = Memory[EvalTop : + 3]
+size = Memory[EvalTop + 4]
+// Deallocation process is different for values in the pool
+if PoolStart <= address < PoolStart + 4096 then
+	// The address is in the int / float pool
+	// Move the address of the next free block into the newly freed block
+	Memory[address : + 3] = PoolFree
+	// Then make this block the next free block
+	PoolFree = address
+	goto _endDeallocate_
+else if StackAddress <= address < StackAddress + StackSize then
+	// The address is in a local stack heap which, unlike the global heap, do not use the buddy system
+	Memory[address] = size
+	// Find the previous and next free chunks
+	firstChunkStartPtr = Scope + 8
+	firstChunkEndPtr = Scope + 12
+	newChunkEnd = (address + 2 ^ size) - 1
+	if Memory[firstChunkStartPtr: + 3] == 0 then
+		// There are no free chunks, this will be the first
+		Memory[firstChunkStartPtr: + 3] = address
+		Memory[firstChunkEndPtr: + 3] = newChunkEnd
+		previousChunkPtr = firstChunkStartPtr
+	else if address < Memory[firstChunkStartPtr: + 3] then
+		// New chunk is before the first chunk, so it becomes the new first chunk
+		Memory[address + 1: + 3] = Memory[firstChunkStartPtr: + 3]  // Point new chunk to the current first chunk
+		Memory[address + 5: + 3] = Memory[firstChunkEndPtr: + 3]
+		Memory[firstChunkStartPtr: + 3] = address
+		Memory[firstChunkEndPtr: + 3] = newChunkEnd
+		previousChunkPtr = firstChunkStartPtr
+	else
+		// Find previous chunk
+		previousChunkPtr = firstChunkStartPtr  // Address that contains the address of the current chunk being checked
+		
+		(_findPreviousChunk_)
+		previousChunk = Memory[previousChunkPtr: + 3]  // Contains actual address of current chunk being checked
+		if Memory[previousChunk + 1: + 3] == 0 or address < Memory[previousChunk + 1: + 3] then
+			// If the new chunk is between this chunk and its next free chunk, or this chunk has no next free chunk, then this must be the chunk preceding the new one
+			// If directly consecutive, then merge newly freed chunk with previous one
+			if Memory[previousChunkPtr + 4: + 3] == address - 1 then
+				// Last address of previous chunk is directly next to first address of new one, so merge them into one larger chunk
+				Memory[previousChunk] = log2((2 ^ Memory[previousChunk]) + (2 ^ size))
+				Memory[previousChunkPtr + 4: + 3] = newChunkEnd
+				address = previousChunk
+			else  // Not directly consecutive
+				// Copy this chunks pointers to the new chunk, and replace them with pointers to the new chunk
+				Memory[address + 1: + 3] = Memory[previousChunk + 1: + 3]
+				Memory[address + 5: + 3] = Memory[previousChunk + 5: + 3]
+				Memory[previousChunk + 1: +3] = address
+				Memory[previousChunk + 5: + 3] = newChunkEnd			
+				
+		else
+			previousChunkPtr = Memory[previousChunk + 1 : + 3]  // Try next chunk
+			goto _findPreviousChunk_
+			
+	// If directly consecutive with following chunk then merge into a larger chunk
+	if Memory[address + 1: + 3] == newChunkEnd - 1 then
+		// Last address of new chunk is directly next to first address of next one, so merge them
+		nextChunk = Memory[address + 1: + 3]
+		if nextChunk == Memory[Scope + 16 : + 3] then
+			// If the chunk being merged with is the last chunk, then move last chunk pointer backwards to start of this chunk
+			Memory[Scope + 16: + 3] = address
+		Memory[address] = log2((2 ^ Memory[address]) + (2 ^ Memory[nextChunk]))  // Update size
+		Memory[address + 1: + 3] = Memory[nextChunk + 1: + 3]  // Copy pointers from next chunk into this one
+		chunkEnd = Memory[address + 5: + 3]
+		Memory[address + 5: + 3] = Memory[nextChunk + 5: + 3]
+		// Update pointer to end of this chunk
+		Memory[previousChunkPtr + 4: + 3] = chunkEnd
+	StackPointer = lastChunkStart
+	goto _endDeallocate_
+	
+else
+	// The address is in the global heap
+	// Make sure that the new block contains the block size
+	Memory[address] = Memory[EvalTop + 4]
+	
+	// Find the chunks on either side of the block
+	firstChunkStartPtr = Scope + 8  // The address of the byte containing the address of the start of the first chunk
+	firstChunkEndPtr = Scope + 12
+	if Memory[firstChunkEndPtr] == 0 then
+		// There are no existing free chunks
+		Memory[address + 1 : + 8] = 0  // Make sure the next chunk pointers contain 0
+		Memory[firstChunkStartPtr : + 3] = address
+		Memory[firstChunkEndPtr : + 3] = address + (2 ^ size)
+		goto _endDeallocate_
+	
+	secondChunkStartPtr = 0
+	secondChunkEndPtr = 0
+	firstChunk = false  // Will the new chunk be the first one?
+	lastChunk = false  // Will the new chunk be the last one
+	if Memory[Memory[firstChunkStartPtr : + 3] + 5 : + 3] == 0 then  // If the pointer to the end of the next chunk is 0 then there is no next chunk
+		lastChunk = true
+	else
+		secondChunkStartPtr = Memory[firstChunkStartPtr : + 3] + 1
+		secondChunkEndPtr = Memory[firstChunkStartPtr : + 3] + 5
+	(_findSurroundingChunks_)
+	if address < Memory[firstChunkStartPtr : + 3] then
+		// The address is before the first chunk
+		firstChunk = true
+		secondChunkStartPtr = firstChunkStartPtr
+		secondChunkEndPtr = firstChunkEndPtr
+		goto _createChunk_
+		
+	else if Memory[firstChunkEndPtr : + 3] < address < Memory[secondChunkStartPtr : + 3] then
+		// The address is between these two chunks
+	else
+		if Memory[Memory[secondChunkStartPtr : + 3] + 5 : + 3] != 0 then
+			// This is not the last chunk, so move to next one
+			firstChunkStartPtr = secondChunkStartPtr
+			firstChunkEndPtr = secondChunkEndPtr
+			
+			secondChunkStartPtr = Memory[secondChunkStartPtr : + 3] + 1  // secondChunkStartPtr -> The address of the first byte containing the address of the second chunk,  Memory[secondChunkStartPtr : + 3] -> The start address of the next chunk.  Memory[secondChunkStartPtr : + 3] + 1 -> The address of the first byte in the next chunk that contains the address of the chunk after that (But as pointers for this chunk are stored in previous chunk, then it contains address of next chunk)
+			secondChunkEndPtr = Memory[secondChunkEndPtr : + 3] + 5
+			goto _findSurroundingChunks_
+		else
+			// There are no more free chunks
+			lastChunk = true
+			firstChunkStartPtr = secondChunkStartPtr
+			firstChunkEndPtr = secondChunkEndPtr
+			goto _createChunk_
+			
+	
+	(_createChunk_)
+	thisChunkStart = address
+	thisChunkEnd = address + ((2 ^ size) - 1)
+	
+	
+	if firstChunk == false && (Memory[firstChunkEndPtr : + 3] + 1 == address) then 
+		// The new chunk borders the previous one, so can simply be merged into it
+		firstChunk = true
+		Memory[firstChunkEndPtr : + 3] = thisChunkEnd  // Extend previous chunk to include this one
+		thisChunkStart = Memory[firstChunkStartPtr : + 3]
+	if lastChunk == false && (thisChunkEnd + 1 == Memory[secondChunkStartPtr : + 3]) then
+		// The new chunk borders the next one, so can be merged into it
+		// Move the pointers in the next chunk into this one
+		Memory[thisChunkStart + 1 : + 3] = Memory[Memory[secondChunkStartPtr : + 3] + 1 : + 3]
+		Memory[thisChunkStart + 5 : + 3] = Memory[Memory[secondChunkStartPtr : + 3] + 5 : + 3]
+		thisChunkEnd = Memory[secondChunkEndPtr : + 3]
+	else
+		if lastChunk == false then
+			// Move pointers to next chunk into this new chunk
+			Memory[thisChunkStart + 1 : + 3] = Memory[secondChunkStartPtr : + 3]
+			Memory[thisChunkStart + 5 : + 3] = Memory[secondChunkEndPtr : + 3]
+		
+	
+	// Now need to point the correct pointers to the new chunk
+	if firstChunk == true then
+		// If this is the first chunk (as in the one referenced by firstChunkStartPtr and firstChunkEndPtr) then modify the pointers to it
+		Memory[firstChunkStartPtr : + 3] = thisChunkStart
+		Memory[firstChunkEndPtr : + 3] = thisChunkEnd
+	else
+		// Point the pointers in first chunk to this chunk
+		Memory[Memory[firstChunkStartPtr : + 3] + 1 : + 3] = thisChunkStart
+		Memory[Memory[firstChunkStartPtr : + 3] + 5 : + 3] = thisChunkEnd
+		
+	(_reMerge_)
+	// If possible, merge blocks in the chunk into larger blocks
+	
+	// Find the block's buddy
+	if Memory[Scope + 16 : + 3] + (2 ^ Memory[address]) - 1 == Memory[Scope + 20 : + 3] then  // If the start address of heap + size of block - 1 == end address of heap then this block is already the max size so has no buddy
+		goto _endDeallocate_
+	
+	// To find the buddy, invert the bit in the address whose index (starting from 0 at LSB) corresponds to the size exponent
+	buddyBit = address AND (2 ^ Memory[address])  // This will contain only the correct bit (all other bits will be zeroed out)
+	if buddyBit == 0 then  // If bit is 0 then it is the left buddy
+		leftOrRight = left
+		buddy = address + (2 ^ Memory[address])
+	else  // If bit is 1 then it is the right buddy
+		leftOrRight = right
+		buddy = address - (2 ^ Memory[address])
+	
+	if (thisChunkStart <= buddy < thisChunkEnd) && (Memory[address] == Memory[buddy]) then
+		// A block can only be merged with its buddy if they are both the same size and in the same free chunk
+		if leftOrRight == left then
+			Memory[address] += 1  // The two blocks have merged into one block twice the size
+			Memory[buddy] = 0
+			goto _reMerge_  // Try remerge again as this merge may have made it possible to merge more blocks
+		else
+			Memory[buddy] += 1  // The buddy is on the left, so merge into it
+			Memory[address] = 0
+			address = buddy
+			goto _reMerge_
+	else
+		goto _endDeallocate_
+	
+	
+(_endDeallocate_)  // Remove parameters from stack
+EvalTop -= 5
+
+
+ADD (Add the values on top and top - 1 positions on stack, and push result)
+
+right = Memory[EvalTop : + 4]  // The top value (as expressions evaluated left to right, so right would be on top as pushed later)
+left = Memory[EvalTop - 5 : + 4]
+
+// Determine types
+if left[0] == 32 then
+	// Left is an int
+	leftType = int
+else if left[0] == 33 then
+	leftType = float
+else if left[0] == 46 || left[0] == 47 then
+	// Too large to fit on stack
+	if Memory[left[1 : 4]] == 36 then
+		// Left is a string
+		leftType = string
+	else
+		THROW INVALID OPERAND TYPES // The left value is not a valid type for addition
+else
+	THROW INVALID OPERAND TYPES  // The left value is not a valid type for addition
+	
+// Determine types
+if right[0] == 32 then
+	// Right is an int
+	rightType = int
+else if right[0] == 33 then
+	rightType = float
+else if right[0] == 46 || right[0] == 47 then
+	// Too large to fit on stack
+	if Memory[right[1 : 4]] == 36 then
+		// Right is a string
+		rightType = string
+	else
+		THROW INVALID OPERAND TYPES // The right value is not a valid type for addition
+else
+	THROW INVALID OPERAND TYPES  // The right value is not a valid type for addition
+
+// Check that types are compatiable
+if leftType != rightType then
+	if leftType == float && rightType == int then
+		// Convert right to float
+		// Get sign bit
+		sign = AND(128, right[1])
+		newFloat = right[1:4]
+		if sign != 0 then
+			// Convert from 2C to positive
+			newFloat[1:4] = NOT newFloat[1:4]
+			newFloat[1:4] += 1
+		exponent = LARGESTSETBIT(newFloat[1:4]) // Exponent is equal to number of bits before (i.e. less significant than) the largest set bit and therefore equal to the power of the largest set bit but LARGESTSETBIT returns a value 1 higher than the correct power to allow 0 to be used to represent a number with no bits set
+		if exponent == 0 then
+			// The number is 0
+		else
+			exponent = exponent - 1  // LARGESTSETBIT returns 1 higher than actual exponent to allow 0 to represent no set bits, this needs to be adjusted
+		
+		// Shift out the leading 0's
+		newFloat[1:4] = newFloat[1:4] LEFT SHIFT (31 - exponent) + 1  // Number of leading 0's will be equal to 31 - exponent  + 1 will shift out the implicit bit as well
+		
+		// Bias the exponent
+		exponent += 127
+		// Decide whether to round
+		roundUp = false
+		if newFloat[3] AND 1 != 0 then
+			// 24th bit (guard bit) is set, so rounding up may be neccessary (no need to worry about rounding down as cutting off extra bits will do it anyway)
+			if newFloat[3] AND 2 == 0 then  // If last bit is not set, then only round up if round and sticky bits are both set
+				// 23rd bit (last bit that will be kept) is 0 (so number if cut will be even)
+				if newFloat[4] AND 192 == 192 then
+					// The round and sticky bits (25th and 26th) are both set, so round up
+					roundUp = true
+			else
+				roundUp = true  // Always round up if guard bit and last bit are both 1
+		
+		if roundUp == true then
+			// Round up
+			// Add 1
+			newFloat[1:3] += 2  // Add 1 to 23rd bit
+			if carryFlag == 1 then
+				// Right shift 1 place, and add 1 to exponent
+				newFloat[1:4] = newFloat[1:4] LOGICAL RIGHT SHIFT 1
+				exponent += 1
+				if carryFlag == 1 then
+					// If exponent overflows then result is infinity
+					newFloat[1:3] = 0
+					exponent = 255
+		// Combine into 32 bit IEEE 754 float
+		newFloat[0] = exponent
+		// Shift right 1 place to make space for sign bit
+		newFloat = newFloat LOGICAL RIGHT SHIFT 1
+		// Add sign bit
+		newFloat[0] = newFloat[0] OR sign
+		
+		right[0] = 33  // Set type to float
+		right[1:4] = newFloat[1:3]  // Ignore the last byte of newFloat as this will include the 24th - 32nd bits	
+		
+	else if leftType == int && rightType == float then
+		// Convert left to float
+		// Get sign bit
+		sign = AND(128, left[1])
+		newFloat = left[1:4]
+		if sign != 0 then
+			// Convert from 2C to positive
+			newFloat[1:4] = NOT newFloat[1:4]
+			newFloat[1:4] += 1
+		exponent = LARGESTSETBIT(newFloat[1:4]) // Exponent is equal to number of bits before (i.e. less significant) the largest set bit and therefore equal to the power of the largest set bit but LARGESTSETBIT returns a value 1 higher than the correct power to allow 0 to be used to represent a number with no bits set
+		if exponent == 0 then
+			// The number is 0
+		else
+			exponent = exponent - 1  // LARGESTSETBIT returns 1 higher than actual exponent to allow 0 to represent no set bits, this needs to be adjusted
+			// Shift out the leading 0's
+			newFloat[1:4] = newFloat[1:4] LEFT SHIFT (31 - exponent) + 1  // Number of leading 0's will be equal to 31 - exponent  + 1 will shift out the implicit bit as well
+		
+		// Bias the exponent
+		exponent += 127
+		// Decide whether to round
+		roundUp = false
+		if newFloat[3] AND 1 != 0 then
+			// 24th bit (guard bit) is set, so rounding up may be neccessary (no need to worry about rounding down as cutting off extra bits will do it anyway)
+			if newFloat[3] AND 2 == 0 then  // If last bit is not set, then only round up if round and sticky bits are both set
+				// 23rd bit (last bit that will be kept) is 0 (so number if cut will be even)
+				if newFloat[4] AND 192 == 192 then
+					// The round and sticky bits (25th and 26th) are both set, so round up
+					roundUp = true
+			else
+				roundUp = true  // Always round up if guard bit and last bit are both 1
+		
+		if roundUp == true then
+			// Round up
+			// Add 1
+			newFloat[1:3] += 2  // Add 1 to 23rd bit
+			if carryFlag == 1 then
+				// Right shift 1 place, and add 1 to exponent
+				newFloat[1:4] = newFloat[1:4] LOGICAL RIGHT SHIFT 1
+				exponent += 1
+				if carryFlag == 1 then
+					// If exponent overflows then result is infinity
+					newFloat[1:3] = 0
+					exponent = 255
+		// Combine into 32 bit IEEE 754 float
+		newFloat[0] = exponent
+		// Shift right 1 place to make space for sign bit
+		newFloat = newFloat LOGICAL RIGHT SHIFT 1
+		// Add sign bit
+		newFloat[0] = newFloat[0] OR sign
+		
+		left[0] = 33  // Set type to float
+		left[1:4] = newFloat[1:3]  // Ignore the last byte of newFloat as this will include the 24th - 32nd bits	
+	else
+		THROW INCOMPATIBLE OPERAND TYPES  // Cannot add values of those two types together
+		
+
+// Do the addition (what to do depends on the type)
+if leftType == int then
+	// Add one byte at a time starting from LSB
+	carry1 = 0  // 2 carry variables needed as carry is applied to current byte after the carry for next byte is determined
+	carry2 = 0
+	result[4] = left[4] + right[4]
+	if carryFlag is set then
+		carry1 = 1
+	else
+		carry1 = 0
+	result[3] = left[3] + right[3]
+	if carryFlag is set then
+		carry2 = 1
+	else
+		carry2 = 0
+	result[3] = result[3] + carry1
+	result[2] = left[2] + right[2]
+	if carryFlag is set then
+		carry1 = 1
+	else
+		carry1 = 0
+	result[2] = result[2] + carry2
+	result[1] = left[1] + right[1] + carry1
+	if overflowFlag is set then
+		THROW INTEGER OVERFLOW
+
+else if leftType == float then
+	// Add two floats
+	// First check special cases (infinities and NaNs)
+	isInfinity = false
+	if ((left[1] AND 127) OR (left[2] AND 128)) == 255 then  // Checks if all exponent bits are set
+		// All bits of exponent are set, so float is either an infinity or a NaN
+		if left[2 : 4] AND 8388607 == 0 then
+			// mantissa is 0, so float is infinity
+			isInfinity = true
+		else
+			// A NaN
+			if left[2] AND 64 == 0 then
+				// If the first bit of the mantissa is 0, then it is a signalling NaN so throw invalid operation
+				left[2] = left[2] - 64  // Convert to qNaN first
+				EvalTop -= 5  // Left is the result so remove right from stack to leave result on top
+				THROW INVALIDOPERATION
+			else
+				// The first bit of mantissa is 0 so it is a quiet NaN, meaning no exception is thrown
+				EvalTop -= 5
+				goto _exitAdd_
+			
+	if ((right[1] AND 127) OR (right[2] AND 128)) == 255 then  // Checks if all exponent bits are set
+		// All bits of exponent are set, so float is either an infinity or a NaN
+		if right[2 : 4] AND 8388607 == 0 then
+			// mantissa is 0, so float is infinity
+			if isInfinity then
+				// Left operand is also infinity
+				if left[1] AND 128 != right[1] AND 128 then
+					// The signs are different, so return qNaN
+					result[1:4] = 2145386496
+					goto _endAdd_
+			result[1:4] = right[1:4]
+			goto _endAdd_
+		else
+			// A NaN
+			if left[2] AND 64 == 0 then
+				// If the first bit of the mantissa is 0, then it is a signalling NaN so throw invalid operation
+				left[2] = left[2] - 64  // Convert to qNaN first
+				EvalTop -= 5  // Left is the result so remove right from stack to leave result on top
+				THROW INVALIDOPERATION
+			else
+				// The first bit of mantissa is 0 so it is a quiet NaN, meaning no exception is thrown
+				EvalTop -= 5
+				goto _exitAdd_
+	
+	if isInfinity == true then
+		// Left float is infinity so result will be as well, so no point in further calculation
+		result[1:4] = left[1:4]
+		goto _endAdd_
+		
+	// Start the addition
+	resultSign = 0
+	resultExp = 0
+	resultMantissa = 0
+	// Extract signs and exponents
+	leftSign = left[1] AND 128
+	rightSign = right[1] AND 128
+	// Copy mantissas off stack to make more space to give enough precision for rounding
+	leftMantissa = left[2:4]  // Mantissa will still contain last bit of exponent, but this can be overwritten by implicit bit later, saving a right shift
+	rightMantissa = right[2:4]
+	left[1:4] = left[1:4] Left Shift 1
+	right[1:4] = right[1:4] Left shift 1
+	leftExp = left[1]
+	rightExp = right[1]
+	
+	// Adjust the mantissas and exponents according to whether numbers are normal or subnormal
+	if leftExp == 0 then
+		// Left is subnormal, so exponent is actually treated as -126 and implicit bit is 0
+		leftExp += 1
+		leftMantissa[0] = leftMantissa[0] AND 127  // Make first bit (implicit bit) a 0
+	else
+		// Left is normal so implicit bit is 1
+		leftMantissa[0] = leftMantissa[0] OR 128
+	if rightExp == 0 then
+		rightExp += 1
+		rightMantissa[0] = rightMantissa[0] AND 127
+	else
+		rightMantissa[0] = rightMantissa[0] OR 128
+	
+	// Make the exponents equal
+	sticky = 0
+	if leftExp < rightExp then
+		resultExp = rightExp
+		sticky = 0
+		shiftsNeeded = rightExp - leftExp
+		// Left mantissa must be shifted shiftsNeeded places right to make exponent equal to rightExp
+		if 3 < shiftsNeeded then
+			// Mantissa will be shifted more than 3 places to the right, so need to check whether sticky bit needs to be set (no need if less than 3 as shifts would not go further than sticky bit)
+			// Sticky bit = 27th bit (3rd bit past end of main mantissa), called sticky as if any 1's are shfited through it it must remain set to 1 even if 0's are shifted through it
+			// To find out if the sticky bit needs to be set, we would need to check each bit that will be shifted out but to save time we can check whole bytes at a time
+			if 10 <= shiftsNeeded && leftMantissa[2] != 0 then
+				// If shiftsNeeded is 10 or greater, then the entire last byte will be shifted through the sticky bit.  Therefore if any bits in the last byte are 1 then the sticky bit will always be 1
+				sticky = 32  // When OR'd with the byte, 32 will set sticky bit
+			else if 18 <= shiftsNeeded && leftMantissa[1] != 0 then
+				// If 18 or greater then the entire 2nd last byte will be shifted through
+				sticky = 32
+			else if 26 <= shiftsNeeded && leftMantissa[0] != 0 then
+				// If 26 or greater, the entire first byte will be shifted through
+				sticky = 32
+			else
+				// Fewer than 10 shifts are needed, so will have to check each bit that will be shifted
+				bitsToCheck = shiftsNeeded - 2  // The number of bits that need to be checked
+				mask = 1
+				bitsAdded = 1
+				(_addBitToMask_)  mask = mask LSHIFT 1
+				mask += 1
+				bitsAdded += 1
+				if bitsAdded < bitsToCheck then
+					goto _addBitToMask_
+				if leftMantissa[2] AND mask != 0 then
+					sticky = 32
+		
+		if 31 < shiftsNeeded then  // If 32 or more shifts needed then mantissa will always be 0 so no point wasting time doing the shifts
+			leftMantissa = 0
+		else
+			leftMantissa = leftMantissa RSHIFT LOGICAL shiftsNeeded
+		// Make sure sticky bit is set if neccessary
+		leftMantissa[3] = leftMantissa[3] OR sticky
+	else if rightExp < leftExp then
+		resultExp = leftExp
+		sticky = 0
+		shiftsNeeded = leftExp - rightExp
+		// Right mantissa must be shifted shiftsNeeded places right to make exponent equal to leftExp
+		if 3 < shiftsNeeded then
+			// Mantissa will be shifted more than 3 places to the right, so need to check whether sticky bit needs to be set (no need if less than 3 as shifts would not go further than sticky bit)
+			// Sticky bit = 27th bit (3rd bit past end of main mantissa), called sticky as if any 1's are shfited through it it must remain set to 1 even if 0's are shifted through it
+			// To find out if the sticky bit needs to be set, we would need to check each bit that will be shifted out but to save time we can check whole bytes at a time
+			if 10 <= shiftsNeeded && rightMantissa[2] != 0 then
+				// If shiftsNeeded is 10 or greater, then the entire last byte will be shifted through the sticky bit.  Therefore if any bits in the last byte are 1 then the sticky bit will always be 1
+				sticky = 32  // When OR'd with the byte, 32 will set sticky bit
+			else if 18 <= shiftsNeeded && rightMantissa[1] != 0 then
+				// If 18 or greater then the entire 2nd last byte will be shifted through
+				sticky = 32
+			else if 26 <= shiftsNeeded && rightMantissa[0] != 0 then
+				// If 26 or greater, the entire first byte will be shifted through
+				sticky = 32
+			else
+				// Fewer than 10 shifts are needed, so will have to check each bit that will be shifted
+				bitsToCheck = shiftsNeeded - 2  // The number of bits that need to be checked
+				mask = 1
+				bitsAdded = 1
+				(_addBitToMask_)  mask = mask LSHIFT 1
+				mask += 1
+				bitsAdded += 1
+				if bitsAdded < bitsToCheck then
+					goto _addBitToMask_
+				if rightMantissa[2] AND mask != 0 then
+					sticky = 32
+		
+		if 31 < shiftsNeeded then  // If 32 or more shifts needed then mantissa will always be 0 so no point wasting time doing the shifts
+			rightMantissa = 0
+		else
+			rightMantissa = rightMantissa RSHIFT LOGICAL shiftsNeeded
+		// Make sure sticky bit is set if neccessary
+		rightMantissa[3] = rightMantissa[3] OR sticky
+				
+			
+	// Add or subtract depending on signs
+	if leftSign == rightSign then
+		// If the signs are the same then simply add the mantissas
+		resultSign = leftSign
+		resultMantissa = leftMantissa + rightMantissa
+		if carryFlag is set then
+			// If carry then shift mantissa right (still maintaining sticky bit) and increase exponent by 1
+			resultExponent += 1
+			if carryFlag is set then
+				// If exponent overflows then result is infinity
+				resultExponent = 255
+				resultMantissa = 0
+				goto _assembleFPResult_
+			resultMantissa = resultMantissa RSHIFT LOGICAL 1
+			// Ensure sticky bit is set if neccessary
+			resultMantissa[3] = resultMantissa[3] OR sticky
+	else
+		// If the signs are different then subtract the smaller mantissa from the larger
+		if leftMantissa unsigned < rightMantissa then  // The mantissas are unsigned so the comparison needs to take this into account (as otherwise it would think that a value with first bit set is negative and so say it is smaller)
+			// Subtract left from right
+			resultMantissa = rightMantissa - leftMantissa
+			resultSign = rightSign
+		else
+			resultMantissa = leftMantissa - rightMantissa
+			resultSign = leftSign
+		
+		// As subtraction was used, mantissa may now have leading 0's so will need normalising
+		(_normaliseResultMantissa_) 
+		if AND(resultMantissa[0], 128) == 0 && resultExp != 1 then  // Shift left to remove leading 0's unless exponent is 1 (but do not let exponent reach 0 as number would be subnormal)
+			resultMantissa = resultMantissa LSHIFT 1
+			resultExp -= 1
+			goto _normaliseResultMantissa_
+	
+	// Round if necessary (using ties to even policy)
+	roundUp = false
+	if resultMantissa[3] AND 128 != 0 then
+		// Guard bit is set so rounding may be necessary
+		if resultMantissa[2] AND 1 == 0 then
+			// Last bit of proper mantissa is 0 so only round up if round bit and sticky bit are both 1
+			if resultMantissa[3] AND 96 != 0 then
+				roundUp = true
+		else
+			roundUp = true
+		
+	if roundUp == true then
+		resultMantissa[0:2] = resultMantissa[0:2] + 1
+		if carryFlag == 1 then
+			resultMantissa = resultMantissa RSHIFT LOGICAL 1
+			resultExp += 1
+			if carryFlag == 1 then
+				// Infinity
+				resultMantissa = 0
+				resultExp = 255
+				
+		
+		
+	// Check for infinity
+	if resultExp == 255 then
+		resultMantissa = 0
+	// Check for subnormal
+	else if resultExp == 1 && resultMantissa[0] AND 128 == 0 then
+		// If exponent is 1 and first bit of mantissa is 0 then result is subnormal, and this must be indicated by setting exponent to 0
+		resultExp = 0
+	// Cut off implicit bit
+	resultMantissa = resultMantissa LSHIFT 1
+	(_assembleFPResult_)  // Assemble results into one 32 bit float
+	result[0] = resultExp
+	result[1:3] = resultMantissa[0:3]
+	result = result RSHIFT LOGICAL 1  // Make space for sign bit
+	result[0] = result[0] OR resultSign
+	
+
+else if leftType == string then
+	// Get total length of new string and calculate required memory size
+	leftLength = Memory[left[1:4] + 1: + 1]
+	rightLength = Memory[right[1:4] + 1: + 1]
+	newStringLength = 2 bytes
+	newStringLength = leftLength + rightLength
+	if carryFlag is set then
+		THROW STRING TOO LONG  // Strings length field is only 2 bytes long, so they cannot have more than (2^16) - 1 characters
+	newStringSize = newStringLength + 3  // 1 byte for type tag, 2 bytes to store length, and 1 byte per character
+	// Allocate space for string
+	newStringSizeExp = ceil(log2(newStringSize))  // Amount of space needed is represented as an exponent of base 2
+	Memory[EvalTop + 5] = newStringSizeExp
+	ALLOCATE
+	AllocatedAddress = Memory[EvalTop : + 3]
+	EvalTop -= 5
+	// Load string into new space
+	Memory[AllocatedAddress] = 36
+	Memory[AllocatedAddress + 1 : + 1] = newStringLength
+	// First copy in left string
+	newCharAddress = AllocatedAddress + 3
+	charsCopied = 0
+	oldCharAddress = left[1:4] + 3
+	(_copyLeftString_)
+	if charsCopied < leftLength then
+		Memory[newCharAddress] = Memory[oldCharAddress]
+		charsCopied += 1
+		oldCharAddress += 1
+		newCharAddress += 1
+		goto _copyLeftString_
+	// Then copy right string
+	charsCopied = 0
+	oldCharAddress = right[1:4] + 3
+	(_copyRightString_)
+	if charsCopied < rightLength then
+		Memory[newCharAddress] = Memory[oldCharAddress]
+		charsCopied += 1
+		oldCharAddress += 1
+		newCharAddress += 1
+		goto _copyRightString_
+	
+	result[0] = 46
+	result[1:4] = AllocatedAddress
+	
+(_endAdd_)  // Remove inputs from stack and push result to it
+if left[0] == 46 then
+	// 46 = temporary large object reference, so space must be deallocated once it has been used
+	size = GETSIZE(left[1:4])
+	size = ceil(log2(size))
+	EvalTop += 5
+	Memory[EvalTop] = size
+	Memory[EvalTop + 1: + 3] = left[1:4]
+	DEALLOCATE
+if right[0] == 46 then
+	size = GETSIZE(right[1:4])
+	size = ceil(log2(size))
+	EvalTop += 5
+	Memory[EvalTop] = size
+	Memory[EvalTop + 1 : + 3] = right[1:4]
+	DEALLOCATE
+// Remove inputs from stack
+EvalTop -= 5  // Remove top input (right)
+Memory[EvalTop: + 4] = result  // And replace bottom input (left) with result
+
+(_exitAdd_)  // Inputs have already been removed from stack, so just end procedure
+
+
+SUB  (Subtract value on top of stack from value 2nd top, and push result)
+
+
+right = Memory[EvalTop: + 4]
+left = Memory[EvalTop - 5: + 4]
+// Get types
+if left[0] != 32 and left[0] != 33 then
+	THROW INVALID OPERAND TYPES  // Subtraction can only be done for ints and floats
+// Change the polarity of the right operand
+if right[0] == 32 then
+	Memory[EvalTop + 1 : + 3] = NOT(Memory[EvalTop + 1 : + 3]) + 1
+else if right[0] == 33 then
+	Memory[EvalTop + 1] = Memory[EvalTop + 1] XOR 128  // Flip sign bit
+else
+	THROW INVALID OPERAND TYPES  // Subtraction can only be done for ints and floats
+
+// Then simply add the values
+ADD
+
+
+MULT (Multiply 2nd top value on stack by top value on stack)
+
+right = Memory[EvalTop: + 4]
+left = Memory[EvalTop - 5: + 4]
+
+// Determine types
+if right[0] == 32 and left[0] == 32 then
+	// Integer multiplication
+	resultSign = 0
+	// Make both operands positive
+	if right[1] >= 128 then
+		// Convert to positive
+		resultSign = NOT(resultSign)
+		right[1:4] = NOT(right[1:4])
+		right[1:4] += 1
+	if left[1] >= 128 then
+		resultSign = NOT(resultSign)  // If both are negative result will be positive
+		left[1:4] = NOT(left[1:4])
+		left[1:4] += 1
+	
+	// Use 64 bits of space when calculating the result, to allow detection of overflow
+	result = 0 // 64 bits, all 0
+	exponent = 30
+	left = left[1:4] + 32 bits  // Pad left 32 bits left to make space for necessary shifts
+	right[1:4] == LSHIFT(right[1:4], 1)  // Shift out first bit as it is sign bit
+	(_computeMultiplication_)
+	if exponent != -1 then  // Until all 31 bits have been checked (excluding MSB as it is used as sign bit)
+		if AND(right[1], 128) == 128 then
+			// For each set bit of multiplier, shift multiplicand left by exponent places and add to result
+			result += LSHIFT(left, exponent)
+		exponent -= 1
+		right[1:4] = LSHIFT(right[1:4], 1)  // Shift multiplier left to allow next bit to be checked next time
+		goto _computeMultiplication_
+	
+	// Check for overflow
+	if LARGESTSETBIT(result) > 31 then
+		THROW OVERFLOW  // Result has overflowed
+	
+	// Reduce result to 32 bits
+	result = result[4:7]
+	// Make sign correct
+	if resultSign != 0 then
+		result = NOT(result)
+		result += 1
+	// Make result integer format
+	result[1:4] = result[1:3]
+	result[0] = 32
+	goto _endMult_
+else if right[0] == 33 or left[0] == 33 then  // At least one is a float so convert both to float if neccessary
+	if left[0] == 32 then  // Right is a float, but left is an int so must be converted to float
+		EvalTop += 5
+		Memory[EvalTop : + 4] = left
+		INTTOFLOAT  // Convert left to float
+		left = Memory[EvalTop: + 4]
+		EvalTop -= 5
+	if right[0] == 32 then  // Left is a float but right is an int so must be converted to float
+		INTOFLOAT  // Right is already at top of stack
+		right = Memory[EvalTop: + 4]
+	if right[0] == 33 and left[0] == 33 then  // Both are now floats
+		resultExp = 0  // 1 byte
+		resultMantissa = 0  // 3 bytes
+		// Extract signs
+		leftSign = left[1] AND 128
+		rightSign = right[1] AND 128
+		// Result sign will be positive (0) if both signs are same, and negative (1) otherwise 
+		resultSign = leftSign XOR rightSign
+		// Extract mantissas
+		leftMantissa = 0  // 24 bits
+		rightMantissa = 0  // 24 bits
+		leftMantissa = left[1:4]  // Get last 24 bits of left (this will include the last bit of exponent but this will be overwritten by implicit bit anyway)
+		rightMantissa = right[1:4]  // Get last 24 bits of right
+		// Shift inputs left by 1 to move exponents into a single byte
+		left = LSHIFT(left, 1)
+		right = LSHIFT(right, 1)
+		// Extract exponents
+		leftExponent = left[1]
+		rightExponent = right[1]
+		
+		// Handle special cases
+		// handle NaNs
+		if (leftExponent == 255 and leftMantissa AND 2,147,483,647 != 0) then  // Left is NaN, so result is NaN
+			if leftMantissa[0] AND 64 == 0 then  // First bit of mantissa is 0 so left is a signalling NaN, so an exception must be raised
+				THROW INVALIDOPERATION  // Important to do this in such a way that if right is sNaN and left is qNaN, the error is still thrown
+			result = 2,145,386,496  // qNaN
+			goto _endMult_
+		if (rightExponent == 255 and rightMantissa AND 2,147,483,647 != 0) then  // Right is NaN, so result is NaN
+			if rightMantissa[0] AND 64 == 0 then  // First bit of mantissa is 0 so right is a signalling NaN, so an exception must be raised
+				THROW INVALIDOPERATION
+			result[0] = 33
+			result[1:4] = 2,145,386,496  // qNaN
+			goto _endMult_
+		// Handle infinities
+		if leftExponent == 255 then  // left is Infinity
+			if right AND 4,294,967,295 == 0 then  // Right is 0, so result is NaN as inf * 0 is NaN
+				result[0] = 33
+				result[1:4] = 2,145,386,496  // qNaN
+				goto _endMult_
+			else
+				// Inf * anything other than 0 = inf
+				resultExp = 255
+				resultMantissa = 0
+				goto _combineMultFloat_
+		if rightExponent == 255 then  // right is Infinity
+			if left AND 4,294,967,295 == 0 then  // left is 0, so result is NaN as inf * 0 is NaN
+				result = 2,145,386,496  // qNaN
+				goto _endMult_
+			else
+				// Inf * anything other than 0 = inf
+				resultExp = 255
+				resultMantissa = 0
+				goto _combineMultFloat_
+		// handle 0's (if any inputs are 0 then the result will be 0 so there is no point continuing)
+		if (leftExponent == 0 and leftMantissa == 0) or (rightExponent == 0 and rightMantissa == 0) then
+			resultExp = 0
+			resultMantissa = 0
+			goto _combineMultFloat_
+			
+		// Add implicit bits to mantissas
+		if leftExponent == 0 then
+			// Unbiased exponent is -127 so number is subnormal, so implicit bit is 0 (no need to actually set it to 0, as if exponent is 0 then it will already be 0)
+			// Once implicit bit has been set exponent of -127 is treated as -126
+			leftExponent = 1
+		else
+			// Number is normal, so implicit bit is 1
+			leftMantissa[0] = OR(leftMantissa[0], 128)
+		if rightExponent == 0 then
+			// If exponent is 0 then the first bit of mantissa will already be 0, so no need to do anything
+			// Set exponent to -126
+			rightExponent = 1
+		else
+			rightMantissa[0] = OR(rightMantissa[0], 128)
+		
+		
+		// Multiply mantissas to get 64 bit result
+		// Use 64 bits of space when calculating the result
+		resultMantissa = 0 // 64 bits, all 0
+		exponent = 23
+		leftMantissa = leftMantissa + 40 bits  // Make left mantissa (multiplicand) 64 bits to make space for shifts
+		(_computeMultiplicationFloat_)
+		if exponent != -1 then
+			if rightMantissa[0] AND 128 == 128 then
+				// For each set bit of multiplier (right) shift multiplicand (left) left by exponent places and add to result
+				resultMantissa += LSHIFT(leftMantissa, exponent)
+			exponent -= 1
+			rightMantissa = LSHIFT(rightMantissa, 1)  // Shift right mantissa left by 1 place to allow next bit to be checked on next loop
+			goto _computeMultiplicationFloat_
+		
+		// Add exponents
+		leftExponentUnbiased = leftExponent - 127
+		rightExponentUnbiased = rightExponent - 127
+		underflowAmount = 255 // Underflow amount for -127 is -1 (set here as overflow / underflow will not be detected for -127 as it is valid 8 bit 2c binary, but is subnormal in IEEE 754)
+		resultExp = leftExponentUnbiased + rightExponentUnbiased
+		if overflowFlag is set then
+			// Result exponent overflowed (or underflowed) so result cannot properly be rpesented in single precision
+			if resultExp < 0 then
+				// resultExp is negative, meaning the number overflowed so result is infinity
+				resultExp = 255
+				resultMantissa = 0
+				goto _combineMultFloat_
+			else
+				// Exponent underflowed, so we might be able to use subnormals to gradually underflow
+				underflowAmount = resultExp - -126  // resultExp - -126 will give the amount by which the exponent underflowed (i.e. how far past the minimumum of -126 has it gone?)
+				resultExp = 0  // Exponent is 0 to represent subnormal
+		else
+			if resultExp == 128 then
+				// A special case is needed for -128 as it will not cause underflow as it is valid 2c 8 bit binary, but in IEEE 754 its biased form is reserved for representing infinity and NaNs, so it cannot be used as a valid exponent
+				underflowAmount = -2
+				resultExp = 0
+			else
+				// Re bias exponent
+				resultExp += 127
+				
+		if resultExp != 255 then
+			// Normalise result
+			shifts = 17  // Multiplication can move the start of the number 23 places left, but the result is 64 bits so this may leave up to 17 bits before the actual number starts that can be normalised out without effecting the exponent
+			if resultExp == 0 then
+				shifts += undeflowAmount  // Subnormals use 0's in the mantissa to represent numbers with exponents smaller than can be represented in the actual exponent (as each leading 0 in mantissa is equiavalent to an extra -1 added to exponent).  To do this must reduce shifts to leave in a number of 0's equal to the amount by which the exponent underflowed
+				if shifts < 0 then
+					// If the underflowAmount is greater than shifts, then even a subnormal cannot represent the number so result is 0
+					resultMantissa = 0
+					goto _combineMultFloat_
+				(_normaliseMultipliedmantissa_)
+			if resultMantissa[0] AND 128 == 0 and not (resultExp == 0 and shifts == 0) then
+				// While the first bit of mantissa is not 1 and exponent or shifts can still be reduced further, shift result left
+				resultMantissa = LSHIFT(resultMantissa, 1)
+				if shifts != 0 then 
+					shifts -= 1
+				else
+					resultExp -= 1
+				goto _normaliseMultipliedmantissa_
+			resultExp = resultExp += shifts
+			if carryFlag is set then
+				// Result is too large to be represented in single precision so result is infinity
+				resultExp = 255
+				resultMantissa = 0
+				goto _combineMultFloat_
+			
+		(_roundMantissa_)
+		// Round resultMantissa to 24 bits if necessary (using ties to even policy)
+		rounded = resultmantissa[0:2]  // Get first 24 bits of mantissa
+		roundUp = false  // Only need to do anything if rounding up, as rounding down is same as just cutting off everything after 24 bits
+		// Decide whether to round up or down
+		if resultMantissa[3] AND 128 == 128 then
+			// Guard bit is set, so rounding up might be necessary (as distance between actual result and result rounded up is at most equal to distance between actual result and result rounded down)
+			if resultMantissa[3] AND 127 == 0 and resultMantissa[4:7] == 0 then
+				// Only guard bit is set, so distances are equal between rounding up and rounding down so tie breaking policy must be used (by default this is round to even)
+				# If roundingMode = TiesToEven then use:
+					if resultMantissa[2] AND 1 == 1 then
+						// Last bit of mantissa is 1, so number if rounded down will be odd- so round up to even number
+						roundUp = true
+			else
+				// Guard bit and at least one following bit is set, so distance to round up is less than distance to round down, so round up
+				roundUp = true
+				
+		if roundUp then
+			// Add 1 to rounded
+			rounded += 1
+			if carryFlag is set then
+				// New value is too large to fit with current exponent so shift right and increase exponent by 1
+				rounded = RSHIFTLOGICAL(rounded, 1)
+				resultExp += 1
+				if carryFlag is set then
+					// If exponent is also too large then the result is too large to be represented in single precision so result is infinity
+					resultExp = 255
+					rounded = 0
+		resultMantissa = rounded
+			
+					
+		
+		(_combineMultFloat_)  // Combine result sign, resultExp, and resultMantissa into a 32 bit float
+		result = 0  // 32 bits
+		// Remove implicit bit of resultMantissa
+		resultMantissa = LSHIFT(resultMantissa, 1)
+		result[1:3] = resultMantissa
+		// Add exponent
+		result[0] = resultExp
+		// Add sign bit
+		result = RSHIFTLOGICAL(result, 1)
+		result[0] = result[0] OR resultSign
+		goto _endMult_
+	else
+		THROW INVALID OPERAND TYPES
+		
+	
+	
+(_endMult_)
+// Remove inputs from stack
+EvalTop -= 5
+// And push result
+Memory[EvalTop: + 4] = result
+
+
+DIV (Divide 2nd value on stack by top value on stack)
+
+right = Memory[EvalTop: +4]
+left = Memory[EvalTop - 5: + 4]
+
+// Determine types
+if right[0] == 32 and left[0] == 32 then
+	// Integer division
+	if right[1:4] == 0 then
+		THROW CANNOT DIVIDE BY ZERO
+	
+	// Make any negative operands positive as division process can only handle unsigned values. The result can be flipped afterwards if necessary
+	negative = 0
+	if right[1] AND 128 != 0 then
+		// Right is negative, so make it positive
+		right[1:4] = NOT(right[1:4])
+		right[1:4] += 1
+		negative = NOT(negative)
+	if left[1] AND 128 != 0 then
+		// Left is negative, so make it positive
+		left[1:4] = NOT(left[1:4])
+		left[1:4] += 1
+		negative = NOT(negative)  // If sign is already negative, then this will flip it back to positive as a negative divided by a negative is a positive
+	
+	quotient = 0  // 32 bits
+	remainder = 0 // 32 bits
+	// Check each bit of dividend (left), starting from MSB
+	count = 0
+	currentByteDividend = left[1]  // Contains the byte of dividend currently being used (equal to count / 8)
+	currentByteQuotient = quotient[0]  // Contains byte of quotient currently being used (equal to count / 8)
+	bitCount = 7  // Used to generate a mask to access the current bit the current byte
+	(_intDivideLoop_)
+	if count == 8 then
+		// Move to next byte
+		currentByteDividend = left[2]
+		quotient[0] = currentByteQuotient  // Save changes to quotient
+		currentByteQuotient = quotient[1]
+		bitCount = 7 // Reset bit mask to start from MSB of new byte
+	else if count == 16 then
+		currentByteDividend = left[3]
+		quotient[1] = currentByteQuotient
+		currentByteQuotient = quotient[2]
+		bitCount = 7
+	else if count == 24 then
+		currentByteDividend = left[4]
+		quotient[2] = currentByteQuotient
+		currentByteQuotient = quotient[3]
+		bitCount = 7
+	else if count == 32 then  // All bits checked so end loop
+		quotient[3] = currentByteQuotient
+		// Quotient will contain result, remainder can be discarded as this is integer division
+		if negative != 0 then
+			// Flip result as it should be negative
+			quotient = NOT(quotient)
+			quotient += 1
+		result = 0 // 40 bits
+		result[0] = 32
+		result[1:4] = quotient
+		goto _endDiv_
+	
+	bitMask = 2 ^ bitCount  // mask to access the (count mod 8)th bit of current byte
+	// Shift remainder 1 place left
+	remainder = LSHIFT(remainder, 1)
+	// Set LSB of remainder to current bit of dividend
+	if currentByteDividend AND bitMask != 0 then
+		remainder[3] = remainder[3] OR 1
+	// If remainder is bigger than or equal to divisor (right) then set current bit of quotient to 1 and subtract divisor from remainder
+	if remainder >= right[1:4] then
+		currentByteQuotient = currentByteQuotient OR bitMask
+		remainder -= right[1:4]
+		
+	// Prepare for next loop
+	count += 1
+	bitCount -= 1
+	goto _intDivideLoop_
+	
+		
+	
+else if left[0] == 33 and right[0] == 32 then
+	// Left is a float, but right is an integer, so convert right to float to allow float division
+	// Right will already be on top of Eval stack, so no need to put it there
+	INTTOFLOAT
+	right = Memory[EvalTop:+4]
+else if right[0] == 33 and left[0] == 32 then
+	// Right is a float, but left is integer so convert left to float
+	EvalTop += 5
+	Memory[EvalTop: +4] = left
+	INTTOFLOAT
+	left = Memory[EvalTop: + 4]
+	EvalTop -= 5
+if left[0] == 33 and right[0] == 33 then
+	// Float division
+	// Extract signs and exponents
+	dividendSign = left[1] AND 128
+	divisorSign = right[1] AND 128
+	resultSign = dividendSign XOR divisorSign
+	dividendShifted = LSHIFT(left[1:4], 1)
+	divisorShifted = LSHIFT(right[1:4], 1)
+	dividendExponent = dividendShifted[0]
+	divisorExponent = divisorShifted[0]
+	
+	// Handle special cases
+	// Handle NaNs
+	if (dividendExponent == 255 and dividendShifted[1:3] != 0) or (divisorExponent == 255 and divisorShifted[1:3] != 0) then
+		// One of the operands is a NaN
+		if dividendShifted[1] AND 128 == 0 or divisorShifted[1] AND 128 == 0 then
+			// One of the operands is a signalling NaN so throw error
+			THROW INVALIDOPERATION  // Important to do this in such a way that error is still thrown if divisor is sNaN but dividend is qNaN
+		result[0] = 33
+		result[1:4] = 2,145,386,496
+		goto _endDiv_
+	// Handle 0's
+	if dividendShifted == 0 then
+		// Dividend is 0
+		if divisorShifted == 0 then
+			// Both are 0, so result is NaN and InvalidOperation must be thrown
+			result[0] == 33
+			result[1:4] = 2,145,386,496
+			THROW INVALIDOPERATION
+		else
+			// 0 divided by anything else is 0
+			result[0] == 33
+			result[1:3] = 0
+			goto _endDiv_
+	else if divisorShifted == 0 then
+		// If divisor is 0 then result is inf and divideByZero exception must be thrown unless dividend is infinity
+		result[0] = 33
+		result[1] = 255
+		result[2:4] = 0
+		result[1:4] = RSHIFTLOGICAL(result[1:4], 1)
+		result[1] = result[1] OR resultSign
+		if dividendExponent != 255 then  // No need to check mantissa as NaNs will already have been handled
+			THROW DIVIDEBYZERO
+		goto _endDiv_
+	// Handle infinities
+	if divisorExponent == 255 then  // No need to check mantissa as NaNs have already been handled
+		if dividendExponent == 255 then
+			// Infinity / Infinity is NaN
+			result[0] = 33
+			result[1:4] = 2,145,386,496
+			goto _endDiv_
+		else
+			// Anything else / inf is 0
+			result[0] = 33
+			result[1:4] = 0
+			result[1] = OR(result[1], resultSign)
+			goto _endDiv_
+	if dividendExponent == 255 then
+		// Infinity divided by anything other than infinity is infinity
+		result[0] = 33
+		result[1] = 255
+		result[2:4] = 0
+		result[1:4] = RSHIFTLOGICAL(result[1:4], 1)
+		result[1] = OR(result[1], resultSign)
+	
+	// Extract mantissas
+	dividendMantissa = left[2:4]  // No need to shift out last bit of exponent as it will be replaced with implicit bit anyway
+	divisorMantissa = right[2:4]
+	
+	// Add implicit bits
+	if dividendExponent == 0 then
+		dividendExponent = 1
+		// No need to set implicit bit as if exponent was 0, it will already be 0
+	else
+		dividendMantissa[0] = dividendMantissa[0] OR 128
+	if divisorExponent == 0 then
+		divisorExponent = 1
+	else
+		divisorMantissa[0] = divisorMantissa[0] OR 128
+	
+	// Divide mantissas
+	// Pad dividend and divisor to make them 32 bits
+	dividend[0] = 0
+	dividend[1:3] = dividendMantissa
+	divisor[0] = 0
+	divisor[1:3] = divisorMantissa
+	
+	// Similar to integer division, except we continue to calculate after bit 32 until either the remainder reaches 0 or we reach bit 64 (at which point there is no more space in quotient so no point continuing)
+	// After the first 32 bits, the integer part will have been calculated, and the rest will calculate the fractional part.
+	// Therefore, the most significant 32 bits of the final quotient will contain the integer portion, and the second 32 bits will contain the fractional portion
+	quotient = 0  // 64 bits
+	remainder = 0 // 64 bits
+	
+	count = 0
+	bitCount = 7
+	currentByteDividend = dividend[0]
+	currentByteQuotient = 0  // The loop could end at any time after first 32 bits, so must save changes to quotient as they are made else they might not be saved
+	(_floatDivideLoop_) 
+	if count < 32 or (remainder != 0 and i < 64) then
+		if count == 8 then
+			currentByteDividend = dividend[1]
+			currentByteQuotient = 1
+			bitCount = 7
+		else if count == 16 then
+			currentByteDividend = dividend[2]
+			currentByteQuotient = 2
+			bitCount = 7
+		else if count == 24 then
+			currentByteDividend = dividend[3]
+			currentByteQuotient = 3
+			bitCount = 7
+		else if count == 32 then
+			currentByteDividend = 0  // The dividend is only 32 bits, so there are no more bits in it so pretend that all future dividend bits are 0
+			currentByteQuotient = 4
+			bitCount = 7
+		else if count == 40 then
+			currentByteQuotient = 5
+			bitCount = 7
+		else if count == 48 then
+			currentByteQuotient = 6
+			bitCount = 7
+		else if count == 56 then
+			currentByteQuotient = 7
+			bitCount = 7
+		
+		bitMask = 2 ^ bitCount
+		// Shift remainder 1 place left
+		LSHIFT(remainder, 1)
+		if (currentByteDividend AND bitMask) != 0 then
+			// If current bit of dividend is 1 then set LSB of remainder to 1
+			remainder[7] = remainder[7] OR 1
+		if remainder >= divisor then  // When comparing and subtracting remember that remainder is 64 bits whilst divisor is only 32
+			remainder = remainder - divisor
+			quotient[currentByteQuotient] = quotient[currentByteQuotient] OR bitMask
+		
+		// Prepare for next loop
+		count += 1
+		bitCount -= 1
+		goto _floatDivideLoop_
+	
+	// Subtract exponents
+	dividendExponentUnbiased = dividendExponent - 127
+	divisorExponentUnbiased = divisorExponent - 127
+	resultExponent = dividendExponentUnbiased - divisorExponentUnbiased
+	underflowAmount = -1 (255)
+	if overflowFlag is set then
+		if resultExponent < 0 then
+			// If resultExponent overflowed and is negative then the exponent is too large to be represented in single precision so result is infinity
+			resultExponent = 255
+			resultMantissa = 0
+			goto _combineDivFloat_
+		else
+			// resultExponent "underflowed" so the exponent is too small to be fully represented in single precision, but we might be able to use subnormals to gradually underflow
+			underflowAmount = resultExponent - -126
+			resultExponent = 0
+	else
+		if resultExponent == -128 then  // Special case for -128 as it will not cause overflow but is invalid in IEEE 754
+			resultExponent = 0
+			underflowAmount = -2
+		else
+			// Re-bias result
+			resultExponent = resultExponent + 127
+			
+	if resultExponent != 255 then  // If infinity skip normalisation
+		shifts = 31  // current value of resultExponent would put radix point in between first and second 32 bits of resultMantissa, so most significant 31 bits can be normalised out with no effect on exponent.  However in some cases the integer part will be larger than 1 and as a result the exponent will have to be increased to move point to the left.  The easiest way to do this is to add 31 to the exponent and then decrease it for each 0 shifted out during normalisation, therefore if all of the first 31 bits are shifted out then the exponent wont change but if not all are shifted out then the result exponent will be the same if it had been increased appropriately.  By adding 31 this can all be acheived with the same logic for both the first and second 32 bits.  However, just adding 31 may overflow so we use a shifts variable instead and add it to resultExponent afterwards
+		if resultExponent == 0 then
+			shifts = shifts + underflowAmount  // If result will be subnormal reduce shifts so that the correct number of 0's are left in the mantissa
+			if shifts < 0 then
+				// If the undeflowAmount is significant enough that shifts is now negative, then even a subnormal cannot represent the result so the result is 0
+				shifts = 0
+		(_normaliseDividedMantissa_)
+		if (resultMantissa[0] AND 128 == 0) and not (resultExponent == 0 and shifts == 0) then
+			resultMantissa = LSHIFT(resultMantissa, 1)
+			if shifts != 0 then
+				shifts -= 1
+			else
+				resultExponent -= 1
+			goto _normaliseDividedMantissa_
+		resultExponent += shifts
+		if carryFlag is set then
+			resultExponent = 255  // Exponent overflowed so cannot be represented in single precision, so result is infinity
+			resultMantissa = 0
+			goto _combineDivFloat_
+		
+	// Round mantissa
+	roundUp = false
+	rounded = resultMantissa[0:2]  // Get most significant 24 bits of mantissa
+	// Determine whether rounding is neccessary
+	if resultMantissa[3] AND 128 != 0 then  // Guard bit is set, so rounding might be neccessary
+		if resultMantissa[3] AND 127 == 0 and resultMantissa[4:7] == 0 then
+			// Tie breaking policy needed, default is round to even
+			# if roundingMode = TiesToEven use:
+				if resultMantissa[2] AND 1 != 0 then
+					roundUp = true  // round up to even number
+		else
+			roundUp = true
+	// Round if neccessary
+	if roundUp == true then
+		rounded += 1
+		if carryFlag is set then  // If result is too large then shift right and increase exponent
+			resultExponent += 1
+			if carryFlag is set then  // If new exponent is too large then result cannot be represented in single precision so result is inf
+				resultExponent = 255
+				resultMantissa = 0
+				goto _combineDivFloat_
+			else
+				rounded = RSHIFTLOGICAL(rounded, 1)
+	resultMantissa = rounded
+	goto _combineDivFloat_
+			
+	(_combineDivFloat_)
+	result[0] = 33  // Set type tag
+	// Replace implicit bit with last bit of exponent (probably faster than right shifting entire result, though exponent must still be right shifted)
+	if resultExponent AND 1 == 1 then
+		resultMantissa[0] = resultMantissa[0] OR 128
+	else
+		resultMantissa[0] = resultMantissa[0] AND 127
+	
+	resultExponent = RSHIFTLOGICAL(resultExponent, 1)
+	result[1] = resultExponent
+	result[2:4] = resultMantissa
+	// Add sign bit
+	result[1] = result[1] OR resultSign
+	goto _endDiv_
+	
+else
+	THROW INCOMPATIBLE OPERAND TYPES  // No type other than ints and floats can be divided
+
+(_endDiv_)
+EvalTop -= 5
+Memory[EvalTop: + 4] = result
+
+INTTOFLOAT (Replace integer on top of stack with its equivalent in float format)
+
+intObject = Memory[EvalTop: + 4]
+value = intObject[1:4]
+resultSign = 0
+// Convert to positive if neccessary
+if value[0] AND 128 == 128 then
+	resultSign = 128
+	value = NOT(value)
+	value += 1
+resultExponent = 31  // Exponent will be equal to the power of the largest set bit
+// Remove leading 0's
+(_intToFloatNormalise_)
+if resultExponent != 0 and value[0] AND 128 == 0 then
+	// Shift left to remove leading zeros, decreasing exponent each time
+	value = LSHIFT(value, 1)
+	resultExponent -= 1
+	goto _intToFloatNormalise_
+
+// Bias exponent
+resultExponent += 127
+
+// Round the resulting value
+resultMantissa = value[0:2]
+roundUp = false
+if value[3] AND 128 == 128 then
+	// Guard bit is set, rounding up may be necessary
+	if value[3] AND 127 == 0 then
+		// Round up distance is same as distance to round down, tie break policy is needed (round to even by default)
+		# if roundingMode == TiesToEven then use:
+			if value[2] AND 1 == 1 then
+				// Round up to next even
+				roundUp = true
+	else
+		// Distance to round up is smaller than distance to round down
+		roundUp = true
+if roundUp == true then
+	resultMantissa += 1
+	if carryFlag is set then
+		// Cannot be represented with current exponent, so increase it and shift right
+		resultMantissa = RSHIFTLOGICAL(resultMantissa, 1)  // But now MSB is not 1, should we normalise after?
+		resultExponent += 1
+		if carryFlag is set then
+			// The value cannot be represented in single precision, so result is inf
+			resultExponent = 255
+			resultMantissa = 0
+
+// Remove implicit bit of mantissa
+result
+resultMantissa = LSHIFT(resultMantissa, 1)
+result[1] = resultExponent
+result[2:4] = resultMantissa
+// Add sign bit
+result[1:4] = RSHIFTLOGICAL(result[1:4], 1)
+result[1] = result[1] OR resultSign
+
+result[0] == 33
+// Replace input on stack with result
+Memory[EvalTop: +4] = result
+
+GETLARGESTSETBIT  (Get index (starting from 1) of most significant bit that is 1 in the given bit string.  If no bits are set then return 0, assumes MSB is on the left and LSB on the right)
+
+info = Memory[EvalTop : + 4]
+// The value at top of eval stack contains the length (in bytes) of the bit string and the memory location of the first byte (the bytes must be consecutive)
+// It will not deallocate the bit string afterwards, so it can be given the address of the actual data rather than a copy of it
+// info[0] contains length
+// info[1:4] contain address
+length = info[0]
+address = info[1:4]
+
+bitLength = 0  // Will contain the number of bits, must be 2 bytes in size as the maximum number of bits is too large to fit in 1 byte
+bitLength[1] = length
+// Multiply length by 8 to get number of bits
+bitLength = LSHIFT(bitLength, 3)
+
+count = 0
+currentAddress = address
+currentByte = Memory[currentAddress]
+if currentByte == 0 then
+	// Save time by skipping over first byte if it is all 0s
+	bitLength -= 8
+	count = 8
+// Repeatedly check if MSB is set and shift left otherwise, until a set bit is found
+(_findLargestSetBit_)
+if count == 8 then
+	length -= 1
+	if length != 0 then
+		// Reset count and move on to next byte
+		count = 0
+		currentAddress += 1
+		currentByte = Memory[currentAddress]
+		if currentByte == 0 then
+			// Saves time to check if byte is all 0s and skip through it if so
+			count = 8
+			bitLength -= 8
+			goto _findLargestSetBit_
+	else
+		goto _returnLargestSetBit_
+
+if currentByte AND 128 != 0 then
+	// The largest set bit has been found
+	goto _returnLargestSetBit_
+LSHIFT(currentByte, 1)
+bitLength -= 1
+count += 1
+goto _findLargestSetBit_
+
+(_returnLargestSetBit_)
+Memory[EvalTop: + 1] = bitLength
+
+
+
+// Compare values
+
+EQUAL  (Compare the top two items on eval stack, and push true if they are equal and false if not)
+
+rightAddress = EvalTop
+leftAddress = EvalTop - 5
+
+
+// If the type is a reference, then compare actual value
+if Memory[leftAddress] == 45 then
+	leftAddress = Memory[leftAddress + 1: +3]
+if Memory[rightAddress] == 45 then
+	rightAddress = Memory[rightAddress + 1: + 3]
+	
+// Procedure for checking null (unlike other types, null can be checked with any type)
+if Memory[leftAddress] == 0 or leftAddress == NullAddress then
+	// Left is null
+	if Memory[rightAddress] == 0 or rightAddress == NullAddress then
+		// Right is also null, so operands are equal as null == null
+		goto _operandsEqual_
+	else
+		goto _operandsNotEqual_
+if Memory[rightAddress] == 0 or rightAddress == NullAddress then
+	// Left has already been checked for null, so we know that the operands do not match
+	goto _operandsNotEqual_
+
+// Different procedures for different types
+if Memory[leftAddress] == 32 then  // Procedure for ints
+	if Memory[rightAddress] != 32 then
+		THROW INCOMPATIBLE OPERAND TYPES  // The items being compared must both be the same type
+	
+	// XORing two binary values together will always give 0 if they are identical, and will never give 0 if they are not
+	if Memory[leftAddress + 1 : + 3] XOR Memory[rightAddress + 1 : + 3] == 0 then
+		goto _operandsEqual_
+	else
+		goto _operandsNotEqual_
+
+if Memory[leftAddress] == 33 then  // Procedure for floats
+	if Memory[rightAddress] != 33 then
+		THROW INCOMPATIBLE TYPES
+	
+	if Memory[leftAddress + 1: + 3] XOR Memory[rightAddress + 1: + 3] == 0 then
+		goto _operandsEqual_
+	else
+		goto _operandsNotEqual_
+if Memory[leftAddress] == 34 then  // Procedure for bools
+	if Memory[rightAddress] != 34 then
+		THROW INCOMPATIBLE TYPES
+	if Memory[leftAddress + 1] XOR Memory[rightAddress + 1] == 0 then
+		goto _operandsEqual_
+	else
+		_operandsNotEqual_
+if Memory[leftAddress] == 36 then  // Procedure for strings
+	if Memory[rightAddress] != 36 then
+		THROW INCOMPATIBLE TYPES
+	length = Memory[leftAddress + 1: + 1]
+	
+	if length != Memory[rightAddress + 1: + 1] then
+		// if strings are not the same length, then they cannot be equal
+		goto _operandsNotEqual_
+	
+	leftAddress += 3  // Point to first byte of the strings
+	rightAddress += 3
+	(_compareStringsEqual_)
+	if length == 0 then
+		// End of strings have been reached without finding any non matching bytes, so strings are equal
+		goto _operandsEqual_
+	else
+		if Memory[leftAddress] XOR Memory[rightAddress] == 0 then
+			// The current bytes of both strings match, so continue to next byte
+			leftAddress += 1
+			rightAddress += 1
+			length -= 1
+			goto _compareStringsEqual_
+		else
+			// The current bytes do not match
+			goto _operandsNotEqual_
+else
+	THROW INVALID OPERAND TYPES  // Only null, ints, floats, bools, and strings can be compared
+(_operandsEqual_)
+// The operands are equal, so place true on the stack (and remove inputs from stack)
+EvalTop -= 5
+Memory[EvalTop] = 34  // Type tag for bool
+Memory[EvalTop + 1] = 1  // 2nd byte of bool contains 1 if true
+goto _endEqual_
+
+(_operandsNotEqual_)
+// Operands are not equal, so place false on the stack (and remove inputs from stack)
+EvalTop -= 5
+Memory[EvalTop] = 34
+Memory[EvalTop + 1] = 0  // 2nd byte of bool contains 0 if false
+goto _endEqual_
+
+(_endEqual_)
+// Do nothing, just end equal check procedure
+
+
+NOTEQUAL  (Compare top two items on stack and push false if they are equal and true if not)
+// Simply run EQUAL and invert the result
+EQUAL
+if Memory[EvalTop: + 1] == 0 then
+	Memory[EvalTop: + 1] = 1
+else
+	Memory[EvalTop + 1] = 0
+
+
+GREATER (Compare top two items on stack and push true if the 2nd from top one is larger in value)
+
+rightAddress = EvalTop
+leftAddress = EvalTop - 5
+
+if Memory[leftAddress] == 32 then  // Procedure for ints
+	if Memory[rightAddress] != 32 then
+		THROW INCOMPATIBLE TYPES  // Ints cannot be compared with anything other than ints (even floats as this will help to teach about the different types, and will show that different types are not compatiable without conversion - and give an understanding that when they seem to be compatiable it is actually due to implicit conversion)
+	left = Memory[leftAddress + 1 : + 3]
+	right = Memory[rightAddress + 1: + 3]
+	// Subtract right from left
+	// First check sign bits
+	if Memory[leftAddress + 1] AND 128 != 0 then
+		// Left is negative
+		if Memory[rightAddress + 1] AND 128 != 0 then
+			// Both are negative, so must be flipped to positive to allow comparing using subtraction and negative flag
+			left = NOT(left)
+			left += 1
+			right = NOT(right)
+			right += 1
+		else
+			// Right is positive, so left is smaller
+			goto _leftNotGreater_
+	else if Memory[rightAddress + 1] AND 128 != 0 then
+		// Right is negative, but left is positive so left is bigger
+		goto _leftGreater_
+			
+	// Subtract right from left
+	left - right
+	if negativeFlag is set or zeroFlag is set then
+		// left is smaller than right if negative flag is set or the same size if zeroFlag is set
+		goto _leftNotGreater_
+	else
+		goto _leftGreater_
+else if Memory[leftAddress] == 33 then  // Procedure for floats
+	if Memory[rightAddress] != 33 then
+		THROW INCOMPATIBLE TYPES
+	left = Memory[leftAddress + 1: + 3]
+	right = Memory[rightAddress + 1: + 3]
+	if left[0] AND 128 != 0 then
+		// Left is negative
+		if right[0] AND 128 != 0 then
+			// Both are negative so make positive to allow subtraction to be used to determine which is bigger
+			left[0] = left[0] AND 127
+			right[0] = right[0] AND 127
+		else
+			// Left is negative, but right is not so right is bigger
+			goto _leftNotGreater_
+	else if right[0] AND 128 != 0 then
+		// Right is negative but left is not, so left is bigger
+		goto _leftGreater_
+	
+	// Thanks to IEEE 754 exponent biasing we can simply subtract left from right as if they were normal binary integers to get the correct result
+	left - right
+	if negativeFlag is set or zeroFlag is set then
+		// left is either smaller or same size as right
+		goto _leftNotGreater_
+	else
+		goto _leftGreater_
+else
+	THROW INVALID OPERAND TYPES  // Only ints or floats can be compared
+	
+(_leftGreater_)
+EvalTop -= 5
+Memory[EvalTop] = 34
+Memory[EvalTop + 1] = 1
+goto _endGreater_
+
+(_leftNotGreater_)
+EvalTop -= 5
+Memory[EvalTop] = 34
+Memory[EvalTop + 1] = 0
+(_endGreater_)
+// Do nothing, just end procedure
+
+GREATEREQUAL (Compare top and 2nd from top items on eval stack, if 2nd is greater than or equal to top then push true, otherwise push flase)
+// Almost exact copy of procedure for greater, but check only the negative flag after subtraction
+
+
+LESSER (Compare top and 2nd from top items on stack, if 2nd is less than top one then push true, otherwise push false)
+
+rightAddress = EvalTop
+leftAddress = EvalTop - 5
+
+if Memory[leftAddress] == 32 then  // Procedure for ints
+	if Memory[rightAddress] != 32 then
+		THROW INCOMPATIBLE TYPES  // Ints cannot be compared with anything other than ints (even floats as this will help to teach about the different types, and will show that different types are not compatiable without conversion - and give an understanding that when they seem to be compatiable it is actually due to implicit conversion)
+	left = Memory[leftAddress + 1 : + 3]
+	right = Memory[rightAddress + 1: + 3]
+	// Subtract right from left
+	// First check sign bits
+	if Memory[leftAddress + 1] AND 128 != 0 then
+		// Left is negative
+		if Memory[rightAddress + 1] AND 128 != 0 then
+			// Both are negative, so must be flipped to positive to allow comparing using subtraction and negative flag
+			left = NOT(left)
+			left += 1
+			right = NOT(right)
+			right += 1
+		else
+			// Right is positive, so left is smaller
+			goto _leftSmaller_
+	else if Memory[rightAddress + 1] AND 128 != 0 then
+		// Right is negative, but left is positive so left is bigger
+		goto _leftNotSmaller_
+			
+	// Subtract right from left
+	left - right
+	if negativeFlag is set
+		// left is smaller than right if negative flag is set
+		goto _leftSmaller_
+	else
+		goto _leftNotSmaller_
+else if Memory[leftAddress] == 33 then  // Procedure for floats
+	if Memory[rightAddress] != 33 then
+		THROW INCOMPATIBLE TYPES
+	left = Memory[leftAddress + 1: + 3]
+	right = Memory[rightAddress + 1: + 3]
+	if left[0] AND 128 != 0 then
+		// Left is negative
+		if right[0] AND 128 != 0 then
+			// Both are negative so make positive to allow subtraction to be used to determine which is bigger
+			left[0] = left[0] AND 127
+			right[0] = right[0] AND 127
+		else
+			// Left is negative, but right is not so right is bigger
+			goto _leftSmaller_
+	else if right[0] AND 128 != 0 then
+		// Right is negative but left is not, so left is bigger
+		goto _leftNotSmaller_
+	
+	// Thanks to IEEE 754 exponent biasing we can simply subtract left from right as if they were normal binary integers to get the correct result
+	left - right
+	if negativeFlag is set
+		// left is smaller
+		goto _leftSmaller_
+	else
+		goto _leftNotSmaller_
+else
+	THROW INVALID OPERAND TYPES  // Only ints or floats can be compared
+	
+(_leftSmaller_)
+EvalTop -= 5
+Memory[EvalTop] = 34
+Memory[EvalTop + 1] = 1
+goto _endLesser_
+
+(_leftNotSmaller_)
+EvalTop -= 5
+Memory[EvalTop] = 34
+Memory[EvalTop + 1] = 0
+(_endLesser_)
+// Do nothing, just end procedure
+
+LESSEREQUAL (Compare top and 2nd top items on eval stack, if 2nd top is less than or equal to top then push true, otherwise push false)
+// Almost exact copy of the LESSER procedure, but check for zeroFlag as well as negative flag after subtraction
+
+
+// Boolean operators (!, &&, ||)
+
+BOOLEANNOT (Invert bool on top of eval stack)
+
+if Memory[EvalTop] == 34 then
+	Memory[EvalTop + 1] = NOT(Memory[EvalTop + 1])
+else
+	THROW INVALID OPERAND  // Can only perform boolean not on a bool type
+
+
+BOOLEANAND (Compare bools on top and 2nd places on eval stack, push true if both are true and false if not)
+
+if Memory[EvalTop] == 34 and Memory[EvalTop - 5] == 34 then
+	Memory[EvalTop - 4] = Memory[EvalTop + 1] AND Memory[EvalTop - 4]
+	EvalTop -= 5
+else
+	THROW INVALID OPERAND
+	
+
+BOOLEANOR (Compare bools on top and 2nd places on eval stack, push true if at least one is true, or false if both are false)
+
+if Memory[EvalTop] == 34 and Memory[EvalTop - 5] == 34 then
+	Memory[EvalTop - 4] = Memory[EvalTop + 1] OR Memory[EvalTop - 4]
+	EvalTop -= 5
+else
+	THROW INVALID OPERAND
+
+
+// Control flow procedures
+
+CONDITIONAL  (If top item on eval stack is true then jump program to address in value 3rd from top of stack, if it is false then jump to address in value 2nd from top)
+
+if Memory[EvalTop] == 34 then
+	if Memory[EvalTop + 1] != 0 then
+		// Condition is true so goto address in 3rd stack item from top
+		address = Memory[EvalTop - 10: + 3]
+		EvalTop -= 10
+		GTO address
+	else
+		// Condition is false so goto address in 2nd item from top
+		address = Memory[EvalTop - 5: + 3]
+		EvalTop -= 10
+		GTO address
+else
+	THROW INVALID OPERAND  // Top item must be a bool
+
+
+CALL (Call the function on top of eval stack: Create a new stack frame and populate its variable table from the function prototype table, then run the function code)
+
+nonPermanant = false
+if Memory[EvalTop] == 46 or Memory[EvalTop] == 47 then  // Function definitions are too large to fit on stack, so the stack must contain a large object reference
+	function = Memory[EvalTop + 1: + 3]
+	if Memory[EvalTop] == 46 then
+		nonPermanant = true
+	EvalTop -= 5
+else
+	THROW EXPECTED FUNCTION REFERENCE
+
+thisObject = 0
+if Memory[function] == 56 then
+	// The function object is a bound method, containing the this object to be used with the function
+	thisObject = Memory[function + 1: + 3]
+	function = Memory[function + 5: + 3]
+	
+if Memory[function] != 37 then
+	THROW NOT CALLABLE  // The item on top of eval stack is not a function / method
+	
+argsProvided = Memory[EvalTop]  // Get number of provided arguments
+
+// Add new frame to call stack
+frameStart = StackPointer + 1
+// Fill in setup parameters
+
+startChunk = Pointer to Memory[frameStart + 8: + 3]  // Contains start address of first free chunk
+startChunkEndAddr = Pointer to Memory[frameStart + 12 : + 3]   // Contains last address of first free chunk
+
+heapStart = Pointer to Memory[frameStart + 16: + 3]  // Contains first address of stack heap
+heapEnd = Pointer to Memory[frameStart + 20: + 3]  // Contains last address of stack heap
+
+
+previousFrame = Pointer to Memory[frameStart + 24: + 3]  // Contains start address of previous stack frame
+returnAddress = Pointer to Memory[frameStart + 28: + 3]  // Contains address of instruction from previous frame to return to when function terminates
+previousFrame = Scope
+returnAddress = Memory[EvalTop + 1: + 3]  // last 4 bytes of 2nd item from top on eval stack will contain the return address
+EvalTop -= 5
+
+VarTable = Pointer to Memory[frameStart + 32: + 3]
+NamePool = Pointer to Memory[frameStart + 36 : + 3]
+Memory[frameStart + 44: + 3] = function + 9  // The address of functions first instruction
+// Set up heap
+heapStart = frameStart + 148  // Heap begins after parameters (48 bytes) and eval stack (100 bytes)
+heapSize = roundDown(log2((StackAddress + StackSize) - heapStart))  // Get max available size of heap as a power of 2 (rounded down if neccessary)
+heapEnd = heapStart + (2 ^ heapSize)
+startChunk = heapStart
+startChunkEndAddr = heapEnd
+Memory[startChunk] = heapSize  // The first chunk will be the full size of the heap
+
+// Create evaluation stack
+Memory[frameStart + 4: + 3] = frameStart + 48  // Stack is immediately after parameters
+Memory[frameStart: + 3] = frameStart + 48
+
+
+// Create function's variable table and name pool
+Scope = previousFrame
+oldEvalTop = EvalTop
+EvalTop = Pointer to frameStart + 4: + 3
+Memory[EvalTop] = 10  // For variable table
+ALLOCATE
+VarTable = Memory[EvalTop: + 3]
+Memory[EvalTop] = 10 // For name pool
+ALLOCATE
+NamePool = Memory[EvalTop: + 3]
+EvalTop -= 5
+Memory[VarTable] = 42  // Type tag
+Memory[VarTable + 1: + 1] = 0  // Length
+Memory[VarTable + 3] = 0  // No expansion tables
+Memory[VarTable + 4: + 1] = 1  // Index of first slot
+Memory[VarTable + 6: + 1] = 0  // The index pointer of first free slot must contain 0
+Memory[VarTable + 1020 : + 3] = 0
+
+Memory[NamePool] = 51
+Memory[NamePool + 1: + 3] = NamePool + 7  // Address of first free space
+Memory[NamePool + 5] = 202  // Number of 5 byte blocks in first free space
+Memory[NamePool + 6] = 0  // No expansion tables
+Memory[NamePool + 7: + 5] = 0  // This is the only free block, so set its pointer to 0
+
+
+// Populate the variable table from the function prototype table and arguments provided
+prototypeTable = Memory[function + 5: + 3]  // Get start address of function prototype table
+// Copy each value in the prototype table into the new variable table
+prototypeEntriesLeft = Memory[prototypeTable + 1: + 1]  // The number of entries in the prototype table left to copy
+prototypeEntryStart = prototypeTable + 6  // Start of first entry in prototype table
+variableEntryStart = VarTable + 6  // Start of first entry in variable table (will be empty)
+// Reserve the needed variable table slots all at once (saves time compared to taking them one by one)
+Memory[VarTable + 1: + 1] = prototypeEntriesLeft
+Memory[VarTable + 4: + 1] = prototypeEntriesLeft + 1  // Index of first free slot
+Memory[variableEntryStart + (prototypeEntriesLeft * 10): + 1] = 0  // Make sure index in first free slot is clear
+
+(_copyFunctionPrototypeVars_)
+if prototypeEntriesLeft != 0 then
+	Memory[variableEntryStart] = 48
+	Memory[variableEntryStart + 1: + 8] = Memory[prototypeEntryStart + 1: + 8]
+	variableEntryStart += 10
+	prototypeEntryStart += 10
+	prototypeEntriesLeft -= 1
+	goto _copyFunctionPrototypeVars_
+// Now load args provided into the variables (the order that the variable was provided corresponds to the order they appear in the table)
+variableEntryStart == VarTable + 6
+if Memory[variableEntryStart + 6: + 3] == NullAddress or Memory[variableEntryStart + 6: + 3] == 0 then
+	// First variable (the parent pointer) is handled differently: if its default value is null then the function is not static and a this object must be provided.  If it is not null then it will contain a reference to the parent class prototype table (or simply to the table of the scope in which it was declared if it is not a method) and the default value will not be overwritable so no argument for it should be provided
+	// Unlike all other arguments, the parent value is passed by reference rather than value.  This is the case regardless of whether it is a this object or parent table
+	if thisObject != 0 then
+		Memory[variableEntryStart + 6: + 3] = thisObject
+		variableEntryStart += 10
+	else
+		THROW CLASS INSTANCE EXPECTED
+
+argsLoaded = 0
+(_loadArgs_)
+// Variables must be copied, as language is pass by value
+if variableEntryStart != (VarTable + 6 + (Memory[VarTable + 1: + 1] * 10)) then  // Repeat until all the variables in the table have been loaded
+	if argsLoaded == argsProvided or Memory[oldEvalTop] == 0 or Memory[oldEvalTop: + 3] == NullAddress then
+		// If nothing has been provided for this argument
+		if Memory[variableEntryStart + 6: + 3] == NullAddress or Memory[variableEntryStart + 6: + 3] == 0 then
+			// There is also no default value for the variable, so must throw error
+			THROW EXPECTED ARGUMENT
+		else
+			// There is a default argument for the variable
+			// The value must be copied to the local heap
+			valueAddress = Memory[variableEntryStart + 6: + 3]
+			Memory[EvalTop] = 47
+			Memory[EvalTop + 1: + 3] = valueAddress
+			EvalTop += 5
+			Memory[EvalTop] = 47
+			Memory[EvalTop: + 3] = variableEntryStart
+			STORE
+			variableEntryStart += 10
+			oldEvalTop -= 5
+			goto _loadArgs_
+	else
+		Memory[EvalTop: + 4] = Memory[oldEvalTop: + 4]
+		EvalTop += 5
+		Memory[EvalTop] == 47
+		Memory[EvalTop + 1: + 3] = variableEntryStart
+		STORE
+		variableEntryStart += 10
+		oldEvalTop -= 5
+		argsLoaded += 1
+		goto _loadArgs_
+
+// Run function code
+GTO function + 9
+
+
+RETURN  (Copy value on top of eval stack to top of previous frame's eval stack, and return to previous frame, continuing from where its code left off)
+
+previousFrame = Memory[Scope + 24: + 3]  // Starting address of previous frame
+// Copy return value to previous frame's eval stack
+returnValue = Memory[EvalTop: + 4]
+// If the value is a large object reference, then it needs to be copied to the global heap temporarily so that it can be copied to the previous frame (as nothing can be copied to previous frame's heap until the current frame is deallocated, but once the current frame is deallocated the data to copy will no longer exist.  Therefore it is neccessary to copy it to global heap and later to previous frame's heap)
+if returnValue[0] == 46 or returnValue[0] == 47 then
+	if ! (Memory[GlobalAddress + 16: + 3] <= returnValue[1:4] < Memory[GlobalAddress + 20: + 3]) then  // If the value is already on the global heap no need to do anything
+		// The value is not on the global heap, so must be copied to it
+		valueAddress = returnValue[1:4]
+		size = GETSIZE(valueAddress)
+		sizeBase2 = ceil(log2(size))
+		// Allocate enough space
+		EvalTop += 5
+		Memory[EvalTop] = sizeBase2
+		Memory[EvalTop + 2] = 1  // Force global heap to be used
+		ALLOCATE
+		allocatedAddress = Memory[EvalTop: + 3]
+		COPY valueAddress of size size to allocatedAddress
+		EvalTop -= 5
+		// The return type should be 46 even if it was 47 before, as the new value referenced (the newly copied one) is only temporary
+		returnValue[0] = 46
+		returnValue[1:4] = allocatedAddress
+
+Memory[previousFrame: + 3] += 5  // Push returnValue to previous frame eval stack  // Although we cannot add values to the previous frame's heap we can add to its eval stack because eval stacks are static so have a fixed size (meaning no new space needs to be allocated)
+oldEvaltop = Memory[previousFrame: + 3]
+Memory[oldEvaltop: + 4] = returnValue
+	
+// Go back to previous frame
+returnAddress = Memory[Scope + 28: + 3]  // Must keep a note of return address first, otherwise it will be lost
+Scope = previousFrame
+if Scope != GlobalAddress then
+	// If we have returned to a previous frame rather than the global area, then we will need to repair the size parameter and pointer of its last free chunk as these would have been overwritten by the frame that we are returning from
+	lastChunkStart = Memory[Scope + 40: + 3]
+	size = floor(log2((Memory[Scope + 20: + 3] + 1) - lastChunkStart))  // Total heap size - address of last chunk will give size of last chunk
+	Memory[lastChunkStart] = size
+	Memory[lastChunkStart + 1: + 7] = 0  // Set pointers to next free chunk to 0 as there are no more free chunks after this one
+
+// Continue previous frame's code from where we left off
+GTO returnAddress
+
+
+INSTANTIATE (Create a this object for a class, will be run inside a constructor function)
+
+// Runs inside a constructor so variable table will already exist, so prototype table will be first entry
+
+prototypeTableAddress = Memory[VarTable + 12: + 3]
+prototypeSubTable = prototypeTableAddress
+prototypeEndOfEntriesAddress = prototypeTableAddress + 1018  // The address in the prototype table after which no more entries can fit
+// Allocate space on the global heap for the new this object
+Memory[EvalTop] = 10  // Like all other tables, this objects are 1024 bytes
+Memory[EvalTop + 2] = 1  // Allocate the space on the global heap
+ALLOCATE
+thisObject = Memory[EvalTop: + 3]
+thisSubTable = thisObject
+thisEndOfEntriesAddress = thisObject + 1018  // The address in the this table after which no more entries can fit
+Evaltop -= 5
+
+// Setup the object
+Memory[thisObject] = 39
+Memory[thisObject + 1: + 1] = 0  // To start with, the object will be empty
+Memory[thisObject + 3] = 0  // There are no expansion tables
+Memory[thisObject + 4: + 1] = 1  // Index of first free slot
+Memory[thisObject + 1020: + 3] = 0  // Clear expansion table pointer
+entryStart = thisObject + 6
+// First entry should contain prototype table
+Memory[entryStart] = 49
+Memory[entryStart + 1] = 0  // First entry does not have a name so length is 0
+Memory[entryStart + 2: + 1] = NullAddress
+Memory[entryStart + 6] = 0  // No flags
+Memory[entryStart + 7: + 1] = prototypeTableAddress
+Memory[thisObject + 1: + 1] = 1  // Increase number of items to 1
+Memory[thisObject + 4: + 1] = 2  // First slot is no longer free, so set first free slot index to 2
+entryStart += 11
+Memory[entryStart: + 1] = 0  // Ensure that the pointer in next free slot is 0
+
+// Copy any non-static variables and methods into the new this object
+(_checkPrototypeTable_)
+prototypeEntryStart = prototypeTableAddress + 6
+expansionsSearched = 0
+(_copyClassPrototypeEntries_)
+if Memory[prototypeEntryStart] == 49 then  // A prototype table entry
+	// Only copy a variable to the this object if it does not already exist there
+	(_checkIfNameExists_)
+	thisExpansionsSearched = 0
+	endOfThisEntries = thisObject + 1018
+	currentSubTable = thisObject
+	currentEntry = thisObject + 6
+	nameExists = false
+	(_searchNextEntry_)
+	if Memory[currentEntry: + 1] == 0 then
+		// The rest of the this object is empty, so stop searching
+		goto _endCheckNameExists_
+	if Memory[prototypeEntryStart + 1] == Memory[currentEntry + 1] then
+		// Only bother continuing to check if the names are the same length
+		protoName = Memory[prototypeEntryStart + 2: + 3]
+		thisName = Memory[currentEntry + 2: + 3]
+		if protoName == thisName then
+			// Both point to the same address in name pool, so must be the same
+			nameExists = true
+			goto _endCheckNameExists_
+		else
+			// Must compare each byte of the names
+			length = Memory[prototypeEntryStart + 1]  // Number of bytes in the names
+			lengthLeft = length  // Number of bytes not yet checked
+			(_comapareNamesByteForByte_)
+			if lengthLeft == 0 then
+				// The names match
+				nameExists = true
+				goto _endCheckNameExists_
+			
+			offset = length - lengthLeft
+			if Memory[protoName + offset] == Memory[thisName + offset] then
+				// These bytes match, check next one
+				lengthLeft -= 1
+				goto _comapareNamesByteForByte_
+			else
+				// These bytes do not match, the names are not the same
+	// Search next entry
+	currentEntry = currentEntry += 11
+	if endOfThisEntries <= currentEntry then
+		// Move on to next expansion table if there is one
+		if thisExpansionsSearched < Memory[thisObject + 3] then
+			thisExpansionsSearched += 1
+			currentSubTable = Memory[currentSubTable + 1020: + 3]
+			endOfThisEntries = currentSubTable + 1013
+			currentEntry = currentSubTable + 1
+			goto _searchNextEntry_
+		else
+			// All entries have been searched
+			goto _endCheckNameExists_
+	(_endCheckNameExists_)
+	
+	if nameExists == false then
+		if Memory[prototypeEntryStart + 6] AND 1 == 0 then
+			// The variable is not static, so should be copied
+			valueAddress = Memory[prototypeEntryStart + 7: + 3]
+			if Memory[valueAddress] == 37 then
+				// Create a bound method object to link the this object to the definition
+				EvalTop += 5
+				Memory[EvalTop] = 5
+				ALLOCATE
+				boundMethod = Memory[EvalTop: + 3]
+				EvalTop -= 5
+				Memory[boundMethod] = 56
+				Memory[boundMethod + 1: + 3] = thisObject  // Store reference to this object
+				Memory[boundMethod + 5: + 3] = valueAddress  // Store reference to function definition
+				valueAddress = boundMethod
+			
+			if Memory[valueAddress] != 38 then
+				// Only copy if the value is not a class definition
+				if Memory[thisObject + 4: + 1] == 0 then
+					// The this table is full, so must create a new expansion table
+					EvalTop += 5
+					Memory[EvalTop] = 10
+					Memory[EvalTop + 2] = 1  // Allocate the space on the global heap
+					ALLOCATE
+					Memory[thisSubTable + 1020: + 3] = Memory[EvalTop: + 3]  // Link to old table
+					thisSubTable = Memory[EvalTop: + 3]
+					EvalTop -= 5
+					Memory[thisSubTable] = 54
+					Memory[thisObject + 3] += 1  // Record that new expansion has been added
+					if carryFlag is set then
+						THROW THIS TABLE LIMIT REACHED
+					thisEndOfEntriesAddress = thisSubTable + 1013
+					entryStart = thisSubTable + 1
+					Memory[entryStart: + 1] = 0
+				// Create the new entry in this object
+				Memory[entryStart] = 49
+				Memory[entryStart + 1: + 4] = Memory[prototypeEntryStart + 1: + 4]   // Copy name from prototype (no need to make new copy in name pool)
+				Memory[entryStart + 6] = Memory[prototypeEntryStart + 6]  // Copy flags byte
+				if valueAddress == NullAddress or Memory[valueAddress] == 0 then
+					// Value is null
+					Memory[entryStart + 7: + 3] = NullAddress
+				else
+					// Use STORE to copy the value
+					EvalTop += 5
+					if Memory[valueAddress] == 32 or Memory[valueAddress] == 33 or Memory[valueAddress] == 34 then
+						// Int, float, or bool (small enough to fit onto stack)
+						Memory[EvalTop: + 4] = Memory[valueAddress: + 4]  // Does not matter if bool copies more than needed, as the rest will not be read anyway
+					else
+						Memory[EvalTop] = 47
+						Memory[EvalTop + 1: + 3] = valueAddress
+					EvalTop += 5
+					Memory[EvalTop] = 49
+					Memory[EvalTop + 1: + 3] = entryStart
+					STORE
+					// Update table headers
+					Memory[thisObject + 1: + 1] += 1
+					Memory[thisObject + 4: + 1] += 1
+					entryStart += 11
+					if entryStart < thisEndOfEntriesAddress then
+						Memory[entryStart: + 1] = 0  // If next space is free then move 0 into it
+					else
+						// We have just used up the last entry in the table, so set next free index to 0
+						Memory[thisObject + 4: + 1] = 0
+		
+// Move to next entry
+prototypeEntryStart += 11
+if Memory[prototypeEntryStart: + 1] == 0 then
+	// We have found a slot that is not, and never has been, allocated.  As this slot has never been allocated, no following slots can have been either.  Therefore all entries have been checked
+	goto _checkParentPrototype_
+if prototypeEndOfEntriesAddress <= prototypeEntryStart then
+	expansionsSearched += 1  // Another expansion table has been searched
+	if expansionsSearched < Memory[prototypeTableAddress + 3] then
+		// There is another expansion table to search
+		prototypeSubTable = Memory[prototypeSubTable + 1020: + 3]
+		prototypeEndOfEntriesAddress = prototypeSubTable + 1013
+		prototypeEntryStart = prototypeSubTable + 1
+		goto _copyClassPrototypeEntries_
+	else
+		_checkParentPrototype_  // All entries have been searched
+
+(_checkParentPrototype_)
+// Move on to parent table if it is a class prototype (meaning that this class inherits from it)
+if Memory[Memory[prototypeTableAddress + 13: + 3]] == 44 then
+	prototypeTableAddress = Memory[prototypeTableAddress + 13: + 3]
+	goto _checkPrototypeTable_
+	
+goto _copyClassPrototypeEntries_
+
+(_endInstantiate_)
+// Once the this object is instantiated, the constructor is no longer static, so replace the prototype table in first entry of variable table with the newly created this object
+Memory[VarTable + 12: + 3] = thisObject
+
+
+
+DEFINE (Define a function or class)
+// Each define wil have different code, so will be generated at compile time but the generated instructions will only be run at run time
+# If tree.type == "class" use:
+	// We only need 5 bytes, but the minimum allocation is 32
+	EvalTop += 5
+	Memory[EvalTop] = 5
+	ALLOCATE
+	location = Memory[EvalTop: + 3]
+	EvalTop -= 5
+	Memory[location] = 38
+	// Now need to generate a prototype table
+	EvalTop += 5
+	Memory[EvalTop] = 10  // Prototype table will be 1024 bytes
+	prototypeTable = Memory[EvalTop: + 3]
+	EvalTop -= 5
+	Memory[prototypeTable] = 44
+	Memory[prototypeTable + 1: + 1] = 1  // Will place parent in first slot so makes sense to initialise the length property to 1
+	Memory[prototypeTable + 3] = 0  // No expansion tables yet
+	Memory[prototypeTable + 4: + 1] = 2
+	Memory[prototypeTable + 17: + 1] = 0  // Make sure index in first free slot is clear
+	// Add parent entry
+	parentAddress = VarTable
+	# If inherits insert:
+		// If the new class inherits from another one, then the parent entry must contain the prototype table of that class
+		# Insert compile(tree.inherits)  // Run code to fetch the parent definition
+		if Memory[EvalTop] != 47 then
+			THROW CANNOT INHERIT  // The item provided to inherit from is not a class definition
+		parentAddress = Memory[EvalTop + 1: + 3]
+		EvalTop -= 5
+		if Memory[parentAddress] != 38 then
+			THROW CANNOT INHERIT  // The item provided is not a class definition
+		// Extract the prototype table from the definition
+		parentAddress = Memory[parentAddress + 1: + 3]
+	
+		
+	Memory[prototypeTable + 6] = 49
+	Memory[prototypeTable + 7] = 0  // The parent entry does not have a name
+	Memory[prototypeTable + 8: + 3] = NullAddress
+	Memory[prototypeTable + 12] = 0  // Make sure flags byte is clear
+	Memory[prototypeTable + 13: + 3] = parentAddress  // Parent is table of scope in which definition occured
+	
+	VarTable = prototypeTable  // Set prototype table to variable table so that any delarations inside class definition are recorded in prototype table
+	# Insert compiled code from inside the definition
+	// Now record the name of the class in __type__ variable
+	# classNameLengthSize = ceil(log2(tree.name.length + 3))  // +1 to include the type tag and length
+	EvalTop += 5
+	Memory[EvalTop] = #classNameLengthSize
+	ALLOCATE
+	nameLocation = Memory[EvalTop: + 3]
+	EvalTop -= 5
+	Memory[nameLocation] = 36  // Name will be stored as a string
+	Memory[nameLocation + 1: + 1] = #tree.name.length
+	# for i=0 to tree.name.length insert:
+		Memory[nameLocation + 2 + i] = ascii(tree.name[i])
+	// Need to temporarily store "__type__" somewhere in memory
+	EvalTop += 5
+	Memory[EvalTop] = 5
+	ALLOCATE
+	vNameLocation = Memory[EvalTop: + 3]
+	EvalTop -= 5
+	Memory[vNameLocation] = 55
+	Memory[vNameLocation + 1] = 8
+	# Insert instructions to load "__type__" into the new location
+	EvalTop += 5
+	Memory[EvalTop] = 47
+	Memory[EvalTop + 1: + 3] = nameLocation
+	EvalTop += 5
+	Memory[EvalTop] = 46  // Use 46 not 47 so the name will be deallocated after
+	Memory[EvalTop + 1: + 3] = vNameLocation
+	STORE
+	VarTable = Memory[Scope + 32: + 3]  // Go back to proper variable table
+	// Place the location of the new class definition on top of eval stack
+	EvalTop += 5
+	Memory[EvalTop] = 47
+	Memory[EvalTop + 1: + 3] = location
+	
+	
+# Else if tree.type == "function" use:
+	// Calculate size needed for definition object
+	# instructions = compile(tree)
+	# sizeNeededBase2 = ceil(log2(9 + (instructions.length * 2)))  // Each instruction uses 2 bytes
+	EvalTop += 5
+	Memory[EvalTop] = #sizeNeededBase2
+	ALLOCATE
+	location = Memory[EvalTop: + 3]
+	EvalTop -= 5
+	// Construct definition object
+	Memory[location] = 37
+	Memory[location + 1: + 3] = #instructions.length  // Store the number of instructions
+	// Construct the prototype table for the function
+	EvalTop += 5
+	Memory[EvalTop] = 10
+	ALLOCATE
+	prototypeTable = Memory[EvalTop]
+	EvalTop -= 5
+	Memory[prototypeTable] = 43
+	Memory[prototypeTable + 1: + 1] = 1
+	Memory[prototypeTable + 3] = 0
+	Memory[prototypeTable + 4: + 1] = 2
+	// Create parent entry
+	if Memory[VarTable] != 38 or # isStatic then
+		// If the function is not inside a class, or it is static then the parent entry should contain the parent table
+		parentAddress = VarTable
+	else
+		// Otherwise it is non static, and the parent entry will contain a class instance when the function is instantiated, until then it should contain null
+		parentAddress = NullAddress
+	Memory[prototypeTable + 6] = 50
+	Memory[prototypeTable + 7] = 0
+	Memory[prototypeTable + 8: + 3] = NullAddress  // Parent entry has no name
+	Memory[prototypeTable + 12: + 3] = VarTable  // This should contain parentEntry, but access to parent variable table may be needed when calculating the default values for arguments, so it will be replaced with parentEntry later
+	Memory[prototypeTable + 16: + 1] = 0  // Make sure the index in second entry is clear
+	// Now insert the arguments into the new table
+	oldVarTable = VarTable  // Must store in a variable instead of restoring from Scope + 32, as if this is running inside a class definition Scope + 32 will give the wrong result
+	VarTable = prototypeTable
+	# Insert Compile(args)  // This will store the arguments in the prototype table, along with any default values
+	VarTable = oldVarTable
+	Memory[prototypeTable + 12: + 3] = parentAddress  // The correct parent address can now be inserted as access to parent variable table is no longer needed
+	// Store reference to prototype table in definition
+	Memory[location + 5: + 3] = prototypeTable
+	// Finally load instructions into definition
+	nextInstructionAddress = location + 9
+	# For each instruction in instructions insert:
+		Memory[nextInstructionAddress: + 1] = #instruction
+		nextInstructionAddress += 1
+		
+	// Place location of new function on top of eval stack
+	Memory[EvalTop] = 47
+	Memory[EvalTop + 1: + 3] = location
+
+
+PREPARECALL (Place the correct arguments on the stack before calling a function)
+
+// Push the arguments to the stack in reverse order (as they will be popped in the opposite order from that in which they were pushed)
+# args = reverse(tree.args)
+# Insert Compile(args)  // Once this code has been run, the eval stack will contain the arguments
+// Push the number of arguments and return address
+EvalTop += 5
+Memory[EvalTop] = # args.length
+Memory[EvalTop + 1: + 3] =  (Memory[Scope + 44: + 3] + # instructionOffset of instruction after the call)  // Generate return address
+// Finally push the function to stack
+# Insert Compile(tree.name) // This will insert all the necessary code to find and load the item being called onto the stack
+CALL
+
+
+
+PREPARECONDITIONAL (Place correct arguments on stack before starting a conditional statement)
+
+// Compile the code to get the offsets, but do not yet write it to the program 
+#compiledIf = Compile(if.code)
+# compiledIf.append(goto #conditionalEndAddressPlaceholder#)
+#ifBranchInstructionOffset = currentOffset + PrepareConditionalLengthConstant  // The if code starts after the CONDITIONAL code
+# for each (else in elses) do
+	# if (else.type == "ELSEIF") then
+		# repeat prepareconditional code, but using the next else (if there is one) as the else address.  And using the same #conditionalAddressPlaceholder# and put the result in #compiledElse
+	else
+		# compiledElse.append(Compile(else.code).append(goto #conditionalEndAddressPlaceholder#))
+#elseBranchInstructionOffset = ifBranchInstructionOffset + compiledIf.length + length of goto  // Also add the length of the goto that will be appended to the end of each branch to jump to the end of the statement
+#conditionalEndAddressPlaceholder# = elseBranchInstructionOffset + #compiledElse.length
+# Go replace each #conditionalEndAddressPlaceholder# with the new value of #conditionalEndAddressPlaceholder#
+
+// First place address for if condition is true
+EvalTop += 5
+// Calculate address
+Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #ifBranchInstructionOffset)  // The number of instructions from the start of the scope
+// Then place address for if condition is false
+EvalTop += 5
+Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #elseBranchInstructionOffset)
+// Lastly place condition (so its result will be on top of the stack)
+#Insert Compile(tree.condition)
+// Conditional procedure must be inserted before the code, otherwise the code will be run before the condition is checked
+CONDITIONAL
+// Then insert code
+#Insert compiledIf
+# Insert compiledElse
+
+
+
+PREPAREWHILE (Place correct arguments on stack before using CONDITIONAL to loop)
+
+// Firstly place address for if condition is true
+EvalTop += 5
+// Calculate address
+#recordOffset1# Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #codeInstructionOffset)
+// Then place the address for if the condition is false (this will be the address of the first instruction after the loop)
+EvalTop += 5
+Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #conditionalEndAddressPlaceholder#)
+// Lastly place condition
+# Insert Compile(tree.condition)
+// Then insert Conditional (must be inserted before code, or code will be run before Conditional)
+CONDITIONAL
+// Then insert loop code
+# Insert Compile(tree.code)
+// Then add goto to jump back to the instruction marked here with #recordOffset1#
+# Insert (goto #recordOffset1#)
+# Replace all #conditionalEndAddressPlaceholder# with the address of the first instruction after the loop
+
+
+PREPAREFOR (A while loop with extra steps)
+
+// First insert initialiser code to setup the counter
+# Insert Compile(tree.initialisation)
+
+// Place address for if condition is true
+EvalTop += 5
+// Calculate address
+#recordOffset1# Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #codeInstructionOffset)
+// Then place the address for if the condition is false (this will be the address of the first instruction after the loop)
+EvalTop += 5
+Memory[EvalTop: + 3] = (Memory[Scope + 44: + 3] + #conditionalEndAddressPlaceholder#)
+// Lastly place condition
+# Insert Compile(tree.condition)
+// Then insert Conditional (must be inserted before code, or code will be run before Conditional)
+CONDITIONAL
+// Then insert loop code
+# Insert Compile(tree.code)
+// Then add iterator code to end of loop code
+# Insert Compile(tree.iterator)
+// Then add goto to jump back to the instruction marked here with #recordOffset1#
+# Insert (goto #recordOffset1#)
+# Replace all #conditionalEndAddressPlaceholder# with the address of the first instruction after the loop
+
+PREPARERETURN (Load the value to be returned on to the eval stack before calling the Return procedure)
+
+# Insert Compile(tree.value)
+RETURN
+
+// Modifiers
+
+GLOBAL (Set DeclareGlobal so next variable is declared in global scope)
+
+DeclareGlobal = 1
+
+
+STATIC (Set static flag in modifiers byte)
+
+Modifiers = Modifiers OR 1  // Set LSB to 1, as this represents static flag
+
+
+PRIVATE (Set private flag in modifiers byte)
+
+Modifiers = Modifiers OR 2
+
+
+PUBLIC (Set public flag in modifiers byte)
+
+Modifiers = Modifiers OR 4
+
+
+INT (Push an integer literal onto the eval stack)
+FLOAT (Push a float literal onto the eval stack)
+BOOL (Push a boolean literal onto the stack)
+NULL (Push a null literal onto the stack)
+ARRAY (Push an array literal onto the stack)  // Stored in heap even when locally declared?
+LIST (Push a list literal onto the stack)
+DICT (Push a dict literal onto the stack)
+
+
+
+
+
