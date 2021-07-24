@@ -255,3 +255,75 @@ var CheckGreaterProc = [
     // Otherwise x is neg and y is pos, meaning x must be greater
     `GTO A ${Addresses.psReturnAddr}`,
 ]
+
+/* 
+    Procedure for calculating exponents to base 2 (exponents between 0 and 31)
+    Takes the exponent as an 8 bit int in ps0 and leaves the result in ps0
+    Branches to the address in psReturnAddr when done
+*/
+var Base2ExponentProc = [
+    // Write the address of ps0 + 3 into ps1, as ps1 should contain the address of the byte that will contain the 1.  This will be changed as the correct byte is worked out
+    "#base2Exponent AND 0",
+].concat(
+    writeMultiByte(Addresses.ps0 + 3, Addresses.ps1, 4),
+    [
+        // First determine which byte of the result should contain the 1 by counting how many times 8 goes into the exponent
+        `RED ${Addresses.ps0}`,
+        "SUB 8",
+        "BIN #base2Exponent_setBit",  // If the result is negative, no more 8's can go into it so the address in ps1 is correct
+        // Otherwise write the result back to ps0 as we need to subtract 8 from it again
+        `WRT ${Addresses.ps0}`
+        // Write the address of the next most significant byte of ps0 to ps1
+    ],
+    writeMultiByte(Addresses.ps0 + 2, Addresses.ps1, 4),
+    [
+        `RED ${Addresses.ps0}`,
+        "SUB 8",
+        "BIN #base2Exponent_setBit",  // If the result is negative, no more 8's can go into it so the address in ps1 is correct
+        // Otherwise write the result back to ps0 as we need to subtract 8 from it again
+        `WRT ${Addresses.ps0}`
+        // Write the address of the next most significant byte of ps0 to ps1
+    ],
+    writeMultiByte(Addresses.ps0 + 1, Addresses.ps1, 4),
+    [
+        `RED ${Addresses.ps0}`,
+        "SUB 8",
+        "BIN #base2Exponent_setBit",  // If the result is negative, no more 8's can go into it so the address in ps1 is correct
+        // Otherwise write the result back to ps0 as we need to subtract 8 from it again
+        `WRT ${Addresses.ps0}`
+        // Write the address of the next most significant byte of ps0 to ps1
+    ],
+    writeMultiByte(Addresses.ps0, Addresses.ps1, 4),
+    
+    // We now know which byte of the result should contain the 1, we just need to work out which bit will be 1
+    // Do this by starting with a value of 1, and adding itself to it (to shift it left) x times, where x is the remainder from the previous subtractions (ps0)
+    [
+        "#base2Exponent_setBit AND 0",
+        "ADD 1",
+        `WRT ${Addresses.ps2}`,
+        "AND 0",
+        `ADD A ${Addresses.ps0}`,
+        "#base2Exponent_shift BIZ #base2Exponent_shiftsComplete",
+        `RED ${Addresses.ps2}`,
+        `ADD A ${Addresses.ps2}`,  // Add to itself (left shift)
+        `WRT ${Addresses.ps2}`,
+        `RED ${Addresses.ps0}`,
+        `SUB 1`,
+        `WRT ${Addresses.ps0}`,
+        "GTO #base2Exponent_shift",
+        // Finally clear ps0 ready to hold the result
+        "#base2Exponent_shiftsComplete AND 0",
+        `WRT ${Addresses.ps0}`,
+        `WRT ${Addresses.ps0 + 1}`,
+        `WRT ${Addresses.ps0 + 2}`,
+        `WRT ${Addresses.ps0 + 3}`,
+        // Then write result to correct byte of ps0 (specified in ps1) and jump to address in psReturnAddr
+        `RED ${Addresses.ps2}`,
+        `WRT A ${Addresses.ps1}`,
+        `GTO A ${Addresses.psReturnAddr}`
+    ]
+);
+    
+
+
+
