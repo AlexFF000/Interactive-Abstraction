@@ -154,7 +154,7 @@ function getByte(integer, byte){
 
 function writeMultiByte(value, address, addressesNeeded){
     // Return a list of instructions to write value to addresses starting from address
-    let instructs = [];
+    let instructs = ["AND 0"];
     for (let i = 0; i < addressesNeeded; i++){
         // Add and write, one byte at a time
         let byteValue = getByte(value, i);
