@@ -1,3 +1,4 @@
+var onEndCallback;  // Can contain a callback to be called when the CPU finishes (i.e. executes an END instruction).  Used for unit tests
 
 var commands;
 var opcode;
@@ -8,6 +9,7 @@ var freq;
 var queue = []; // Points to functions for each command
 var subqueue = []; // Merges into queue to add next instruction
 var pauseQueue;  // Contains queue when paused in unlimited speed mode
+var paused = false;
 var ioWaiting = 0;  // Indicates that a waiting I/O request has already been aknowledged by CPU but is waiting for CPU time to be processed
 
 
@@ -323,6 +325,8 @@ function end(){
   reporting("Finishing program");
   if (unlimitSpeed != true){
     clearInterval(ticks); // Stop clock ticking to stop operations being performed
+    // If onEndCallback is a function, run it.  It is only called here if clock speed is not unlimited, as the unlimited_clock function doesn't end here, so calls the callback itself when it has fully finished
+    if (typeof onEndCallback === "function") onEndCallback();
   }
 }
 
@@ -635,6 +639,10 @@ function clock(){ // Run one operation in queue every clock pulse
         setTimeout(resume, 15);
         operationCount = 0;  // Reset operation count
       }
+    }
+    // Call onEndCallback if it has been provided and the program has actually ended (not just paused)
+    if (paused === false){
+      if (typeof onEndCallback === "function") onEndCallback();
     }
   }
 
