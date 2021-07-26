@@ -91,3 +91,71 @@ async function AllocationProc_testGlobalPoolReallocateDeallocated(){
             b) The PoolFreePointer points to the first space after the halfway point (a new space should not have been allocated)
     */
 }
+
+// Tests for allocation on global heap
+
+// Test5- Allocating when heap is empty
+async function AllocationProc_testGlobalHeapAllocateWhenEmpty(){
+    // Request the smallest allowed space on the heap (32 bytes) and run the procedure
+    /*
+        Then afterwards check that:
+            a) The top value on the eval stack is the starting address of the heap (meaning the correct bytes, the first 32, have been allocated)
+            b) The chunkStart pointer points to the 33rd byte of the heap, and the chunkEnd pointer points to the last byte in the heap (meaning the free chunk contains the entire heap but the allocated 32 bytes)
+            c) The 2nd - 5th bytes of the free chunk contain 0 (meaning there is no next free chunk)
+            d)  Starting from 0, heap[32] contains "5", heap[64] and heap[128] contain "6", heap[192] and heap[320] contain "7", this pattern continues and ends with the first byte in the second half of the heap, which contains x-1 where x is the size of the heap as an exponent of 2
+    */
+}
+// Test 6- Allocating when heap is partially full
+async function AllocationProc_testGlobalHeapAllocateWhenPartiallyFull(){
+    // Request 4096 bytes after already allocating 64 bytes
+    /*
+        Then afterwards check that:
+            a) The top value on the eval stack is heap[4096]
+            b) The chunkStart pointer points to heap[64], and the chunkEnd pointer points to heap[4095]
+            c) The first free chunk's next start pointer at heap[65-68] points to heap[8192], and heap[69-72] points to the last byte of the heap (as there should now be two free chunks, separated by the 4096 bytes just allocated)
+            d) The second free chunk's next start pointer at heap[8193-8196] contains 0 (as there are no more free chunks)
+    */
+}
+// Test7- Allocating when heap has no large enough blocks
+async function AllocationProc_testGlobalHeapInsufficientSpace(){
+    // Allocate a 32 byte block, followed by three 2^(x-2) byte blocks (where x is the heap size as an exponent of 2)
+    // Then request another 2^(x-2) bytes.  This should cause a NOT ENOUGH SPACE error
+}
+// Test8- Allocating from deallocated space
+async function AllocationProc_testGlobalHeapReallocateDeallocated(){
+    // Allocate a 32 byte block, followed by three 2^(x-2) byte blocks (where x is the heap size as an exponent of 2)
+    // Then deallocate the block starting at the halfway point of the heap
+    // Then request another 2^(x-2) block
+    // Then check that the top value on the eval stack is the address of the first byte after the midpoint of the heap (meaning the deallocated space was reallocated)
+}
+
+// Tests for allocation within stack frame
+
+// Test9- Allocating when frame heap is empty
+async function AllocationProc_testFrameHeapAllocateWhenEmpty(){
+    // Request the smallest allowed space (32 bytes) and run the procedure
+    /*
+        Then afterwards check that:
+            a) The top value on the eval stack is the first byte of the frame heap
+            b) firstChunkStart points to frame heap start + 32
+            c) The first four bytes of the free chunk contain the number of bytes between the end of the newly allocated space, and the end of the stack
+            d) The following eight bytes all contain 0, as there should be no following free chunk
+    */
+}
+// Test10- Allocating when there is not enough space left on stack
+async function AllocationProc_testFrameHeapInsufficientSpace(){
+    // Request an amount of space larger than what is left on the stack and run the procedure
+    // This should throw a NOT ENOUGH SPACE error
+}
+// Test11- Allocating from deallocated space
+async function AllocationProc_testFrameHeapReallocateDeallocated(){
+    // Allocate 256 bytes on the heap
+    // Then deallocate 64 bytes at frame heap start + 128
+    // Then request 32 bytes and run the procedure
+    /*
+        Then check that:
+            a) The top value on the eval stack is frame heap start + 128
+            b) firstChunkStart points to frame heap start + 160, and firstChunkEnd points to frame heap start + 192
+            c) The 5th-8th bytes (next chunk start pointer) of the first chunk point to frame heap start + 256
+    */
+}
