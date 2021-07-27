@@ -3,7 +3,7 @@
     These are simply be added to the start of the program, and then accessed using GTO when necessary
     This is far more memory efficient than having a copy of the same procedure whenever it is used
 
-    When done, they jump to the address in psAddr
+    When done, they jump to the address in psReturnAddr
 */
 
 var ProcedureOffset;  // The location in memory of the procedures

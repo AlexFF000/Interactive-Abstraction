@@ -59,6 +59,46 @@ async function AllocationProc_testGlobalPoolAllocateWhenEmpty(){
         b) The PoolFreePointer points to the 6th byte of the pool
         c) The first four bytes of the next space after the one allocated (i.e. the 6th to 10th bytes of the pool) contain 0 (showing that there is no previously deallocated space)
     */
+   let code = IntermediateFunctions["SETUP"]();
+   // Add END instruction to jump back ot afterwards
+   code.push(
+        "GTO #test_afterEndInstruction",
+    );
+    let endInstructionAddr = calculateInstructionsLength(code);
+    code.concat(
+    [
+        "END",
+        "#test_afterEndInstruction",
+        // Add item to eval stack containing request for space from pool
+        // Instead of wasting instructions properly using the eval stack, simply write the details to the first slot in the global eval stack and point EvalTop to it
+        "AND 0",
+        // Write 32 to 2nd byte to request pool be used
+        `ADD 32`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 1}`,
+        "AND 0",
+        // Make 3rd byte anything other than 0 to request global allocation
+        `ADD 1`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+    ],
+    // Point EvalTop to the first slot of the global Eval stack
+    writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+    // Write return address (the end instruction) to psReturnAddr
+    writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+    [
+        "GTO #allocate"
+    ],
+    AllocationProc
+    );
+   await runInstructions(code);
+
+   // Check a
+   let checkResult = assertMemoryEqual(Addresses.IntFloatPool, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   if (checkResult !== true) return checkResult;
+   // Check b
+   checkResult = assertMemoryEqual(Addresses.IntFloatPool + 5, Addresses.PoolFreePointer, 4);
+   if (checkResult !== true) return checkResult;
+   // Check c
+   return assertMemoryEqual(0, Addresses.IntFloatPool + 5, 4);
 }
 // Test2- Allocating when pool is not empty, but not full
 async function AllocationProc_testGlobalPoolAllocateWhenHalfFull(){
@@ -69,6 +109,47 @@ async function AllocationProc_testGlobalPoolAllocateWhenHalfFull(){
         b) The PoolFreePointer points to the starting address of the next space
         c) The first four bytes of the next space after the one allocated contain 0
     */
+   // Run setup first as it will overwrite PoolFreePointer
+   runInstructions(IntermediateFunctions["SETUP"]());
+   let poolMidSlot = Addresses.IntFloatPool + ((runtime_options.IntFloatPoolSize - 5) / 2);
+   writeIntToMemory(poolMidSlot, Addresses.PoolFreePointer, 4);
+   // Add END instruction to jump back ot afterwards
+    let code = ["GTO #test_afterEndInstruction"];
+    let endInstructionAddr = calculateInstructionsLength(code);
+    code.concat(
+    [
+        "END",
+        "#test_afterEndInstruction",
+        // Add item to eval stack containing request for space from pool
+        // Instead of wasting instructions properly using the eval stack, simply write the details to the first slot in the global eval stack and point EvalTop to it
+        "AND 0",
+        // Write 32 to 2nd byte to request pool be used
+        `ADD 32`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 1}`,
+        "AND 0",
+        // Make 3rd byte anything other than 0 to request global allocation
+        `ADD 1`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+    ],
+    // Point EvalTop to the first slot of the global Eval stack
+    writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+    // Write return address (the end instruction) to psReturnAddr
+    writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+    [
+        "GTO #allocate"
+    ],
+    AllocationProc
+    );
+   await runInstructions(code, false);
+
+   // check a
+   let checkResult = assertMemoryEqual(poolMidSlot, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   if (checkResult !== true) return checkResult;
+   // check b
+   checkResult = assertMemoryEqual(poolMidSlot + 5, Addresses.PoolFreePointer, 4);
+   if (checkResult !== true) return checkResult;
+   // check c
+   return assertMemoryEqual(0, poolMidSlot + 5, 4);
 }
 // Test3- Trying to allocate when pool is full (it should allocate from the heap instead, and the pool should not be modified)
 async function AllocationProc_testGlobalPoolAllocateWhenFull(){
@@ -77,9 +158,43 @@ async function AllocationProc_testGlobalPoolAllocateWhenFull(){
     /* Then afterwards check that:
         a) The top value on the Eval stack contains an address, but not one from inside the pool
         b) The PoolFreePointer has not been changed
-
-
     */
+   runInstructions(IntermediateFunctions["SETUP"]());
+   writeIntToMemory(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
+   // Add END instruction to jump back to afterwards
+    let code = ["GTO #test_afterEndInstruction"];
+    let endInstructionAddr = calculateInstructionsLength(code);
+    code.concat(
+    [
+        "END",
+        "#test_afterEndInstruction",
+        // Add item to eval stack containing request for space from pool
+        // Instead of wasting instructions properly using the eval stack, simply write the details to the first slot in the global eval stack and point EvalTop to it
+        "AND 0",
+        // Write 32 to 2nd byte to request pool be used
+        `ADD 32`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 1}`,
+        "AND 0",
+        // Make 3rd byte anything other than 0 to request global allocation
+        `ADD 1`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+    ],
+    // Point EvalTop to the first slot of the global Eval stack
+    writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+    // Write return address (the end instruction) to psReturnAddr
+    writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+    [
+        "GTO #allocate"
+    ],
+    AllocationProc
+    );
+   await runInstructions(code, false);
+   
+   // Check a
+   let allocatedAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   if (Addresses.IntFloatPool <= allocatedAddress && allocatedAddress < Addresses.IntFloatPool + runtime_options.IntFloatPoolSize) return `Test failed on check A: Allocated address (${allocatedAddress}) is in the pool`;
+   // Check b
+   return assertMemoryEqual(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
 }
 // Test4- Reallocating previously deallocated space
 async function AllocationProc_testGlobalPoolReallocateDeallocated(){
@@ -90,6 +205,46 @@ async function AllocationProc_testGlobalPoolReallocateDeallocated(){
             a) The top value on the Eval stack contains the starting address of the deallocated space
             b) The PoolFreePointer points to the first space after the halfway point (a new space should not have been allocated)
     */
+    runInstructions(IntermediateFunctions["SETUP"]());
+    let poolMidSlot = Addresses.IntFloatPool + ((runtime_options.IntFloatPoolSize - 5) / 2);
+    // Use the 10th space as the free one (the choice of 10th is arbitrary)
+    let freeSlot = Addresses.IntFloatPool + (5 * 10);
+    writeIntToMemory(poolMidSlot, freeSlot, 4);
+    writeIntToMemory(freeSlot, Addresses.PoolFreePointer, 4);
+    // Add END instruction to jump back to afterwards
+    let code = ["GTO #test_afterEndInstruction"];
+    let endInstructionAddr = calculateInstructionsLength(code);
+    code.concat(
+    [
+        "END",
+        "#test_afterEndInstruction",
+        // Add item to eval stack containing request for space from pool
+        // Instead of wasting instructions properly using the eval stack, simply write the details to the first slot in the global eval stack and point EvalTop to it
+        "AND 0",
+        // Write 32 to 2nd byte to request pool be used
+        `ADD 32`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 1}`,
+        "AND 0",
+        // Make 3rd byte anything other than 0 to request global allocation
+        `ADD 1`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+    ],
+    // Point EvalTop to the first slot of the global Eval stack
+    writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+    // Write return address (the end instruction) to psReturnAddr
+    writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+    [
+        "GTO #allocate"
+    ],
+    AllocationProc
+    );
+   await runInstructions(code, false);
+
+   // Check a
+   let checkResult = assertMemoryEqual(freeSlot, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   if (checkResult !== true) return checkResult;
+   // Check b
+   return assertMemoryEqual(poolMidSlot, Addresses.PoolFreePointer, 4);
 }
 
 // Tests for allocation on global heap

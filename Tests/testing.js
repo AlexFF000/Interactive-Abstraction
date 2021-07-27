@@ -30,6 +30,34 @@ function readMemory(address){
     else return byte;
 }
 
+function readMemoryAsInt(address, bytes){
+    // Read the given number of bytes from memory, starting from address, and then return them as an int
+    let binArray = [];
+    for (let i = 0; i < bytes; i++) binArray.push(readMemory(address + i));
+    return binArrayToInt(binArray);   
+}
+
+function writeMemory(value, address){
+    // Write an array of eight 1 and 0's representing bits, to the given memory address
+    // Check the address is allowed
+    if (!((0 <= address && address <= 255) || (expanded_memory && 0 <= address && address <= 4294967295))){
+        throw "Invalid memory address";
+    }
+    if (expanded_memory && ArraysEqual(value, [0,0,0,0,0,0,0,0])){
+        delete RAM[address];
+    }
+    else{
+        RAM[address] = value;
+    } 
+}
+
+function writeIntToMemory(integer, address, bytes){
+    // Write the integer to the bytes starting at the given address
+    for (let i = 0; i < bytes; i++){
+        writeMemory(intToBinArray(getByteOfInt(integer, i)), address + i);
+    }
+}
+
 function getByteOfInt(integer, byte){
     // Return the value of the byte at the specified position for the given integer (big endian)
     // Shift right until desired byte is in least significant position, then AND with 255 to extract the value of only that byte
@@ -52,6 +80,17 @@ function intToBinArray(integer){
     return output;
 }
 
+function binArrayToInt(binArray){
+    // Takes array of 1s and 0s and converts to an (unsigned) integer
+    // Can take array of any length, and also allows 2d arrays with subarrays for each byte
+    binArray = binArray.flat();
+    let value = 0;
+    for (let i = 0; i < binArray.length; i++){
+        value += (2 ** i) * binArray[(binArray.length - 1) - i];
+    }
+    return value;
+}
+
 function ArraysEqual(array1, array2){
     // Check if two 1D arrays are identical
     if (array1.length != array2.length) return false;
@@ -61,15 +100,49 @@ function ArraysEqual(array1, array2){
     return true;
 }
 
-function runInstructions(instructions){
+function initialiseCPU(){
+    // Initialise the memory, registers, and buses (in 32 bit mode) without starting the CPU
+    document.getElementById(toggle_expanded).checked = true;
+    expandMemory();
+    initMem();
+    initBus();
+    initReg();
+}
+
+function runInstructions(instructions, resetCPU=true){
     // Places the given machine code instructions into the assembler and starts the CPU in 32 bit mode (this works in the same way as pasting them in to the instruction area and pressing start)
     // Returns a promise, which will resolve when the CPU finishes
     // instructions should be an array of strings, each containing one instruction
+    // If resetCPU is false, the existing memory, registers etc... won't be cleared before running
     // This function largely works by manipulating UI elements.  This is mainly because the CPU code for loading instructions and starting the CPU is old and tightly integrated with the UI code.  Though it also has the small benefit that this function will work in almost exactly the same way as an actual user entering the instructions.
 
+    if (resetCPU === false){
+        // Override the initialisation functions to prevent re-initialisation
+        var initMem_original = initMem;
+        var initBus_original = initBus;
+        var initReg_original = initReg;
+        initMem = () => {
+            // If already initialised, don't do it again
+            if (RAM === undefined) initMem_original();
+        };
+        initBus = () => {
+            if (CONTROLBUS == undefined || DATABUS == undefined || ADDRESSBUS == undefined) initBus_original();
+        };
+        initReg = () => {
+            if (PC == undefined || MAR == undefined || MDR == undefined || CIR == undefined || ACC == undefined || STATUS == undefined) initReg_original();
+        }
+    }
     // Set up promise, placing its resolve function in onEndCallback
     let onEndPromise = new Promise((resolve, reject) => {
-        onEndCallback = resolve;
+        onEndCallback = () => {
+            if (resetCPU === false){
+                // Restore original functions
+                initMem = initMem_original;
+                initBus = initBus_original;
+                initReg = initReg_original;
+            }
+            resolve();
+        };
     });
     // Set input mode to assembly
     formatEntry(0);
