@@ -65,10 +65,10 @@ async function AllocationProc_testGlobalPoolAllocateWhenEmpty(){
         "GTO #test_afterEndInstruction",
     );
     let endInstructionAddr = calculateInstructionsLength(code);
-    code.concat(
+    code = code.concat(
     [
         "END",
-        "#test_afterEndInstruction",
+        "#test_afterEndInstruction AND 0",
         // Add item to eval stack containing request for space from pool
         // Instead of wasting instructions properly using the eval stack, simply write the details to the first slot in the global eval stack and point EvalTop to it
         "AND 0",
@@ -92,13 +92,13 @@ async function AllocationProc_testGlobalPoolAllocateWhenEmpty(){
    await runInstructions(code);
 
    // Check a
-   let checkResult = assertMemoryEqual(Addresses.IntFloatPool, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   let checkResult = assertMemoryEqualToInt(Addresses.IntFloatPool, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
    if (checkResult !== true) return checkResult;
    // Check b
-   checkResult = assertMemoryEqual(Addresses.IntFloatPool + 5, Addresses.PoolFreePointer, 4);
+   checkResult = assertMemoryEqualToInt(Addresses.IntFloatPool + 5, Addresses.PoolFreePointer, 4);
    if (checkResult !== true) return checkResult;
    // Check c
-   return assertMemoryEqual(0, Addresses.IntFloatPool + 5, 4);
+   return assertMemoryEqualToInt(0, Addresses.IntFloatPool + 5, 4);
 }
 // Test2- Allocating when pool is not empty, but not full
 async function AllocationProc_testGlobalPoolAllocateWhenHalfFull(){
@@ -116,10 +116,10 @@ async function AllocationProc_testGlobalPoolAllocateWhenHalfFull(){
    // Add END instruction to jump back ot afterwards
     let code = ["GTO #test_afterEndInstruction"];
     let endInstructionAddr = calculateInstructionsLength(code);
-    code.concat(
+    code = code.concat(
     [
         "END",
-        "#test_afterEndInstruction",
+        "#test_afterEndInstruction AND 0",
         // Add item to eval stack containing request for space from pool
         // Instead of wasting instructions properly using the eval stack, simply write the details to the first slot in the global eval stack and point EvalTop to it
         "AND 0",
@@ -143,13 +143,13 @@ async function AllocationProc_testGlobalPoolAllocateWhenHalfFull(){
    await runInstructions(code, false);
 
    // check a
-   let checkResult = assertMemoryEqual(poolMidSlot, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   let checkResult = assertMemoryEqualToInt(poolMidSlot, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
    if (checkResult !== true) return checkResult;
    // check b
-   checkResult = assertMemoryEqual(poolMidSlot + 5, Addresses.PoolFreePointer, 4);
+   checkResult = assertMemoryEqualToInt(poolMidSlot + 5, Addresses.PoolFreePointer, 4);
    if (checkResult !== true) return checkResult;
    // check c
-   return assertMemoryEqual(0, poolMidSlot + 5, 4);
+   return assertMemoryEqualToInt(0, poolMidSlot + 5, 4);
 }
 // Test3- Trying to allocate when pool is full (it should allocate from the heap instead, and the pool should not be modified)
 async function AllocationProc_testGlobalPoolAllocateWhenFull(){
@@ -164,10 +164,10 @@ async function AllocationProc_testGlobalPoolAllocateWhenFull(){
    // Add END instruction to jump back to afterwards
     let code = ["GTO #test_afterEndInstruction"];
     let endInstructionAddr = calculateInstructionsLength(code);
-    code.concat(
+    code = code.concat(
     [
         "END",
-        "#test_afterEndInstruction",
+        "#test_afterEndInstruction AND 0",
         // Add item to eval stack containing request for space from pool
         // Instead of wasting instructions properly using the eval stack, simply write the details to the first slot in the global eval stack and point EvalTop to it
         "AND 0",
@@ -194,7 +194,7 @@ async function AllocationProc_testGlobalPoolAllocateWhenFull(){
    let allocatedAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
    if (Addresses.IntFloatPool <= allocatedAddress && allocatedAddress < Addresses.IntFloatPool + runtime_options.IntFloatPoolSize) return `Test failed on check A: Allocated address (${allocatedAddress}) is in the pool`;
    // Check b
-   return assertMemoryEqual(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
+   return assertMemoryEqualToInt(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
 }
 // Test4- Reallocating previously deallocated space
 async function AllocationProc_testGlobalPoolReallocateDeallocated(){
@@ -214,10 +214,10 @@ async function AllocationProc_testGlobalPoolReallocateDeallocated(){
     // Add END instruction to jump back to afterwards
     let code = ["GTO #test_afterEndInstruction"];
     let endInstructionAddr = calculateInstructionsLength(code);
-    code.concat(
+    code = code.concat(
     [
         "END",
-        "#test_afterEndInstruction",
+        "#test_afterEndInstruction AND 0",
         // Add item to eval stack containing request for space from pool
         // Instead of wasting instructions properly using the eval stack, simply write the details to the first slot in the global eval stack and point EvalTop to it
         "AND 0",
@@ -241,10 +241,10 @@ async function AllocationProc_testGlobalPoolReallocateDeallocated(){
    await runInstructions(code, false);
 
    // Check a
-   let checkResult = assertMemoryEqual(freeSlot, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   let checkResult = assertMemoryEqualToInt(freeSlot, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
    if (checkResult !== true) return checkResult;
    // Check b
-   return assertMemoryEqual(poolMidSlot, Addresses.PoolFreePointer, 4);
+   return assertMemoryEqualToInt(poolMidSlot, Addresses.PoolFreePointer, 4);
 }
 
 // Tests for allocation on global heap
@@ -259,6 +259,54 @@ async function AllocationProc_testGlobalHeapAllocateWhenEmpty(){
             c) The 2nd - 5th bytes of the free chunk contain 0 (meaning there is no next free chunk)
             d)  Starting from 0, heap[32] contains "5", heap[64] and heap[128] contain "6", heap[192] and heap[320] contain "7", this pattern continues and ends with the first byte in the second half of the heap, which contains x-1 where x is the size of the heap as an exponent of 2
     */
+   runInstructions(IntermediateFunctions["SETUP"]());
+   let code = ["GTO #test_afterEndInstruction"];
+   let endInstructionAddr = calculateInstructionsLength(code);
+   code = code.concat(
+       [
+           "END",
+           "#test_afterEndInstruction AND 0",
+           "ADD 5",
+           `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+           // Make 3rd byte anything other than 0 to request global allocation
+           `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`,
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"],
+       AllocationProc
+   );
+   runInstructions(code, false);
+   // Heap starts after the last instruction
+   let startOfHeap = calculateInstructionsLength(IntermediateFunctions["SETUP"]()) + calculateInstructionsLength(code);
+   // Check a
+   let checkResult = assertMemoryEqualToInt(startOfHeap, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   if (checkResult !== true) return checkResult;
+   // Check b
+   checkResult = assertMemoryEqualToInt(startOfHeap + 32, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
+   if (checkResult !== true) return checkResult;
+   checkResult = assertMemoryEqualToInt(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4), Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer);
+   if (checkResult !== true) return checkResult;
+   // Check c
+   checkResult = assertMemoryEqualToInt(0, readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4) + 1, 4);
+   if (checkResult !== true) return checkResult;
+   // Check d
+   let firstByteAfterMidpoint = Math.floor((readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4)) / 2) + 1;
+   let currentBlockPos = 32;
+   let expectedExp = 5;
+   let incrementExp = false;
+   while (currentBlockPos <= firstByteAfterMidpoint){
+       checkResult = assertMemoryEqualToInt(expectedExp, startOfHeap + currentBlockPos, 1);
+       if (checkResult !== true) return `Test failed on check D with currentBlockPos = ${currentBlockPos} and expectedExp = ${expectedExp0}: ${checkResult}`;
+       // Only increment expectedExp every other loop
+       if (incrementExp){
+           expectedExp++;
+           incrementExp = false;
+        }
+        else incrementExp = true;
+        currentBlockPos *= 2;
+   }
+   return true;
 }
 // Test 6- Allocating when heap is partially full
 async function AllocationProc_testGlobalHeapAllocateWhenPartiallyFull(){
@@ -270,6 +318,43 @@ async function AllocationProc_testGlobalHeapAllocateWhenPartiallyFull(){
             c) The first free chunk's next start pointer at heap[65-68] points to heap[8192], and heap[69-72] points to the last byte of the heap (as there should now be two free chunks, separated by the 4096 bytes just allocated)
             d) The second free chunk's next start pointer at heap[8193-8196] contains 0 (as there are no more free chunks)
     */
+   runInstructions(IntermediateFunctions["SETUP"]());
+   let startOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
+   writeIntToMemory(startOfHeap + 64, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
+   let code = ["GTO #test_afterEndInstruction"];
+   let endInstructionAddr = calculateInstructionsLength(code);
+   code = code.concat(
+       [
+           "END",
+           "#test_afterEndInstruction AND 0",
+           // 2^12 = 4096
+           "ADD 12",
+           `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+           // Make 3rd byte anything other than 0 to request global allocation
+           `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`,
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"],
+       AllocationProc
+   );
+   runInstructions(code, false);
+
+   // Check a
+   let checkResult = assertMemoryEqualToInt(startOfHeap + 4096, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+   if (checkResult !== true) return checkResult;
+   // Check b
+   checkResult = assertMemoryEqualToInt(startOfHeap + 64, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
+   if (checkResult !== true) return checkResult;
+   checkResult = assertMemoryEqualToInt(startOfHeap + 4095, Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, 4);
+   if (checkResult !== true) return checkResult;
+   // Check c
+   checkResult = assertMemoryEqualToInt(startOfHeap + 8192, startOfHeap + 65, 4);
+   if (checkResult !== true) return checkResult;
+   checkResult = assertMemoryEqualToInt(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - 1, startOfHeap + 69, 4);
+   if (checkResult !== true) return checkResult;
+   // Check d
+   return assertMemoryEqualToInt(0, startOfHeap + 8193, 4);
 }
 // Test7- Allocating when heap has no large enough blocks
 async function AllocationProc_testGlobalHeapInsufficientSpace(){
@@ -282,6 +367,75 @@ async function AllocationProc_testGlobalHeapReallocateDeallocated(){
     // Then deallocate the block starting at the halfway point of the heap
     // Then request another 2^(x-2) block
     // Then check that the top value on the eval stack is the address of the first byte after the midpoint of the heap (meaning the deallocated space was reallocated)
+    runInstructions(IntermediateFunctions["SETUP"]());
+    let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
+    writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
+    let code = [
+        "ADD 5",
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+    ];
+    code = code.concat(
+        // Write address to jump back to after allocation into psReturnAddr
+        writeMultiByte(calculateInstructionsLength(code.concat(writeMultiByte(0, 0, 4), ["GTO #allocate"])), Addresses.psReturnAddr, 4),
+        [
+            "GTO #allocate",
+            "AND 0",
+            `ADD ${heapSizeBase2 - 2}`,
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+        ]
+    );
+    code = code.concat(
+        writeMultiByte(calculateInstructionsLength(code.concat(writeMultiByte(0, 0, 4), ["GTO #allocate"])), Addresses.psReturnAddr, 4),
+        [
+            "GTO #allocate",
+            "AND 0",
+            `ADD ${heapSizeBase2 - 2}`,
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+        ]
+    );
+    code = code.concat(
+        writeMultiByte(calculateInstructionsLength(code.concat(writeMultiByte(0, 0, 4), ["GTO #allocate"])), Addresses.psReturnAddr, 4),
+        [
+            "GTO #allocate",
+            "AND 0",
+            `ADD ${heapSizeBase2 - 2}`,
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+        ]
+    );
+    code = code.concat(
+        writeMultiByte(calculateInstructionsLength(code.concat(writeMultiByte(0, 0, 4), ["GTO #allocate"])), Addresses.psReturnAddr, 4),
+        [
+            "GTO #allocate",
+            "END",
+        ],
+        AllocationProc
+    );
+    runInstructions(code, false);
+    // Deallocate the block at the halfway point
+    let firstByteAfterMidpoint = Addresses.GlobalArea + Offsets.frame.HeapStartPointer + Math.floor((readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4)) / 2) + 1;
+    writeIntToMemory(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4), firstByteAfterMidpoint + 1, 4);
+    writeIntToMemory(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, 4), firstByteAfterMidpoint + 5, 4);
+    writeIntToMemory(firstByteAfterMidpoint, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
+    writeIntToMemory(firstByteAfterMidpoint + (2 ** (heapSizeBase2 - 2) - 1), Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, 4);
+    writeIntToMemory(heapSizeBase2 - 2, firstByteAfterMidpoint, 1);
+    
+    code = [
+        "AND 0",
+        `ADD ${heapSizeBase2 - 2}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+    ];
+    code = code.concat(
+        writeMultiByte(calculateInstructionsLength(code.concat(writeMultiByte(0, 0, 4), ["GTO #allocate"])), Addresses.psReturnAddr, 4),
+        "GTO #allocate",
+        "END"
+    );
+    runInstructions(code, false);
+    return assertMemoryEqualToInt(firstByteAfterMidpoint, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
 }
 
 // Tests for allocation within stack frame

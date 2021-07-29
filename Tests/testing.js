@@ -16,6 +16,15 @@ function assertMemoryEqual(expected, addressOfActual, noOfBytes){
     }
 }
 
+function assertMemoryEqualToInt(expected, addressOfActual, noOfBytes){
+    // Same as assertMemoryEqual but takes an integer for expected
+    let binArray = [];
+    for (let i = 0; i < noOfBytes; i++){
+        binArray.push(intToBinArray(getByteOfInt(expected, i)));
+    }
+    return assertMemoryEqual(binArray, addressOfActual, noOfBytes);
+}
+
 function readMemory(address){
     // Return the value from the given memory address as a an array of ints representing bits
     let byte = RAM[address];
