@@ -22,6 +22,7 @@ let chunkStart = Addresses.ps2;
 let chunkEnd = Addresses.ps3;
 let blockStart = Addresses.ps4;
 let smallestFound = Addresses.ps5;
+let previousChunkPointers = Addresses.ps6;  // The start address of the pointers that point to the current chunk
 let lastChunk = Addresses.ps1 + 1;
 var AllocationProc = [
     "#allocate AND 0"  // Clear accumulator
@@ -70,6 +71,7 @@ AllocationProc = AllocationProc.concat(
         `WRT ${lastChunk}`
         // Pointers for first chunk are stored in global area
     ],
+    writeMultiByte(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, previousChunkPointers, 4),
     copy(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, chunkStart, 4),
     copy(Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, chunkEnd, 4),
     [
@@ -82,7 +84,7 @@ AllocationProc = AllocationProc.concat(
         // if chunkStart + 1 (the pointer to the next chunk) == 0, then this is the last chunk
         "#allocate_global_check_if_last_chunk AND 0"
     ],
-    copy(chunkStart, Addresses.psAddr)
+    copy(chunkStart, Addresses.psAddr, 4)
 );
 AllocationProc = AllocationProc.concat(
     incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
@@ -96,14 +98,14 @@ AllocationProc = AllocationProc.concat(
         // Start searching the blocks in the chunk, starting from the first one
         "#allocate_global_set_blockStart AND 0"
     ],
-    copy(chunkStart, blockStart),
+    copy(chunkStart, blockStart, 4),
     [
         "#allocate_global_search_blocks AND 0",  // LINE 986
         // if chunkEnd < blockStart then all blocks in this chunk have been searched, so move on to next chunk
     ],
     // To check if blockStart is greater, load blockStart into ps0 and chunkEnd into ps1 so checkGreater procedure can check them
-    copy(blockStart, Addresses.ps0),
-    copy(chunkEnd, Addresses.ps1),
+    copy(blockStart, Addresses.ps0, 4),
+    copy(chunkEnd, Addresses.ps1, 4),
     // Load the address for checkGreater to jump to if blockStart is greater into psReturnAddr, and the address to jump to otherwise into psAddr
 );
 // Instead of loading the addresses it is actually supposed to jump to, load addresses of GTO instructions jumping to those addresses.  As calculating these addresses is much easier
@@ -120,10 +122,11 @@ AllocationProc = AllocationProc.concat(
     ],
     // blockStart is greater, so the next free block is not in this chunk.  So move to next chunk
     // Load the chunkStart and chunkEnd pointers from positions 1-4 and 5-8 of this chunk
-    copy(chunkStart, Addresses.psAddr)
+    copy(chunkStart, Addresses.psAddr, 4)
 )
 AllocationProc = AllocationProc.concat(
-    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))  // psAddr now contains chunkStart + 1, which is the starting address of this chunks pointer to the next chunkStart
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // psAddr now contains chunkStart + 1, which is the starting address of this chunks pointer to the next chunkStart
+    copy(Addresses.psAddr, previousChunkPointers, 4)
 )
 AllocationProc = AllocationProc.concat(
     copyFromAddress(chunkStart, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The chunkStart of the next chunk is now loaded into chunkStart
@@ -133,10 +136,66 @@ AllocationProc = AllocationProc.concat(
     [
         "GTO #allocate_global_search_chunks",  // Search this chunk
         "#allocate_global_check_block AND 0"
-    
-
+        // Convert the exponent to the actual number of needed blocks (this is done now, although the result isn't needed until later, as it will be needed in both outcomes of the next branch)
     ],
+    // Copy size needed from ps0 (NOTE: THIS MUST BE CHANGED, OTHER PROCEDURES ALSO USE PS0!) to ps0 so Base2Exp can use it
+    copy(Addresses.ps0, Addresses.ps0, 1),
+    // Write return address to psReturnAddr for Base2Exp to jump to after
+);
+AllocationProc = AllocationProc.concat(
+    writeMultiByte(ProcedureOffset + calculateInstructionsLength(AllocationProc) + calculateInstructionsLength("GTO #base2Exponent"), Addresses.psReturnAddr, 4),
     [
+        "GTO #base2Exponent",
+        "AND 0",  // base2Exponent should jump back to here, and ps0 should now contain the full number of bytes requested
+        // Check if the current block is exactly the right size
+
+        `RED A ${blockStart}`,
+        `SUB A ${Addresses.ps0}`,
+        "BIZ #allocate_global_block_found",
+        // Code for if block size is incorrect (LINE 1019):
+
+        // Code for if block size is correct (LINE 997):
+        // A suitable block has been found, but must reorganise the chunks around it now that it is allocated
+        "#allocate_global_block_found AND 0"
+        // If *blockStart == *chunkStart and chunkEnd + 1 == *blockStart + block size then this block is its entire chunk
+    ],
+    checkEqual(blockStart, chunkStart, "#allocate_global_block_found_is_chunkStart", "#allocate_global_block_found_not_chunkStart"),
+    [
+        "#allocate_global_block_found_is_chunkStart AND 0",
+        // Calculate end address of block, and compare with chunkEnd
+    ]
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(chunkEnd, 1, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    // NOTE: USE SOMETHING ELSE FOR BLOCKSTART TO FREE UP PS4
+    copy(Addresses.ps3, Addresses.ps4, 4)
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(blockStart, Addresses.ps0, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    checkEqual(Addresses.ps3, Addresses.ps4, "#allocate_global_block_found_whole_chunk", "allocate_global_block_found_not_whole_chunk"),
+    [
+        "#allocate_global_block_found_whole_chunk AND 0",
+        // This block is the entire chunk, so need to remove this chunk by replacing the previous chunk's pointers (or the global ones if this is the first chunk) with this chunk's pointers
+    ],
+    copy(chunkStart, Addresses.psAddr, 4),
+);
+AllocationProc = AllocationProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
+);
+AllocationProc = AllocationProc.concat(
+    // Copy both of this chunk's pointers into ps4 and ps5
+    copyFromAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc))
+);
+AllocationProc = AllocationProc.concat(
+    copy(previousChunkPointers, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    // Then write them to the previous chunk's pointers
+    copyToAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    [
+        "#allocate_global_block_found_not_whole_chunk AND 0", // <-- BOOKMARK 29/07/2021. Line 1001
+        
+        "#allocate_global_block_found_not_chunkStart AND 0",
         // Int or float so allocate from int/float pool (if isn't full)
         "#allocate_check_pool_full AND 0"
     ],
