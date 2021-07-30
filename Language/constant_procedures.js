@@ -153,8 +153,9 @@ AllocationProc = AllocationProc.concat(
         `SUB A ${Addresses.ps0}`,
         "BIZ #allocate_global_block_found",
         // Code for if block size is incorrect (LINE 1019):
-
-        // Code for if block size is correct (LINE 997):
+        // BOOKMARK 30/07/2021
+        
+        // Code for if block size is correct
         // A suitable block has been found, but must reorganise the chunks around it now that it is allocated
         "#allocate_global_block_found AND 0"
         // If *blockStart == *chunkStart and chunkEnd + 1 == *blockStart + block size then this block is its entire chunk
@@ -193,9 +194,97 @@ AllocationProc = AllocationProc.concat(
     // Then write them to the previous chunk's pointers
     copyToAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
     [
-        "#allocate_global_block_found_not_whole_chunk AND 0", // <-- BOOKMARK 29/07/2021. Line 1001
-        
+        "#allocate_global_block_found_not_whole_chunk AND 0",
+        // The block is not the whole chunk, but is at the start of it.  Therefore we can simply shrink the chunk by moving the pointer to this chunk forward to the end of the block
+        // First move the pointers in this chunk to the new start of the chunk
+    ],
+    copy(chunkStart, Addresses.psAddr, 4),
+);
+AllocationProc = AllocationProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc))
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(blockStart, Addresses.ps0, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The block after the one allocated now contains the current chunk's pointers
+    // Now replace the start pointer to this chunk with the address of the next block
+    copy(previousChunkPointers, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps3, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The pointers to this chunk now have the new start location
+    [
         "#allocate_global_block_found_not_chunkStart AND 0",
+    ]
+);
+AllocationProc = AllocationProc.concat(
+    // Check if block is at the end of the chunk
+    add32BitIntegers(blockStart, Addresses.ps0, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    copy(Addresses.ps3, Addresses.ps4, 4)
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(chunkEnd, 1, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    checkEqual(Addresses.ps3, Addresses.ps4, "#allocate_global_block_found_is_chunkEnd", "#allocate_global_block_found_not_boundary"),
+    [
+        "#allocate_global_block_found_is_chunkEnd AND 0",
+        // The block is the last one in the chunk, so we can simply adjust the end pointer to shrink the chunk
+    ],
+);
+AllocationProc = AllocationProc.concat(
+    // The new end of the chunk will be the byte before the start of the block
+    add32BitIntegers(blockStart, -1, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    copy(Addresses.ps3, Addresses.ps4, 4)
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(previousChunkPointers, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps4, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The end pointer to the current chunk now contains the new end of the chunk
+    [
+        "#allocate_global_block_found_not_boundary AND 0",
+        // The block is not at the start or end of the chunk, so must split the chunk into two around it
+    ]
+);
+AllocationProc = AllocationProc.concat(
+        // Move the pointers in the current chunk to after the block
+        add32BitIntegers(blockStart, Addresses.ps0, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+        copy(Addresses.ps3, Addresses.ps4, 4),  // ps4 now contains the first address after the block (i.e. the first address in the new chunk)
+        copy(chunkStart, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps5, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // ps5 and ps6 now contain the pointers from the current chunk
+    copy(Addresses.ps4, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps5, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The new chunk now contains the pointers from the old one
+    // Change the pointers in the old chunk to point to the start and end of the new one
+    //      - ps4 already contains the start address
+    //      - chunkEnd already contains the end address
+    // Copy chunkEnd to ps5 to allow a single call to copyToAddress()
+    copy(chunkEnd, Addresses.ps5, 4),
+    copy(chunkStart, Addresses.psAddr)
+);
+AllocationProc = AllocationProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The pointers in the old chunk now contain the start and end addresses of the new one
+    [
         // Int or float so allocate from int/float pool (if isn't full)
         "#allocate_check_pool_full AND 0"
     ],
