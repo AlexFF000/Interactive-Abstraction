@@ -22,7 +22,8 @@ let chunkStart = Addresses.ps2;
 let chunkEnd = Addresses.ps3;
 let blockStart = Addresses.ps4;
 let smallestFound = Addresses.ps5;
-let previousChunkPointers = Addresses.ps6;  // The start address of the pointers that point to the current chunk
+let smallestFoundPrevPointers = Addresses.ps6;  // The address of the chunk pointers that point to the chunk that contains the smallestFound block
+let previousChunkPointers = Addresses.ps7;  // The start address of the pointers that point to the current chunk
 let lastChunk = Addresses.ps1 + 1;
 var AllocationProc = [
     "#allocate AND 0"  // Clear accumulator
@@ -74,13 +75,11 @@ AllocationProc = AllocationProc.concat(
     writeMultiByte(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, previousChunkPointers, 4),
     copy(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, chunkStart, 4),
     copy(Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, chunkEnd, 4),
+    // If chunkStart is 0, then there are no free chunks
+    checkZero(chunkStart, 4, "#allocate_insufficient_space", "#allocate_global_search_chunks"),
     [
         `#allocate_global_search_chunks RED ${lastChunk}`,  // If not all free chunks have been searched
         "BIZ #allocate_global_all_chunks_searched",
-        // if chunkEnd == 0, throw NOT ENOUGH SPACE
-    ],
-    checkZero(chunkEnd, 4, "#allocate_insufficient_space", "#allocate_global_check_if_last_chunk"),
-    [
         // if chunkStart + 1 (the pointer to the next chunk) == 0, then this is the last chunk
         "#allocate_global_check_if_last_chunk AND 0"
     ],
@@ -88,7 +87,7 @@ AllocationProc = AllocationProc.concat(
 );
 AllocationProc = AllocationProc.concat(
     incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
-    );
+);
 AllocationProc = AllocationProc.concat(
     copyFromAddress(Addresses.ps6, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
     checkZero(Addresses.ps6, 4, "#allocate_global_set_last_chunk", "#allocate_global_set_blockStart"),
@@ -100,7 +99,7 @@ AllocationProc = AllocationProc.concat(
     ],
     copy(chunkStart, blockStart, 4),
     [
-        "#allocate_global_search_blocks AND 0",  // LINE 986
+        "#allocate_global_search_blocks AND 0",
         // if chunkEnd < blockStart then all blocks in this chunk have been searched, so move on to next chunk
     ],
     // To check if blockStart is greater, load blockStart into ps0 and chunkEnd into ps1 so checkGreater procedure can check them
@@ -150,11 +149,38 @@ AllocationProc = AllocationProc.concat(
         // Check if the current block is exactly the right size
 
         `RED A ${blockStart}`,
-        `SUB A ${Addresses.ps0}`,
+        `SUB A ${Addresses.ps0}`,  // NEEDS TO BE CHANGED FROM ps0
+        // If result is 0, the block is exactly the right size so allocate it
         "BIZ #allocate_global_block_found",
-        // Code for if block size is incorrect (LINE 1019):
-        // BOOKMARK 30/07/2021
-        
+        // Code for if block size is incorrect
+        // If negative, the block found is too small, so skip to next block
+        "BIN #allocate_global_next_block",
+        // Result is greater than 0, meaning that this block is too big.  But if it is the smallest found so far, record it in smallestFound to be used in case no perfectly sized blocks can be found
+    ],
+    checkZero(smallestFound, 4, "#allocate_global_block_isSmallest", "#allocate_global_block_check_if_smallest"),
+    [
+        `#allocate_global_block_check_if_smallest RED A ${smallestFound}`,
+        `WRT ${Addresses.ps4}`,
+        `RED A ${blockStart}`,
+        `SUB A ${Addresses.ps4}`,
+        "BIN #allocate_global_block_isSmallest",  // The block is smaller than the current smallest one
+        "GTO #allocate_global_next_block",  // The block is larger than the current smallest one, so go straight to the next block
+        "#allocate_global_block_isSmallest AND 0",
+        // The found block is too big, but is the smallest found so far (that isn't too small) so record it in smallestFound
+    ],
+    copy(blockStart, smallestFound, 4),
+    copy(previousChunkPointers, smallestFoundPrevPointers, 4),
+    [
+        "#allocate_global_next_block AND 0",
+        // Go to the next block
+    ]
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(blockStart, Addresses.ps0, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    copy(Addresses.ps3, blockStart, 4),  // blockStart now contains the start address of the next block
+    [
+        "GTO #allocate_global_search_blocks",
+
         // Code for if block size is correct
         // A suitable block has been found, but must reorganise the chunks around it now that it is allocated
         "#allocate_global_block_found AND 0"
@@ -285,6 +311,54 @@ AllocationProc = AllocationProc.concat(
 AllocationProc = AllocationProc.concat(
     copyToAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The pointers in the old chunk now contain the start and end addresses of the new one
     [
+        "#allocate_global_all_chunks_searched AND 0",
+        // All chunks have been searched, and no perfectly sized block has been found so split the smallest block in half and repeat until it is the right size
+    ],
+    // First check if smallestFound is 0, as this would mean there are no blocks large enough
+    checkZero(smallestFound, 4, "#allocate_insufficient_space", "#allocate_global_split_block"),
+    [
+        `#allocate_global_split_block RED A ${smallestFound}`,
+        `SUB A ${Addresses.ps0}`,  // CHANGE PS0 TO WHATEVER CONTAINS THE SIZE REQUESTED
+        `BIZ #allocate_global_splitting_complete`,  // The block is now the right size, no more splitting is needed
+        // The block needs to be split
+        `RED A ${smallestFound}`,
+        "SUB 1",  // Subtract 1 to get the size of the block when halved
+        // Calculate the full size in bytes of the block after halving
+        `WRT ${Addresses.ps4}`,  // Store new size as exponent in ps4
+        `WRT ${Addresses.ps0}`
+    ]
+);
+AllocationProc = AllocationProc.concat(
+    writeMultiByte(ProcedureOffset + calculateInstructionsLength(AllocationProc) + calculateInstructionsLength(["GTO #base2Exponent"]), Addresses.psReturnAddr, 4),
+    [
+        "GTO #base2Exponent"  // ps0 now contains the size of the new block in bytes
+    ]
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(smallestFound, Addresses.ps0, ProcedureOffset + calculateInstructionsLength(AllocationProc)), // ps3 now contains the start address of the second half of the block
+    [
+        // Write the new size to the first bytes of both halves of the block, thus splitting it into two blocks
+        `RED ${Addresses.ps4}`,
+        `WRT A ${Addresses.ps3}`,
+        `WRT A ${smallestFound}`,  // The block has now been split into two
+        "GTO #allocate_global_split_block",
+
+        "#allocate_global_splitting_complete AND 0",
+        // Use smallestFoundPrevPointers to obtain the correct chunk details so we can just jump back to the start of the procedure and it will immediately find the correctly sized block we just created
+    ],
+    copy(smallestFoundPrevPointers, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(chunkStart, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc))  // chunkStart now contains the start address of the chunk that contains the correct block
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(chunkEnd, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // chunkEnd now contains the end address of the chunk that contains the correct block
+    copy(smallestFoundPrevPointers, previousChunkPointers, 4),  // previousChunkPointers now contains the address of the pointers to the chunk that contains the correct block
+    copy(smallestFound, blockStart, 4),  // blockStart now contains the start address of the correct block
+    [
+        // Can now simply jump to #allocate_global_block_found to allocate the block and handle restructuring the chunks around it
+        "GTO #allocate_global_block_found",
+        
         // Int or float so allocate from int/float pool (if isn't full)
         "#allocate_check_pool_full AND 0"
     ],
