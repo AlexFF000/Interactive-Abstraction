@@ -18,24 +18,25 @@ var ProcedureOffset;  // The location in memory of the procedures
     Upon completion, the first address of the newly allocated space is placed in the first 4 bytes of EvalTop
 */
 
-let chunkStart = Addresses.ps2;
-let chunkEnd = Addresses.ps3;
-let blockStart = Addresses.ps4;
-let smallestFound = Addresses.ps5;
-let smallestFoundPrevPointers = Addresses.ps6;  // The address of the chunk pointers that point to the chunk that contains the smallestFound block
-let previousChunkPointers = Addresses.ps7;  // The start address of the pointers that point to the current chunk
-let lastChunk = Addresses.ps1 + 1;
+let chunkStart = Addresses.ps9;
+let chunkEnd = Addresses.ps10;
+let blockStart = Addresses.ps11;
+let smallestFound = Addresses.ps12;
+let smallestFoundPrevPointers = Addresses.ps13;  // The address of the chunk pointers that point to the chunk that contains the smallestFound block
+let previousChunkPointers = Addresses.ps14;  // The start address of the pointers that point to the current chunk
+let lastChunk = Addresses.ps8 + 1;
+
 var AllocationProc = [
     "#allocate AND 0"  // Clear accumulator
-    // First, copy the top item on the Eval stack into ps0 and ps1 (as items are 5 bytes each, it will take the first byte of ps1) as it contains the details of the allocation request
+    // First, copy the top item on the Eval stack into ps7 and ps8 (as items are 5 bytes each, it will take the first byte of ps8) as it contains the details of the allocation request
 ]
 .concat(copy(Addresses.EvalTop, Addresses.psAddr, 4));  // Copy pointer to top item into psAddr
 AllocationProc = AllocationProc.concat(
-    copyFromAddress(Addresses.ps0, 5, ProcedureOffset + calculateInstructionsLength(AllocationProc)), // Copy item itself into ps0 and ps1
+    copyFromAddress(Addresses.ps7, 5, ProcedureOffset + calculateInstructionsLength(AllocationProc)), // Copy item itself into ps7 and ps8
     [
         // Decide whether to allocate on stack or global heap
         "AND 0",
-        `ADD A ${Addresses.ps0 + 2}`,  // If the third byte of details is not 0, then it should be allocated globally regardless of current scope
+        `ADD A ${Addresses.ps7 + 2}`,  // If the third byte of details is not 0, then it should be allocated globally regardless of current scope
         "BIZ #allocate_check_scope",  // Third byte is 0, so check if current scope is global
         "OUT #allocate_global",
         "#allocate_check_scope AND 0"
@@ -45,7 +46,7 @@ AllocationProc = AllocationProc.concat(
     [
         // Allocate on the global heap
         // First check if the type 32 or 33 (int or float), as this will allow the int/float pool to be used
-        `#allocate_global RED ${Addresses.ps0 + 1}`,  // Second byte of details contains the type
+        `#allocate_global RED ${Addresses.ps7 + 1}`,  // Second byte of details contains the type
         "SUB 32",
         "BIZ #allocate_check_pool_full",
         "ADD 32", // Simply re-adding 32 uses fewer CPU cycles than re-fetching the value from memory
@@ -54,11 +55,11 @@ AllocationProc = AllocationProc.concat(
         
         /*
             Can't use the pool so allocate from heap
-            chunkStart = ps2  (pointer to the first address in the chunk currently being searched)
-            chunkEnd = ps3 (pointer to the last address in the chunk currently being searched)
-            blockStart = ps4 (pointer to the first address of the current block)
-            smallestFound = ps5 (pointer to the smallest block found)
-            lastChunk = ps1 + 1 (boolean, set to 0 if this is the last chunk (0 used for true to allow BIZ to be used to test for it))
+            chunkStart = ps9  (pointer to the first address in the chunk currently being searched)
+            chunkEnd = ps10 (pointer to the last address in the chunk currently being searched)
+            blockStart = ps11 (pointer to the first address of the current block)
+            smallestFound = ps12 (pointer to the smallest block found)
+            lastChunk = ps8 + 1 (boolean, set to 0 if this is the last chunk (0 used for true to allow BIZ to be used to test for it))
             
         */
         "#allocate_from_global_heap AND 0",
@@ -137,8 +138,7 @@ AllocationProc = AllocationProc.concat(
         "#allocate_global_check_block AND 0"
         // Convert the exponent to the actual number of needed blocks (this is done now, although the result isn't needed until later, as it will be needed in both outcomes of the next branch)
     ],
-    // Copy size needed from ps0 (NOTE: THIS MUST BE CHANGED, OTHER PROCEDURES ALSO USE PS0!) to ps0 so Base2Exp can use it
-    copy(Addresses.ps0, Addresses.ps0, 1),
+    copy(Addresses.ps7, Addresses.ps0, 1),
     // Write return address to psReturnAddr for Base2Exp to jump to after
 );
 AllocationProc = AllocationProc.concat(
@@ -149,7 +149,7 @@ AllocationProc = AllocationProc.concat(
         // Check if the current block is exactly the right size
 
         `RED A ${blockStart}`,
-        `SUB A ${Addresses.ps0}`,  // NEEDS TO BE CHANGED FROM ps0
+        `SUB A ${Addresses.ps7}`,
         // If result is 0, the block is exactly the right size so allocate it
         "BIZ #allocate_global_block_found",
         // Code for if block size is incorrect
@@ -194,7 +194,6 @@ AllocationProc = AllocationProc.concat(
 );
 AllocationProc = AllocationProc.concat(
     add32BitIntegers(chunkEnd, 1, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
-    // NOTE: USE SOMETHING ELSE FOR BLOCKSTART TO FREE UP PS4
     copy(Addresses.ps3, Addresses.ps4, 4)
 );
 AllocationProc = AllocationProc.concat(
@@ -318,7 +317,7 @@ AllocationProc = AllocationProc.concat(
     checkZero(smallestFound, 4, "#allocate_insufficient_space", "#allocate_global_split_block"),
     [
         `#allocate_global_split_block RED A ${smallestFound}`,
-        `SUB A ${Addresses.ps0}`,  // CHANGE PS0 TO WHATEVER CONTAINS THE SIZE REQUESTED
+        `SUB A ${Addresses.ps7}`,
         `BIZ #allocate_global_splitting_complete`,  // The block is now the right size, no more splitting is needed
         // The block needs to be split
         `RED A ${smallestFound}`,
@@ -358,7 +357,7 @@ AllocationProc = AllocationProc.concat(
     [
         // Can now simply jump to #allocate_global_block_found to allocate the block and handle restructuring the chunks around it
         "GTO #allocate_global_block_found",
-        
+
         // Int or float so allocate from int/float pool (if isn't full)
         "#allocate_check_pool_full AND 0"
     ],
