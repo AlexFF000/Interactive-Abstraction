@@ -26,6 +26,8 @@ let smallestFoundPrevPointers = Addresses.ps13;  // The address of the chunk poi
 let previousChunkPointers = Addresses.ps14;  // The start address of the pointers that point to the current chunk
 let lastChunk = Addresses.ps8 + 1;
 
+let AllocatedAddress = Addresses.ps12;  // Reuse ps12 to hold the address of the allocated space
+
 var AllocationProc = [
     "#allocate AND 0"  // Clear accumulator
     // First, copy the top item on the Eval stack into ps7 and ps8 (as items are 5 bytes each, it will take the first byte of ps8) as it contains the details of the allocation request
@@ -367,7 +369,7 @@ AllocationProc = AllocationProc.concat(
         // Allocate the first free space in the pool (it is pointed to by PoolFreePointer)
         "#allocate_from_pool AND 0",
     ],
-    copy(Addresses.PoolFreePointer, Addresses.ps3, 4),  // Store allocated address in ps3
+    copy(Addresses.PoolFreePointer, AllocatedAddress, 4),
     // Update PoolFreePointer to point to next free space in pool (or end of pool if no more free space)
     // The space we just allocated might contain a pointer to another free space, if so set PoolFreePointer to that space.  Otherwise increment PoolFreePointer by 5 to point to next free space (or end of pool if full)
     copy(Addresses.PoolFreePointer, Addresses.psAddr, 4),
