@@ -26,7 +26,10 @@ let smallestFoundPrevPointers = Addresses.ps13;  // The address of the chunk poi
 let previousChunkPointers = Addresses.ps14;  // The start address of the pointers that point to the current chunk
 let lastChunk = Addresses.ps8 + 1;
 
-let AllocatedAddress = Addresses.ps12;  // Reuse ps12 to hold the address of the allocated space
+let allocatedAddress = Addresses.ps12;  // Reuse ps12 to hold the address of the allocated space
+
+// Variables specific to local allocation
+let sizeNeeded = Addresses.ps11;  // In local allocation, chunks record their actual size rather than an exponent, so need to calculate the actual size needed and store it to avoid recalculating it regularly
 
 var AllocationProc = [
     "#allocate AND 0"  // Clear accumulator
@@ -40,7 +43,7 @@ AllocationProc = AllocationProc.concat(
         "AND 0",
         `ADD A ${Addresses.ps7 + 2}`,  // If the third byte of details is not 0, then it should be allocated globally regardless of current scope
         "BIZ #allocate_check_scope",  // Third byte is 0, so check if current scope is global
-        "OUT #allocate_global",
+        "GTO #allocate_global",
         "#allocate_check_scope AND 0"
     ],
     // Check if current scope is global by checking if scope pointer is equal to global area start address
@@ -404,8 +407,92 @@ AllocationProc = AllocationProc.concat(
         "#allocate_update_pool_pointer_contiguous AND 0",
     ],
     copy(Addresses.ps2, Addresses.PoolFreePointer, 4),
-    "GTO #allocate_finish"
+    [
+        "GTO #allocate_finish",
+
+        /* Allocate on local heap */
+        "#allocate_local AND 0",
+    ],
 );
+AllocationProc = AllocationProc.concat(
+    // Load pointers into registers
+    // previousChunkPointers should contain the address of the current chunk pointers themselves
+    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.StartChunkPointer, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    copy(Addresses.ps3, previousChunkPointers, 4),
+    // chunkStart and chunkEnd should contain the address of the start and end of the current chunk
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(chunkStart, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc))
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(chunkEnd, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    // Calculate needed size
+    copy(Addresses.ps7, Addresses.ps0, 1),
+);
+AllocationProc = AllocationProc.concat(
+    writeMultiByte(ProcedureOffset + calculateInstructionsLength(AllocationProc) + calculateInstructionsLength(["GTO #base2Exponent"]), Addresses.psReturnAddr, 4),
+    [
+        "GTO #base2Exponent",
+    ],
+    copy(Addresses.ps0, sizeNeeded, 4),  // sizeNeeded now contains the full size needed in bytes
+    // Start checking for a chunk large enough
+    [
+        "#allocate_local_check_chunk AND 0",
+    ],
+    // If chunkStart is 0 then there are no more free chunks that have not been searched, so there isn't enough space
+    checkZero(chunkStart, 4, "#allocate_stack_overflow", "#allocate_local_check_chunk_size"),
+    [
+        "#allocate_local_check_chunk_size AND 0",
+    ],
+    // Check if chunk is exactly the right size
+    copy(chunkStart, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps4, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    checkEqual(sizeNeeded, Addresses.ps4, "#allocate_local_chunk_perfect", "#allocate_local_chunk_imperfect"),
+    [
+        "#allocate_local_chunk_perfect AND 0",
+        // The chunk is exactly the right size, so allocate it and remove it from the list of chunks
+        // Check if this is the last chunk
+    ]
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.LastChunkStartPointer, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    copy(Addresses.ps3, Addresses.psAddr)
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps5, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // ps5 now contains the start address of the last chunk
+    checkEqual(chunkStart, Addresses.ps5, "#allocate_local_found_chunk_isLast", "#allocate_local_found_chunk_not_last"),
+    [
+        "#allocate_local_found_chunk_isLast AND 0",
+        // The found chunk is the last one, so change the previous pointers to 0 to show there are no more free chunks
+    ],
+    copy(previousChunkPointers, Addresses.psAddr, 4),
+    writeMultiByte(0, Addresses.ps0, 8)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps0, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // Pointers to this chunk now contain 0
+    // Point LastChunkStartPointer and StackPointer to the end of stack, as the newly allocated space uses the rest of the space on the stack
+    writeMultiByte(Addresses.StackStart + runtime_options.StackSize, Addresses.ps0, 4),
+    copy(Addresses.ps0, Addresses.StackPointer, 4)  // StackPointer now contains the address after the end of the stack
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.LastChunkStartPointer, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps0, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // LastChunkStartPointer now contains the address after the end of the stack
+    copy(chunkStart, allocatedAddress, 4),
+    [
+        "GTO #allocate_finish",
+
+        "#allocate_local_chunk_not_last AND 0",
+        // BOOKMARK 01/08/2021 Line 1075
+        "#allocate_local_chunk_imperfect AND 0",
+        // The chunk is not exactly the right size, check if it is too small or too big
+    ]
+)
 
 /*
     Procedure for checking if one 4 byte unsigned int value is greater than another
