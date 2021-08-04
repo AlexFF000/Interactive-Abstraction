@@ -372,7 +372,7 @@ AllocationProc = AllocationProc.concat(
         // Allocate the first free space in the pool (it is pointed to by PoolFreePointer)
         "#allocate_from_pool AND 0",
     ],
-    copy(Addresses.PoolFreePointer, AllocatedAddress, 4),
+    copy(Addresses.PoolFreePointer, allocatedAddress, 4),
     // Update PoolFreePointer to point to next free space in pool (or end of pool if no more free space)
     // The space we just allocated might contain a pointer to another free space, if so set PoolFreePointer to that space.  Otherwise increment PoolFreePointer by 5 to point to next free space (or end of pool if full)
     copy(Addresses.PoolFreePointer, Addresses.psAddr, 4),
@@ -488,9 +488,49 @@ AllocationProc = AllocationProc.concat(
         "GTO #allocate_finish",
 
         "#allocate_local_chunk_not_last AND 0",
-        // BOOKMARK 01/08/2021 Line 1075
+        // The chunk is not the last one, so change the pointers that pointed to this chunk to point to the next one instead
+    ]
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(chunkStart, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    copy(Addresses.ps3, Addresses.psAddr, 4),
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // ps4 and ps5 now contain the pointers to the next chunk
+    copy(previousChunkPointers, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The pointers in the previous chunk now contain the pointers from this chunk (so this chunk has been removed from the list of free chunks)
+    copy(chunkStart, allocatedAddress, 4),
+    [
+        "GTO #allocate_finish",
+
         "#allocate_local_chunk_imperfect AND 0",
         // The chunk is not exactly the right size, check if it is too small or too big
+        "GTO #allocate_local_load_checkGreater_return_addresses"
+    ]
+);
+// Load in return addresses for CheckGreaterProc.  Instead of using the actual addresses, use addresses of GTO instructions that jump to those instructions as these are easier to calculate
+let chunkLargerThanNeededJumpAddr = ProcedureOffset + calculateInstructionsLength(AllocationProc);
+AllocationProc.concat("GTO #allocate_local_chunk_too_big");  // chunkLargerThanNeededJumpAddr will contain address of this instruction
+let chunkSmallerThanNeededJumpAddr = ProcedureOffset + calculateInstructionsLength(AllocationProc);
+AllocationProc.concat("GTO #allocate_local_next_chunk");  // chunkSmallerThanNeededJumpAddr will contain address of this instruction
+AllocationProc = AllocationProc.concat(
+    [
+        "#allocate_local_load_checkGreater_return_addresses AND 0"
+    ],
+    writeMultiByte(chunkLargerThanNeededJumpAddr, Addresses.psReturnAddr, 4),
+    writeMultiByte(chunkSmallerThanNeededJumpAddr, Addresses.psAddr, 4),
+    copy(Addresses.ps4, Addresses.ps0, 4),  // The size of the current chunk should still be in ps4
+    copy(sizeNeeded, Addresses.ps1, 4),
+    [
+        "GTO #CheckGreaterProc",
+        "#allocate_local_chunk_too_big AND 0",
+        // Chunk is too large, so allocate only as much as is needed
+        // BOOKMARK 12:56 04/08/2021 LINE 1084
+        
+        "#allocate_local_next_chunk AND 0",
+        // The current chunk is too small, try the next one
     ]
 )
 

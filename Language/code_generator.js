@@ -280,6 +280,66 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
     return instructs;
 }
 
+function sub32BitInteger(minuend, subtrahend, instructionsLength, minuendIsLiteral=false, subtrahendIsLiteral=false){
+    // Return list of instructions to subtract subtrahend from minuend, leaving the result in ps3
+    // Uses ps1 in all cases
+    let instructs = [];
+    // First flip subtrahend to negative
+    if (subtrahendIsLiteral){
+        instructs = instructs.concat(writeMultiByte(subtrahend, Addresses.ps1, 4));
+    }
+    else{
+        instructs = instructs.concat(copy(subtrahend, Addresses.ps1, 4));
+    }
+    instructs = instructs.concat(flip32BitInt2C(Addresses.ps1, instructionsLength + calculateInstructionsLength(instructs)));
+    // Now add the flipped subtrahend to minuend
+    return instructs.concat(add32BitIntegers(minuend, subtrahend, instructionsLength + calculateInstructionsLength(instructs), minuendIsLiteral, false));
+}
+
+function flip32BitInt2C(addressOfInt, instructionsLength){
+    // Flip the bits and add 1, (modifies in place)
+    let instructs = [
+        // Flip the bits
+        `RED ${addressOfInt + 3}`,
+        "NOT",
+        `WRT ${addressOfInt + 3}`,
+        `RED ${addressOfInt + 2}`,
+        "NOT",
+        `WRT ${addressOfInt + 2}`,
+        `RED ${addressOfInt + 1}`,
+        "NOT",
+        `WRT ${addressOfInt + 1}`,
+        `RED ${addressOfInt}`,
+        "NOT",
+        `WRT ${addressOfInt}`,
+    ];
+    instructionsLength = instructionsLength + calculateInstructionsLength(instructs);
+    return instructs.concat(
+        [
+        // Add 1 to LSB, and only modify the other bytes if there is a carry
+        `RED ${addressOfInt + 3}`,
+        "ADD 1",
+        `WRT ${addressOfInt + 3}`,
+        `BIC ${instructionsLength + 22}`,
+        `GTO ${instructionsLength + 78}`,
+        // There is a carry so also need to add 1 to next byte
+        `RED ${addressOfInt + 2}`,
+        "ADD 1",
+        `WRT ${addressOfInt + 2}`,
+        `BIC ${instructionsLength + 44}`,
+        `GTO ${instructionsLength + 78}`,
+        `RED ${addressOfInt + 1}`,
+        "ADD 1",
+        `WRT ${addressOfInt + 1}`,
+        `BIC ${instructionsLength + 66}`,
+        `GTO ${instructionsLength + 78}`,
+        `RED ${addressOfInt}`,
+        "ADD 1",
+        `WRT ${addressOfInt}`
+        ]
+    );
+}
+
 function incrementAddress(instructionsLength){
     // Increment the value in psAddr by 1
     return [
