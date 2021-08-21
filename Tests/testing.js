@@ -2,6 +2,27 @@
     Provides functions for use in tests
 */
 
+var breakInstructionAddresses = [];  // List of addresses (as ints) of instructions to pause on if breakInstructions have been turned on
+
+async function runTests(tests){
+    // Takes list of test functions, and runs them, reporting the results of each
+    let passed = 0;
+    for (let t of tests){
+        try{
+            let result = await t();
+            if (result === true){
+                passed++;
+                console.log(`${t.name}: PASS`);
+            }
+            else console.log(`${t.name}: FAIL: ${result}`);
+        }
+        catch (e){
+            console.log(`${t.name}: ERROR: ${e}`);
+        }
+    }
+    console.log(`${passed}/${tests.length} passed`);
+}
+
 function assertMemoryEqual(expected, addressOfActual, noOfBytes){
     // Check if the values in the memory addresses starting at addressOfActual are equal to the corresponding bytes of expected
     // expected should be an array of arrays (each containing a byte in the same format as the memory), addressOfActual should be an int representing a memory address
@@ -118,7 +139,7 @@ function initialiseCPU(){
     initReg();
 }
 
-function runInstructions(instructions, resetCPU=true){
+function runInstructions(instructions, resetCPU=true, addEndInstruction=false){
     // Places the given machine code instructions into the assembler and starts the CPU in 32 bit mode (this works in the same way as pasting them in to the instruction area and pressing start)
     // Returns a promise, which will resolve when the CPU finishes
     // instructions should be an array of strings, each containing one instruction
@@ -139,8 +160,10 @@ function runInstructions(instructions, resetCPU=true){
         };
         initReg = () => {
             if (PC == undefined || MAR == undefined || MDR == undefined || CIR == undefined || ACC == undefined || STATUS == undefined) initReg_original();
+            else PC = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];  // PC must always be cleared
         }
     }
+    if (addEndInstruction === true) instructions = instructions.concat("END");
     // Set up promise, placing its resolve function in onEndCallback
     let onEndPromise = new Promise((resolve, reject) => {
         onEndCallback = () => {
@@ -167,4 +190,48 @@ function runInstructions(instructions, resetCPU=true){
     document.getElementById(input_box).value = text;
     document.getElementById(start_but).click();
     return onEndPromise;
+}
+
+function listInstructionAddresses(instructions, lastPreviousAddress){
+    // Take a list of assembly code instructions, and prefix each with the memory location that it will be stored (useful for debugging)
+    let newInstructions = [];
+    for (let i = 0; i < instructions.length; i++){
+        let newInstruct = `(${lastPreviousAddress}) ${instructions[i]}`;
+        lastPreviousAddress += calculateInstructionsLength([instructions[i]]);
+        newInstructions.push(newInstruct);
+    }
+    return newInstructions;
+}
+
+var original_fetch = fetch;  // Store reference to original fetch function, as toggleBreakInstructions overrides it
+function toggleBreakInstructions(breakInstructions){
+    // Allow the CPU to be paused when fetching instructions from addresses in breakInstructionAddresses
+    if (breakInstructions === true){
+        // Override fetch function to enable breakpoints
+        fetch = () => {
+            let currentAddr = binArrayToInt(PC);
+            if (breakInstructionAddresses.includes(currentAddr)){
+                // The current instruction is included in the list of instructions to pause on
+                console.log(`Paused on ${currentAddr}`);
+                paused = true;
+                queue = [];
+            }
+            else{
+                original_fetch();
+            }
+        };
+        return "Turned on break instructions";
+    }
+    else{
+        // Set fetch back to the orignal fetch function
+        fetch = original_fetch;
+        return "Turned off break instructions";
+    }
+}
+
+function resumeBreakInstruction(){
+    // Resume after pausing on break instruction
+    original_fetch();
+    paused = false;
+    clock();
 }

@@ -132,13 +132,17 @@ function calculateInstructionsLength(instructions){
     let length = 0;
     for (let i = 0; i < instructions.length; i++){
         let currentInstruction = instructions[i].split(" ");
-        if (["RED", "WRT", "GTO", "BIZ", "BIN", "BIO", "BIC"].includes(currentInstruction[0]) === false && currentInstruction[1] !== "A"){
+        if (currentInstruction[0] === "END" || currentInstruction[0] === "NOT" || (currentInstruction[0] === "OUT" && currentInstruction[1] !== "A")){
+            // The instruction has no data, so only uses one address
+            length += 1;
+        }
+        else if (["RED", "WRT", "GTO", "BIZ", "BIN", "BIO", "BIC"].includes(currentInstruction[0]) === false && currentInstruction[1] !== "A"){
             // This is not an instruction that can take an address as data, and the addressing mode is not Address.  Therefore this instruction will always be 2 bytes
             length += 2;
         }
         else{
             // The data is an address, so will always take 4 bytes.  So instruction will always be 5 bytes
-            length += 5 
+            length += 5
         }
     }
     return length;
@@ -233,13 +237,13 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
     instructionsLength += calculateInstructionsLength(instructs);
     instructs.push(
         // Check for carry
-        `BIC ${instructionsLength + 95}`,  // Each of these instructions uses 5 bytes, so +95 will give address of first instruction in first byte carry procdure
+        `BIC ${instructionsLength + 100}`,  // Each of these instructions uses 5 bytes, so +100 will give address of first instruction in first byte carry procdure
         // Second byte
         `RED ${int1 + 2}`,
         `ADD A ${int2 + 2}`,
         `WRT ${Addresses.ps3 + 2}`,
         // Carry for this byte must be checked before adding carry from previous, otherwise carry will be wiped
-        `BIC ${instructionsLength + 109}`,
+        `BIC ${instructionsLength + 114}`,
         // Add carry for first byte (if there was one)
         `RED ${Addresses.ps3 + 2}`,
         `ADD A ${Addresses.ps2 + 3}`,
@@ -248,7 +252,7 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
         `RED ${int1 + 1}`,
         `ADD A ${int2 + 1}`,
         `WRT ${Addresses.ps3 + 1}`,
-        `BIC ${instructionsLength + 123}`,
+        `BIC ${instructionsLength + 128}`,
         `RED ${Addresses.ps3 + 1}`,
         `ADD A ${Addresses.ps2 + 2}`,
         `WRT ${Addresses.ps3 + 1}`,
@@ -256,8 +260,9 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
         `RED ${int1}`,
         `ADD A ${int2}`,
         `ADD A ${Addresses.ps2 + 1}`,
+        `WRT ${Addresses.ps3}`,
         // Skip over carry procedures
-        `GTO ${instructionsLength + 137}`
+        `GTO ${instructionsLength + 142}`
     );
     // Instructions for handling carries.  These just store 1 in the appropriate byte of ps2
     instructs.push(
@@ -293,7 +298,7 @@ function sub32BitInteger(minuend, subtrahend, instructionsLength, minuendIsLiter
     }
     instructs = instructs.concat(flip32BitInt2C(Addresses.ps1, instructionsLength + calculateInstructionsLength(instructs)));
     // Now add the flipped subtrahend to minuend
-    return instructs.concat(add32BitIntegers(minuend, subtrahend, instructionsLength + calculateInstructionsLength(instructs), minuendIsLiteral, false));
+    return instructs.concat(add32BitIntegers(minuend, Addresses.ps1, instructionsLength + calculateInstructionsLength(instructs), minuendIsLiteral, false));
 }
 
 function flip32BitInt2C(addressOfInt, instructionsLength){
