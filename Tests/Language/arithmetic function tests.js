@@ -12,7 +12,7 @@ tests_add32BitIntegers = [test_add32BitIntegers_nonLiterals, test_add32BitIntege
 async function test_add32BitIntegers_nonLiterals(){
     // Load 3000 into ps5, and provide ps5 as int1, and literal 5 as int2.  Check ps3 contains 3005
     // Then load 3000 into ps5 again, and provide literal 5 as int1 and ps5 as int2.  Check again ps3 contains 3005
-    // Then load 3000 into ps5 again, and 5 into ps6.  Provide ps5 as int1 and ps6 and int2.  Check again ps3 contains 3005
+    // Then load 3000 into ps5 again, and 5 into ps6.  Provide ps5 as int1 and ps6 as int2.  Check again ps3 contains 3005
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4), true, true);
     await runInstructions(add32BitIntegers(Addresses.ps5, 5, 0, false, true), false, true);
     let checkResult = assertMemoryEqualToInt(3005, Addresses.ps3, 4);
@@ -20,7 +20,7 @@ async function test_add32BitIntegers_nonLiterals(){
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4), true, true);
     await runInstructions(add32BitIntegers(5, Addresses.ps5, 0, true, false), false, true);
     checkResult = assertMemoryEqualToInt(3005, Addresses.ps3, 4);
-    if (checkResult !== true) return checkResult;
+    if (checkResult !== true) return checkResult; 
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4).concat(writeMultiByte(5, Addresses.ps6, 4)), true, true);
     await runInstructions(add32BitIntegers(Addresses.ps5, Addresses.ps6, 0), false, true);
     return assertMemoryEqualToInt(3005, Addresses.ps3, 4);
@@ -69,4 +69,52 @@ async function test_add32BitIntegers_negAddNegForNeg(){
     // Add -7 (4294967289) to -301502603 (3993464693) and check if ps3 contains -301502610 (3993464686)
     await runInstructions(add32BitIntegers(4294967289, 3993464693, 0, true, true), true, true);
     return assertMemoryEqualToInt(3993464686, Addresses.ps3, 4);
+}
+
+/*
+    sub32BitInteger
+    Function for subtracting one 32 bit integer (subtrahend) from another (minuend), leaving the result in ps3
+*/
+tests_sub32BitInteger = [test_sub32BitInteger_nonLiterals, test_sub32BitInteger_posSubPosForPos, test_sub32BitInteger_posSubPosForNeg, test_sub32BitInteger_posSubNegForPos];
+
+// Test1 Providing non-literals
+async function test_sub32BitInteger_nonLiterals(){
+    // Load 3000 into ps5, and provide ps5 as minuend, and literal 5 as subtrahend.  Check ps3 contains 2905
+    // Then load 3000 into ps5 again, and provide literal 4000 as minuend and ps5 as subtrahend.  Check ps3 contains 1000
+    // Then load 3000 into ps5 again, and 5 into ps6.  Provide ps5 as minuend and ps6 as subtrahend.  Check ps3 contains 2905
+    await runInstructions(writeMultiByte(3000, Addresses.ps5, 4), true, true);
+    await runInstructions(sub32BitInteger(Addresses.ps5, 5, 0, false, true), false, true);
+    let checkResult = assertMemoryEqualToInt(2905, Addresses.ps3, 4);
+    if (checkResult !== true) return checkResult;
+    await runInstructions(writeMultiByte(3000, Addresses.ps5, 4), true, true);
+    await runInstructions(add32BitIntegers(4000, Addresses.ps5, 0, true, false), false, true);
+    checkResult = assertMemoryEqualToInt(1000, Addresses.ps3, 4);
+    if (checkResult !== true) return checkResult; 
+    await runInstructions(writeMultiByte(3000, Addresses.ps5, 4).concat(writeMultiByte(5, Addresses.ps6, 4)), true, true);
+    await runInstructions(add32BitIntegers(Addresses.ps5, Addresses.ps6, 0), false, true);
+    return assertMemoryEqualToInt(2905, Addresses.ps3, 4);
+}
+// Test2 Positive - Positive to get Positive
+async function test_sub32BitInteger_posSubPosForPos(){
+    // Subtract 102348 from 2147483647 and check if ps3 contains 2147381299
+    await runInstructions(sub32BitInteger(2147483647, 102348, 0, true, true), true, true);
+    return assertMemoryEqualToInt(2147381299, Addresses.ps3, 4);
+}
+// Test3 Positive - Positive to get Negative
+async function test_sub32BitInteger_posSubPosForNeg(){
+    // Subtract 2147483647 from 102348 and check if ps3 contains -2147381299 (2147585997)
+    await runInstructions(sub32BitInteger(102348, 2147483647, 0, true, true), true, true);
+    return assertMemoryEqualToInt(2147585997, Addresses.ps3, 4);
+}
+// Test4 Positive - Negative to get Positive
+async function test_sub32BitInteger_posSubNegForPos(){
+    // Subtract -5 (4294967291) from 122356 and check if ps3 contains 122361
+    await runInstructions(sub32BitInteger(122356, 4294967291, 0, true, true), true, true);
+    return assertMemoryEqualToInt(122361, Addresses.ps3, 4);
+}
+// Test5 Negative - Negative to get Positive
+async function test_sub32BitInteger_negSubNegForPos(){
+    // Subtract -1496302416 (2798664880) from -1290182345 (3004784951) and check if ps3 contains 206120071
+    await runInstructions(sub32BitInteger(3004784951, 2798664880, 0, true, true), true, true);
+    return assertMemoryEqualToInt(206120071, Addresses.ps3, 4);
 }
