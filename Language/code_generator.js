@@ -237,32 +237,36 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
     instructionsLength += calculateInstructionsLength(instructs);
     instructs.push(
         // Check for carry
-        `BIC ${instructionsLength + 100}`,  // Each of these instructions uses 5 bytes, so +100 will give address of first instruction in first byte carry procdure
+        `BIC ${instructionsLength + 110}`,  // Each of these instructions uses 5 bytes, so +100 will give address of first instruction in first byte carry procdure
         // Second byte
         `RED ${int1 + 2}`,
         `ADD A ${int2 + 2}`,
         `WRT ${Addresses.ps3 + 2}`,
         // Carry for this byte must be checked before adding carry from previous, otherwise carry will be wiped
-        `BIC ${instructionsLength + 114}`,
+        `BIC ${instructionsLength + 124}`,
         // Add carry for first byte (if there was one)
         `RED ${Addresses.ps3 + 2}`,
         `ADD A ${Addresses.ps2 + 3}`,
         `WRT ${Addresses.ps3 + 2}`,
+        // Check if adding the carry caused a carry
+        `BIC ${instructionsLength + 138}`,
         // Third byte
         `RED ${int1 + 1}`,
         `ADD A ${int2 + 1}`,
         `WRT ${Addresses.ps3 + 1}`,
-        `BIC ${instructionsLength + 128}`,
+        `BIC ${instructionsLength + 152}`,
         `RED ${Addresses.ps3 + 1}`,
         `ADD A ${Addresses.ps2 + 2}`,
         `WRT ${Addresses.ps3 + 1}`,
+        // Check if adding the carry caused a carry
+        `BIC ${instructionsLength + 166}`,
         // Fourth byte
         `RED ${int1}`,
         `ADD A ${int2}`,
         `ADD A ${Addresses.ps2 + 1}`,
         `WRT ${Addresses.ps3}`,
         // Skip over carry procedures
-        `GTO ${instructionsLength + 142}`
+        `GTO ${instructionsLength + 180}`
     );
     // Instructions for handling carries.  These just store 1 in the appropriate byte of ps2
     instructs.push(
@@ -276,11 +280,21 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
         "ADD 1",
         `WRT ${Addresses.ps2 + 2}`,
         `GTO ${instructionsLength + 25}`,
+        // Carry for 2nd byte (after adding carry from previous byte)
+        "AND 0",
+        "ADD 1",
+        `WRT ${Addresses.ps2 + 2}`,
+        `GTO ${instructionsLength + 45}`,
         // Carry for third byte
         "AND 0",
         "ADD 1",
         `WRT ${Addresses.ps2 + 1}`,
-        `GTO ${instructionsLength + 65}`
+        `GTO ${instructionsLength + 65}`,
+        // Carry for 3rd byte (after adding carry from previous byte)
+        "AND 0",
+        "ADD 1",
+        `WRT ${Addresses.ps2 + 1}`,
+        `GTO ${instructionsLength + 85}`
     );
     return instructs;
 }
