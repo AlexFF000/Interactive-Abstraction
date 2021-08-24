@@ -409,7 +409,7 @@ AllocationProc = AllocationProc.concat(
         "GTO #allocate_finish",
 
         // The space does contain another pointer, so simply load that into PoolFreePointer
-        "#allocate_update_pool_pointer_contiguous AND 0",
+        "#allocate_update_pool_pointer_pointer AND 0",
     ],
     copy(Addresses.ps2, Addresses.PoolFreePointer, 4),
     [
@@ -468,7 +468,7 @@ AllocationProc = AllocationProc.concat(
 );
 AllocationProc = AllocationProc.concat(
     copyFromAddress(Addresses.ps5, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // ps5 now contains the start address of the last chunk
-    checkEqual(chunkStart, Addresses.ps5, "#allocate_local_found_chunk_isLast", "#allocate_local_found_chunk_not_last"),
+    checkEqual(chunkStart, Addresses.ps5, "#allocate_local_found_chunk_isLast", "#allocate_local_chunk_not_last"),
     [
         "#allocate_local_found_chunk_isLast AND 0",
         // The found chunk is the last one, so change the previous pointers to 0 to show there are no more free chunks
