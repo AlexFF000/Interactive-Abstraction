@@ -527,12 +527,85 @@ AllocationProc = AllocationProc.concat(
         "GTO #CheckGreaterProc",
         "#allocate_local_chunk_too_big AND 0",
         // Chunk is too large, so allocate only as much as is needed
-        // BOOKMARK 12:56 04/08/2021 LINE 1084
+    ]
+);
+AllocationProc = AllocationProc.concat(
+    // Calculate the size of the free chunk after allocating however much we need
+    sub32BitInteger(Addresses.ps4, sizeNeeded, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    copy(Addresses.ps3, Addresses.ps5, 4),  // ps5 now contains the size of the chunk after taking the amount needed
+    copy(chunkStart, allocatedAddress, 4)
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(chunkStart, sizeNeeded, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // ps3 now contains the new start address of the chunk
+    // Write new size of the chunk to first 4 bytes
+
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps5, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    // Copy pointers from existing chunk start to new start of the chunk
+    copy(Addresses.ps3, Addresses.ps4, 4),  // Save ps3 (the new start address of the chunk) into ps4 as add procedure will overwrite it
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(chunkStart, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),  // ps3 now contains the address of the first pointer in the current chunk
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps5, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // ps5 and ps6 now contain the pointers from the current chunk
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(Addresses.ps4, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),  // ps3 now contains the first address that the pointers should be copied to
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps5, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // Pointers have now been copied to the new start of the chunk
+    // Change the pointer to this chunk to point to the new start
+    copy(previousChunkPointers, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps4, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The pointer to the start of this chunk now points to the new start (the end pointer does not need changing)
+    // If this is the last chunk, we must also update the LastChunkStartPointer and StackPointer
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.LastChunkStartPointer, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),  // ps3 now contains the address of the LastChunkPointer for the current scope
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps5, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // ps5 now contains the address of the LastChunkStart
+    checkEqual(Addresses.ps5, chunkStart, "#allocate_local_reduced_chunk_isLast", "#allocate_finish"),
+    [
+        "#allocate_local_reduced_chunk_isLast AND 0"
+    ],
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps4, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The LastchunkStart pointer for this scope now points to the new start of the chunk
+    copy(Addresses.ps4, Addresses.StackPointer, 4),  // StackPointer now points to new start of chunk
+    [
+        "GTO #allocate_finish",
         
         "#allocate_local_next_chunk AND 0",
         // The current chunk is too small, try the next one
     ]
-)
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(chunkStart, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),  // ps3 now contains the address of this chunk's pointer to the start of next chunk
+    copy(Addresses.ps3, previousChunkPointers, 4),  // previousChunkPointers now contains the address of this chunk's pointers to the next chunk
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(chunkStart, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // chunkStart now contains the start address of the next chunk
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(previousChunkPointers, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),  // ps3 now contains the address of this chunk's pointer to the end of the next chunk
+    copy(Addresses.ps3, Addresses.psAddr, 4),
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(chunkEnd, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
+    [
+        "GTO #allocate_local_check_chunk"
+    ]
+);
 
 /*
     Procedure for checking if one 4 byte unsigned int value is greater than another
