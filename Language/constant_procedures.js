@@ -24,6 +24,7 @@ let blockStart = Addresses.ps11;
 let smallestFound = Addresses.ps12;
 let smallestFoundPrevPointers = Addresses.ps13;  // The address of the chunk pointers that point to the chunk that contains the smallestFound block
 let previousChunkPointers = Addresses.ps14;  // The start address of the pointers that point to the current chunk
+let returnAddr = Addresses.ps15;  // Used to hold the return address provided in psReturnAddr, as psReturnAddr will be overwritten during allocation
 let lastChunk = Addresses.ps8 + 1;
 
 let allocatedAddress = Addresses.ps12;  // Reuse ps12 to hold the address of the allocated space
@@ -33,9 +34,13 @@ let sizeNeeded = Addresses.ps11;  // In local allocation, chunks record their ac
 
 var AllocationProc = [
     "#allocate AND 0"  // Clear accumulator
-    // First, copy the top item on the Eval stack into ps7 and ps8 (as items are 5 bytes each, it will take the first byte of ps8) as it contains the details of the allocation request
 ]
-.concat(copy(Addresses.EvalTop, Addresses.psAddr, 4));  // Copy pointer to top item into psAddr
+.concat(
+    // First copy the return address, as psReturnAddr will need to be overwritten later
+    copy(Addresses.psReturnAddr, returnAddr, 4),
+    // Then copy the top item on the Eval stack into ps7 and ps8 (as items are 5 bytes each, it will take the first byte of ps8) as it contains the details of the allocation request
+    copy(Addresses.EvalTop, Addresses.psAddr, 4)  // Copy pointer to top item into psAddr
+);
 AllocationProc = AllocationProc.concat(
     copyFromAddress(Addresses.ps7, 5, ProcedureOffset + calculateInstructionsLength(AllocationProc)), // Copy item itself into ps7 and ps8
     [
@@ -603,7 +608,18 @@ AllocationProc = AllocationProc.concat(
 AllocationProc = AllocationProc.concat(
     copyFromAddress(chunkEnd, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
     [
-        "GTO #allocate_local_check_chunk"
+        "GTO #allocate_local_check_chunk",
+
+        "#allocate_finish AND 0",
+        // Allocation is complete, so write allocatedAddress to eval stack and return.  There is no need to add entry to eval stack, as we can just overwrite the one that was provided when calling this procedure
+    ],
+        copy(Addresses.EvalTop, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(allocatedAddress, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // Top item on Eval stack now contains allocated address
+    [
+        // Return to address provided by calling procedure
+        `GTO A ${returnAddr}`
     ]
 );
 
