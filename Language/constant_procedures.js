@@ -398,7 +398,7 @@ AllocationProc = AllocationProc.concat(
         `WRT ${Addresses.PoolFreePointer + 2}`,
         "BIC #allocate_increment_pool_ptr_c2",
         "GTO #allocate_finish",
-        `#allocate_increment_pool_ptr_c1 RED ${Addresses.PoolFreePointer + 1}`,
+        `#allocate_increment_pool_ptr_c2 RED ${Addresses.PoolFreePointer + 1}`,
         "ADD 1",
         `WRT ${Addresses.PoolFreePointer + 1}`,
         "BIC #allocate_increment_pool_ptr_c3",
