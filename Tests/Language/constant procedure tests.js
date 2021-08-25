@@ -12,7 +12,7 @@
 */
 
 // Test1 (will simply test whether it puts the correct value in ps0 for each exponent from 0 to 32)
-async function Base2ExponentProc_testAllValues(){
+async function test_Base2ExponentProc_AllValues(){
     for (let exp = 0; exp < 32; exp++){
         // Calculate the result with js
         let result = 2 ** exp;
@@ -52,7 +52,7 @@ async function Base2ExponentProc_testAllValues(){
 // Tests for allocating on the int/float pool
 
 // Test1- Allocating when the pool is empty
-async function AllocationProc_testGlobalPoolAllocateWhenEmpty(){
+async function test_AllocationProc_GlobalPoolAllocateWhenEmpty(){
     // Use Eval stack to request a space on the int/float pool then run the procedure
     /* Then afterwards check that:
         a) The top value on the Eval stack contains the starting address of the pool
@@ -101,7 +101,7 @@ async function AllocationProc_testGlobalPoolAllocateWhenEmpty(){
    return assertMemoryEqualToInt(0, Addresses.IntFloatPool + 5, 4);
 }
 // Test2- Allocating when pool is not empty, but not full
-async function AllocationProc_testGlobalPoolAllocateWhenHalfFull(){
+async function test_AllocationProc_GlobalPoolAllocateWhenHalfFull(){
     // Fill half of the free spaces in the pool, incrementing the PoolFreePointer accordingly
     // Then use Eval stack to request a space and run the procedure
     /* Then afterwards check that:
@@ -152,7 +152,7 @@ async function AllocationProc_testGlobalPoolAllocateWhenHalfFull(){
    return assertMemoryEqualToInt(0, poolMidSlot + 5, 4);
 }
 // Test3- Trying to allocate when pool is full (it should allocate from the heap instead, and the pool should not be modified)
-async function AllocationProc_testGlobalPoolAllocateWhenFull(){
+async function test_AllocationProc_GlobalPoolAllocateWhenFull(){
     // Fill all of the free spaces in the pool, incrementing PoolFreePointer accordingly
     // Then use Eval stack to request a space and run the procedure
     /* Then afterwards check that:
@@ -197,7 +197,7 @@ async function AllocationProc_testGlobalPoolAllocateWhenFull(){
    return assertMemoryEqualToInt(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
 }
 // Test4- Reallocating previously deallocated space
-async function AllocationProc_testGlobalPoolReallocateDeallocated(){
+async function test_AllocationProc_GlobalPoolReallocateDeallocated(){
     // Fill half of the free spaces in the pool, then deallocate one of these spaces (but not one at the start or end)
     // Then use Eval stack to request a space and run the procedure
     /*
@@ -250,7 +250,7 @@ async function AllocationProc_testGlobalPoolReallocateDeallocated(){
 // Tests for allocation on global heap
 
 // Test5- Allocating when heap is empty
-async function AllocationProc_testGlobalHeapAllocateWhenEmpty(){
+async function test_AllocationProc_GlobalHeapAllocateWhenEmpty(){
     // Request the smallest allowed space on the heap (32 bytes) and run the procedure
     /*
         Then afterwards check that:
@@ -309,7 +309,7 @@ async function AllocationProc_testGlobalHeapAllocateWhenEmpty(){
    return true;
 }
 // Test 6- Allocating when heap is partially full
-async function AllocationProc_testGlobalHeapAllocateWhenPartiallyFull(){
+async function test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull(){
     // Request 4096 bytes after already allocating 64 bytes
     /*
         Then afterwards check that:
@@ -357,12 +357,12 @@ async function AllocationProc_testGlobalHeapAllocateWhenPartiallyFull(){
    return assertMemoryEqualToInt(0, startOfHeap + 8193, 4);
 }
 // Test7- Allocating when heap has no large enough blocks
-async function AllocationProc_testGlobalHeapInsufficientSpace(){
+async function test_AllocationProc_GlobalHeapInsufficientSpace(){
     // Allocate a 32 byte block, followed by three 2^(x-2) byte blocks (where x is the heap size as an exponent of 2)
     // Then request another 2^(x-2) bytes.  This should cause a NOT ENOUGH SPACE error
 }
 // Test8- Allocating from deallocated space
-async function AllocationProc_testGlobalHeapReallocateDeallocated(){
+async function test_AllocationProc_GlobalHeapReallocateDeallocated(){
     // Allocate a 32 byte block, followed by three 2^(x-2) byte blocks (where x is the heap size as an exponent of 2)
     // Then deallocate the block starting at the halfway point of the heap
     // Then request another 2^(x-2) block
@@ -437,11 +437,22 @@ async function AllocationProc_testGlobalHeapReallocateDeallocated(){
     runInstructions(code, false);
     return assertMemoryEqualToInt(firstByteAfterMidpoint, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
 }
-
+// Test9- Allocating last block in chunk
+async function test_AllocationProc_GlobalHeapAllocateLastBlockInChunk(){
+    // Check the pointer to the end of the chunk points to the new end of the chunk (the byte before the start of the allocated block)
+}
+// Test10- Allocating first block in chunk
+async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
+    // Check the pointer to the start of the chunk points to the new start of the chunk (the first byte after the allocated block).  Also check the pointers inside the chunk have been moved forward to the new start
+}
+// Test11- Allocating block in middle of chunk
+async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){
+    // Check the area after the allocated block has been turned into a new chunk, the pointers in the existing chunk now point to the new chunk, and the new chunks pointers point to whichever chunk the existing chunk pointed to before
+}
 // Tests for allocation within stack frame
 
-// Test9- Allocating when frame heap is empty
-async function AllocationProc_testFrameHeapAllocateWhenEmpty(){
+// Test12- Allocating when frame heap is empty
+async function test_AllocationProc_FrameHeapAllocateWhenEmpty(){
     // Request the smallest allowed space (32 bytes) and run the procedure
     /*
         Then afterwards check that:
@@ -451,13 +462,13 @@ async function AllocationProc_testFrameHeapAllocateWhenEmpty(){
             d) The following eight bytes all contain 0, as there should be no following free chunk
     */
 }
-// Test10- Allocating when there is not enough space left on stack
-async function AllocationProc_testFrameHeapInsufficientSpace(){
+// Test13- Allocating when there is not enough space left on stack
+async function test_AllocationProc_FrameHeapInsufficientSpace(){
     // Request an amount of space larger than what is left on the stack and run the procedure
     // This should throw a NOT ENOUGH SPACE error
 }
-// Test11- Allocating from deallocated space
-async function AllocationProc_testFrameHeapReallocateDeallocated(){
+// Test14- Allocating from deallocated space
+async function test_AllocationProc_FrameHeapReallocateDeallocated(){
     // Allocate 256 bytes on the heap
     // Then deallocate 64 bytes at frame heap start + 128
     // Then request 32 bytes and run the procedure
@@ -467,4 +478,16 @@ async function AllocationProc_testFrameHeapReallocateDeallocated(){
             b) firstChunkStart points to frame heap start + 160, and firstChunkEnd points to frame heap start + 192
             c) The 5th-8th bytes (next chunk start pointer) of the first chunk point to frame heap start + 256
     */
+}
+// Test15- Allocating from a chunk that is too large (but which is not the first chunk)
+async function test_AllocationProc_FrameHeapAllocateFromTooLargeChunk(){
+    
+}
+// Test16- Allocating part of the last chunk
+async function test_AllocationProc_FrameHeapAllocateLastChunkPartial(){
+    // Make sure StackPointer and LastChunkStartPointer now point to the new start of the chunk, as well as the previous chunk's pointers.  Also make sure the size field in the new chunk is correct
+}
+// Test17- Allocating the whole last chunk
+async function test_AllocationProc_FrameHeapAllocateLastChunkWhole(){
+    // Make sure the previous chunk's pointer to the start of next chunk contains 0, and StackPointer and lastChunkStartPointer point to the address after the end of the stack
 }
