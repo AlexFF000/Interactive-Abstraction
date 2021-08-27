@@ -6,7 +6,11 @@
     When done, they jump to the address in psReturnAddr
 */
 
-var ProcedureOffset;  // The location in memory of the procedures
+function AddConstantProcedures(ProcedureOffset){
+// Return the code for the procedures
+// ProcedureOffset is the address in memory of the first instruction of the procedures
+// When returning the procedures, we will add a GOTO instruction to skip over them as we don't actually want to run them during setup.  ProcedureOffset must include this instruction
+ProcedureOffset += calculateInstructionsLength([`GTO ${ProcedureOffset}`]);
 
 /*
     Procedure for allocating memory
@@ -208,7 +212,7 @@ AllocationProc = AllocationProc.concat(
 );
 AllocationProc = AllocationProc.concat(
     add32BitIntegers(blockStart, Addresses.ps0, ProcedureOffset + calculateInstructionsLength(AllocationProc)),
-    checkEqual(Addresses.ps3, Addresses.ps4, "#allocate_global_block_found_whole_chunk", "allocate_global_block_found_not_whole_chunk"),
+    checkEqual(Addresses.ps3, Addresses.ps4, "#allocate_global_block_found_whole_chunk", "#allocate_global_block_found_not_whole_chunk"),
     [
         "#allocate_global_block_found_whole_chunk AND 0",
         // This block is the entire chunk, so need to remove this chunk by replacing the previous chunk's pointers (or the global ones if this is the first chunk) with this chunk's pointers
@@ -529,7 +533,7 @@ AllocationProc = AllocationProc.concat(
     copy(Addresses.ps4, Addresses.ps0, 4),  // The size of the current chunk should still be in ps4
     copy(sizeNeeded, Addresses.ps1, 4),
     [
-        "GTO #CheckGreaterProc",
+        "GTO #checkGreater",
         "#allocate_local_chunk_too_big AND 0",
         // Chunk is too large, so allocate only as much as is needed
     ]
@@ -619,10 +623,16 @@ AllocationProc = AllocationProc.concat(
     copyToAddress(allocatedAddress, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // Top item on Eval stack now contains allocated address
     [
         // Return to address provided by calling procedure
-        `GTO A ${returnAddr}`
+        `GTO A ${returnAddr}`,
+
+        // Branches for if there is too little space to allocate
+        // THESE NEED TO BE WRITTEN WHEN ERROR HANDLING IS SET UP
+        "#allocate_insufficient_space AND 0",  // Used in global allocation when there isn't enough space
+        "#allocate_stack_overflow AND 0",  // Used in local (stack) allocation when there isn't enough space
     ]
 );
 
+ProcedureOffset += calculateInstructionsLength(AllocationProc);  // Increase ProcedureOffset to contain the start address of the next contant procedure
 /*
     Procedure for checking if one 4 byte unsigned int value is greater than another
     The details are provided in the pseudoregisters:
@@ -695,6 +705,8 @@ var CheckGreaterProc = [
     `GTO A ${Addresses.psReturnAddr}`,
 ]
 
+ProcedureOffset += calculateInstructionsLength(CheckGreaterProc);  // Increase ProcedureOffset to contain the start address of the next constant procedure
+
 /* 
     Procedure for calculating exponents to base 2 (exponents between 0 and 31)
     Takes the exponent as an 8 bit int in ps0 and leaves the result in ps0
@@ -762,7 +774,14 @@ var Base2ExponentProc = [
         `GTO A ${Addresses.psReturnAddr}`
     ]
 );
-    
 
+ProcedureOffset += calculateInstructionsLength(Base2ExponentProc);  // Increase ProcedureOffset to contain the start address of the next procedure
+
+// Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
+return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
+    .concat(AllocationProc)
+    .concat(CheckGreaterProc)
+    .concat(Base2ExponentProc);
+}
 
 

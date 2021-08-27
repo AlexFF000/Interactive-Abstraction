@@ -203,6 +203,7 @@ function listInstructionAddresses(instructions, lastPreviousAddress){
     return newInstructions;
 }
 
+var instructions_fetched = [];  // Ordered list of addresses of all instructions that have been fetched
 var original_fetch = fetch;  // Store reference to original fetch function, as toggleBreakInstructions overrides it
 function toggleBreakInstructions(breakInstructions){
     // Allow the CPU to be paused when fetching instructions from addresses in breakInstructionAddresses
@@ -210,6 +211,7 @@ function toggleBreakInstructions(breakInstructions){
         // Override fetch function to enable breakpoints
         fetch = () => {
             let currentAddr = binArrayToInt(PC);
+            instructions_fetched.push(currentAddr);
             if (breakInstructionAddresses.includes(currentAddr)){
                 // The current instruction is included in the list of instructions to pause on
                 console.log(`Paused on ${currentAddr}`);

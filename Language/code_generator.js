@@ -29,7 +29,7 @@ const Offsets = {
 
 // Important memory addresses (for data that use multiple addresses, this contains the first address)
 // Reserved area contains the stack, important pointers and data, and a stack frame for the global scope.  It goes at the end of memory so its position can always be known at compile time while allowing the instructions to be placed at the start of memory.
-var reservedArea = (runtime_options.MemorySize - 1) - (runtime_options.StackSize + runtime_options.EvalStackSize + runtime_options.IntFloatPoolSize + 57)
+var reservedArea = (runtime_options.MemorySize - 1) - (runtime_options.StackSize + runtime_options.EvalStackSize + runtime_options.IntFloatPoolSize + 93)
 const Addresses = {
     "StackPointer": reservedArea,
     "ScopePointer": reservedArea + 4,
@@ -58,16 +58,25 @@ const Addresses = {
     "ps4": reservedArea + 37,
     "ps5": reservedArea + 41,
     "ps6": reservedArea + 45,
+    "ps7": reservedArea + 49,
+    "ps8": reservedArea + 53,
+    "ps9": reservedArea + 57,
+    "ps10": reservedArea + 61,
+    "ps11": reservedArea + 65,
+    "ps12": reservedArea + 69,
+    "ps13": reservedArea + 73,
+    "ps14": reservedArea + 77,
+    "ps15": reservedArea + 81,
     // Pseudo register specifically for manipulating addresses, useful for pointers
-    "psAddr": reservedArea + 49,
+    "psAddr": reservedArea + 85,
     // Pseudo register for holding the address to be jumped to after using one of the constant procedures
-    "psReturnAddr": reservedArea + 53,
+    "psReturnAddr": reservedArea + 89,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
-    "GlobalArea": reservedArea + 57,
+    "GlobalArea": reservedArea + 93,
     // The stack starts immediately after the global area
-    "StackStart": reservedArea + 57 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
+    "StackStart": reservedArea + 93 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
     // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
-    "IntFloatPool": reservedArea + 57 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
+    "IntFloatPool": reservedArea + 93 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
 }
 
 
@@ -89,6 +98,9 @@ function registerReplacement(varToReplaceWith, instructionIndex, instruction){
 var assemblyCode = [];
 
 function generate_code(intermediates){
+    // Get setup code
+    SETUP();
+    // Compile intermediates
     for (let i = 0; i < intermediates.length; i++){
         IntermediateFunctions[intermediates[i][0]](intermediates[i][1]);
     }
@@ -517,7 +529,7 @@ function SETUP(){
     // Bytes 1-4 (indexing from 0) of free block contain pointer to start of next free block, bytes 5-9 pointer to end of next free block
     // Currently this is the only block, so make sure the pointers contain 0 
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
+        incrementAddress(assCodeLength),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -525,7 +537,7 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
+        incrementAddress(assCodeLength),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -533,7 +545,7 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
+        incrementAddress(assCodeLength),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -541,14 +553,7 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
+        incrementAddress(assCodeLength),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -556,7 +561,7 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
+        incrementAddress(assCodeLength),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -564,7 +569,7 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
+        incrementAddress(assCodeLength),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
@@ -572,10 +577,21 @@ function SETUP(){
     );
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(
-        add32BitIntegers(Addresses.psAddr, 1, assCodeLength, false, true),
+        incrementAddress(assCodeLength),
         [
             "AND 0",
             `WRT A ${Addresses.psAddr}`
         ]
     );
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(
+        incrementAddress(assCodeLength),
+        [
+            "AND 0",
+            `WRT A ${Addresses.psAddr}`
+        ]
+    );
+    // Add constant procedures
+    assCodeLength = calculateInstructionsLength(assemblyCode);
+    assemblyCode = assemblyCode.concat(AddConstantProcedures(assCodeLength));
 }
