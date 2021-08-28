@@ -104,6 +104,7 @@ function generate_code(intermediates){
     for (let i = 0; i < intermediates.length; i++){
         IntermediateFunctions[intermediates[i][0]](intermediates[i][1]);
     }
+    assemblyCode.push("END");  // Add END instruction
     calculateReplacementVariables();
     performReplacements(assemblyCode, replacements, replacementVariables);
 }
@@ -144,6 +145,8 @@ function calculateInstructionsLength(instructions){
     let length = 0;
     for (let i = 0; i < instructions.length; i++){
         let currentInstruction = instructions[i].split(" ");
+        // Remove label definition if there is one
+        if (currentInstruction[0][0] == "#") currentInstruction.shift();
         if (currentInstruction[0] === "END" || currentInstruction[0] === "NOT" || (currentInstruction[0] === "OUT" && currentInstruction[1] !== "A")){
             // The instruction has no data, so only uses one address
             length += 1;
