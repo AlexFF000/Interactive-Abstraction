@@ -94,6 +94,7 @@ AllocationProc = AllocationProc.concat(
     checkZero(chunkStart, 4, "#allocate_insufficient_space", "#allocate_global_search_chunks"),
     [
         `#allocate_global_search_chunks RED ${lastChunk}`,  // If not all free chunks have been searched
+        "ADD 0",
         "BIZ #allocate_global_all_chunks_searched",
         // if chunkStart + 1 (the pointer to the next chunk) == 0, then this is the last chunk
         "#allocate_global_check_if_last_chunk AND 0"
@@ -123,11 +124,13 @@ AllocationProc = AllocationProc.concat(
     // Load the address for checkGreater to jump to if blockStart is greater into psReturnAddr, and the address to jump to otherwise into psAddr
 );
 // Instead of loading the addresses it is actually supposed to jump to, load addresses of GTO instructions jumping to those addresses.  As calculating these addresses is much easier
+AllocationProc.push("GTO #allocate_global_load_checkGreater_return_addresses");
 let greaterThanChunkEndJumpAddr = ProcedureOffset + calculateInstructionsLength(AllocationProc);
 AllocationProc.push("GTO #allocate_global_next_chunk")  // greaterThanChunkEndJumpAddr will contain address of this instruction
 let notGreaterThanChunkEndJumpAddr = ProcedureOffset + calculateInstructionsLength(AllocationProc);
 AllocationProc.push("GTO #allocate_global_check_block");  // notGreaterThanChunkEndJumpAddr will contain address of this instruction
 AllocationProc = AllocationProc.concat(
+    ["#allocate_global_load_checkGreater_return_addresses AND 0"],
     writeMultiByte(greaterThanChunkEndJumpAddr, Addresses.psReturnAddr, 4),
     writeMultiByte(notGreaterThanChunkEndJumpAddr, Addresses.psAddr, 4),
     [
@@ -150,13 +153,16 @@ AllocationProc = AllocationProc.concat(
     [
         "GTO #allocate_global_search_chunks",  // Search this chunk
         "#allocate_global_check_block AND 0"
-        // Convert the exponent to the actual number of needed blocks (this is done now, although the result isn't needed until later, as it will be needed in both outcomes of the next branch)
+        // Convert the exponent to the actual number of bytes(this is done now, although the result isn't needed until later, as it will be needed in both outcomes of the next branch)
     ],
-    copy(Addresses.ps7, Addresses.ps0, 1),
+    copy(blockStart, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyFromAddress(Addresses.ps0, 1, ProcedureOffset + calculateInstructionsLength(AllocationProc))  // First byte of ps0 now contains the exponent of the size of the current block
     // Write return address to psReturnAddr for Base2Exp to jump to after
 );
 AllocationProc = AllocationProc.concat(
-    writeMultiByte(ProcedureOffset + calculateInstructionsLength(AllocationProc) + calculateInstructionsLength("GTO #base2Exponent"), Addresses.psReturnAddr, 4),
+    writeMultiByte(ProcedureOffset + calculateInstructionsLength(AllocationProc) + calculateInstructionsLength(writeMultiByte(10, Addresses.psReturnAddr, 4)) + calculateInstructionsLength(["GTO #base2Exponent"]), Addresses.psReturnAddr, 4),
     [
         "GTO #base2Exponent",
         "AND 0",  // base2Exponent should jump back to here, and ps0 should now contain the full number of bytes requested
@@ -324,6 +330,7 @@ AllocationProc = AllocationProc.concat(
 AllocationProc = AllocationProc.concat(
     copyToAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The pointers in the old chunk now contain the start and end addresses of the new one
     [
+        "GTO #allocate_finish",
         "#allocate_global_all_chunks_searched AND 0",
         // All chunks have been searched, and no perfectly sized block has been found so split the smallest block in half and repeat until it is the right size
     ],
@@ -342,7 +349,7 @@ AllocationProc = AllocationProc.concat(
     ]
 );
 AllocationProc = AllocationProc.concat(
-    writeMultiByte(ProcedureOffset + calculateInstructionsLength(AllocationProc) + calculateInstructionsLength(["GTO #base2Exponent"]), Addresses.psReturnAddr, 4),
+    writeMultiByte(ProcedureOffset + calculateInstructionsLength(AllocationProc) + calculateInstructionsLength(writeMultiByte(10, Addresses.psReturnAddr, 4)) + calculateInstructionsLength(["GTO #base2Exponent"]), Addresses.psReturnAddr, 4),
     [
         "GTO #base2Exponent"  // ps0 now contains the size of the new block in bytes
     ]
@@ -629,6 +636,10 @@ AllocationProc = AllocationProc.concat(
         // THESE NEED TO BE WRITTEN WHEN ERROR HANDLING IS SET UP
         "#allocate_insufficient_space AND 0",  // Used in global allocation when there isn't enough space
         "#allocate_stack_overflow AND 0",  // Used in local (stack) allocation when there isn't enough space
+        // TEMPORARY.  NOTIFY INSUFFICIENT SPACE BY outputting F (142) on seven segment display
+        "ADD 142",
+        "OUT",
+        "END"
     ]
 );
 

@@ -192,6 +192,15 @@ function runInstructions(instructions, resetCPU=true, addEndInstruction=false){
     return onEndPromise;
 }
 
+function runSetup(){
+    // Run the setup procedure
+    let code = IntermediateFunctions["SETUP"]();
+    code.push("END");  // END instruction must be added here rather than by runInstructions, as otherwise calculateReplacementVariables will have the wrong length
+    calculateReplacementVariables(code);
+    performReplacements(code, replacements, replacementVariables);
+    return runInstructions(code);
+}
+
 function listInstructionAddresses(instructions, lastPreviousAddress){
     // Take a list of assembly code instructions, and prefix each with the memory location that it will be stored (useful for debugging)
     let newInstructions = [];

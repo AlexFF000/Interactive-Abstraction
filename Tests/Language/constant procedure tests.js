@@ -48,7 +48,10 @@ async function test_Base2ExponentProc_AllValues(){
     AllocationProc
     Procedure for allocating memory
 */
-
+var tests_AllocationProc_GlobalPool = [test_AllocationProc_GlobalPoolAllocateWhenEmpty, test_AllocationProc_GlobalPoolAllocateWhenHalfFull, test_AllocationProc_GlobalPoolAllocateWhenFull, test_AllocationProc_GlobalPoolReallocateDeallocated];
+var tests_AllocationProc_GlobalHeap = [test_AllocationProc_GlobalHeapAllocateWhenEmpty, test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull, test_AllocationProc_GlobalHeapReallocateDeallocated];
+var tests_AllocationProc_Local = [];
+var tests_AllocationProc = tests_AllocationProc_GlobalPool.concat(tests_AllocationProc_GlobalHeap, tests_AllocationProc_Local);
 // Tests for allocating on the int/float pool
 
 // Test1- Allocating when the pool is empty
@@ -59,11 +62,10 @@ async function test_AllocationProc_GlobalPoolAllocateWhenEmpty(){
         b) The PoolFreePointer points to the 6th byte of the pool
         c) The first four bytes of the next space after the one allocated (i.e. the 6th to 10th bytes of the pool) contain 0 (showing that there is no previously deallocated space)
     */
-   let code = IntermediateFunctions["SETUP"]();
-   // Add END instruction to jump back ot afterwards
-   code.push(
-        "GTO #test_afterEndInstruction",
-    );
+   // First run the setup procedure, so the runtime environment is setup and the procedures loaded into memory
+   await runSetup();
+   // Add END instruction to jump back to afterwards
+    let code = ["GTO #test_afterEndInstruction"];
     let endInstructionAddr = calculateInstructionsLength(code);
     code = code.concat(
     [
@@ -87,9 +89,8 @@ async function test_AllocationProc_GlobalPoolAllocateWhenEmpty(){
     [
         "GTO #allocate"
     ],
-    AllocationProc
     );
-   await runInstructions(code);
+   await runInstructions(code, false);
 
    // Check a
    let checkResult = assertMemoryEqualToInt(Addresses.IntFloatPool, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
@@ -110,7 +111,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenHalfFull(){
         c) The first four bytes of the next space after the one allocated contain 0
     */
    // Run setup first as it will overwrite PoolFreePointer
-   runInstructions(IntermediateFunctions["SETUP"]());
+   await runSetup();
    let poolMidSlot = Addresses.IntFloatPool + ((runtime_options.IntFloatPoolSize - 5) / 2);
    writeIntToMemory(poolMidSlot, Addresses.PoolFreePointer, 4);
    // Add END instruction to jump back ot afterwards
@@ -137,8 +138,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenHalfFull(){
     writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
     [
         "GTO #allocate"
-    ],
-    AllocationProc
+    ]
     );
    await runInstructions(code, false);
 
@@ -159,7 +159,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenFull(){
         a) The top value on the Eval stack contains an address, but not one from inside the pool
         b) The PoolFreePointer has not been changed
     */
-   runInstructions(IntermediateFunctions["SETUP"]());
+   await runSetup();
    writeIntToMemory(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
    // Add END instruction to jump back to afterwards
     let code = ["GTO #test_afterEndInstruction"];
@@ -186,7 +186,6 @@ async function test_AllocationProc_GlobalPoolAllocateWhenFull(){
     [
         "GTO #allocate"
     ],
-    AllocationProc
     );
    await runInstructions(code, false);
    
@@ -205,7 +204,7 @@ async function test_AllocationProc_GlobalPoolReallocateDeallocated(){
             a) The top value on the Eval stack contains the starting address of the deallocated space
             b) The PoolFreePointer points to the first space after the halfway point (a new space should not have been allocated)
     */
-    runInstructions(IntermediateFunctions["SETUP"]());
+    await runSetup();
     let poolMidSlot = Addresses.IntFloatPool + ((runtime_options.IntFloatPoolSize - 5) / 2);
     // Use the 10th space as the free one (the choice of 10th is arbitrary)
     let freeSlot = Addresses.IntFloatPool + (5 * 10);
@@ -236,7 +235,6 @@ async function test_AllocationProc_GlobalPoolReallocateDeallocated(){
     [
         "GTO #allocate"
     ],
-    AllocationProc
     );
    await runInstructions(code, false);
 
@@ -259,7 +257,7 @@ async function test_AllocationProc_GlobalHeapAllocateWhenEmpty(){
             c) The 2nd - 5th bytes of the free chunk contain 0 (meaning there is no next free chunk)
             d)  Starting from 0, heap[32] contains "5", heap[64] and heap[128] contain "6", heap[192] and heap[320] contain "7", this pattern continues and ends with the first byte in the second half of the heap, which contains x-1 where x is the size of the heap as an exponent of 2
     */
-   runInstructions(IntermediateFunctions["SETUP"]());
+   await runSetup();
    let code = ["GTO #test_afterEndInstruction"];
    let endInstructionAddr = calculateInstructionsLength(code);
    code = code.concat(
@@ -273,12 +271,11 @@ async function test_AllocationProc_GlobalHeapAllocateWhenEmpty(){
        ],
        writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
        writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
-       ["GTO #allocate"],
-       AllocationProc
+       ["GTO #allocate"]
    );
-   runInstructions(code, false);
+   await runInstructions(code, false);
    // Heap starts after the last instruction
-   let startOfHeap = calculateInstructionsLength(IntermediateFunctions["SETUP"]()) + calculateInstructionsLength(code);
+   let startOfHeap = calculateInstructionsLength(IntermediateFunctions["SETUP"]()) + calculateInstructionsLength(["END"]);
    // Check a
    let checkResult = assertMemoryEqualToInt(startOfHeap, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
    if (checkResult !== true) return checkResult;

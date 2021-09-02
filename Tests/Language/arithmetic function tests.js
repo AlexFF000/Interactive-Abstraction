@@ -6,7 +6,7 @@
     add32BitIntegers
     Function for adding two 32 bit integers, and leaving the result in ps3
 */
-tests_add32BitIntegers = [test_add32BitIntegers_nonLiterals, test_add32BitIntegers_zero_add_zero, test_add32BitIntegers_commutative, test_add32BitIntegers_carry, test_add32BitIntegers_largePos, test_add32BitIntegers_posAddNegForNeg, test_add32BitIntegers_posAddNegForPos, test_add32BitIntegers_negAddNegForNeg]
+var tests_add32BitIntegers = [test_add32BitIntegers_nonLiterals, test_add32BitIntegers_zero_add_zero, test_add32BitIntegers_commutative, test_add32BitIntegers_carry, test_add32BitIntegers_largePos, test_add32BitIntegers_posAddNegForNeg, test_add32BitIntegers_posAddNegForPos, test_add32BitIntegers_negAddNegForNeg]
 
 // Test1- providing non-literals
 async function test_add32BitIntegers_nonLiterals(){
@@ -75,7 +75,7 @@ async function test_add32BitIntegers_negAddNegForNeg(){
     sub32BitInteger
     Function for subtracting one 32 bit integer (subtrahend) from another (minuend), leaving the result in ps3
 */
-tests_sub32BitInteger = [test_sub32BitInteger_nonLiterals, test_sub32BitInteger_posSubPosForPos, test_sub32BitInteger_posSubPosForNeg, test_sub32BitInteger_posSubNegForPos, test_sub32BitInteger_negSubNegForPos, test_sub32BitInteger_negSubNegForNeg, test_sub32BitInteger_negSubPosForNeg];
+var tests_sub32BitInteger = [test_sub32BitInteger_nonLiterals, test_sub32BitInteger_posSubPosForPos, test_sub32BitInteger_posSubPosForNeg, test_sub32BitInteger_posSubNegForPos, test_sub32BitInteger_negSubNegForPos, test_sub32BitInteger_negSubNegForNeg, test_sub32BitInteger_negSubPosForNeg];
 
 // Test1 Providing non-literals
 async function test_sub32BitInteger_nonLiterals(){

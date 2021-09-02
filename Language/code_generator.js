@@ -94,22 +94,21 @@ function registerReplacement(varToReplaceWith, instructionIndex, instruction){
     return instruction;
 }
 
-// Scan intermediateCode and generate assembly code instructions
-var assemblyCode = [];
 
 function generate_code(intermediates){
     // Get setup code
-    SETUP();
+    let assemblyCode = SETUP();
     // Compile intermediates
     for (let i = 0; i < intermediates.length; i++){
         IntermediateFunctions[intermediates[i][0]](intermediates[i][1]);
     }
     assemblyCode.push("END");  // Add END instruction
-    calculateReplacementVariables();
+    calculateReplacementVariables(assemblyCode);
     performReplacements(assemblyCode, replacements, replacementVariables);
+    return assemblyCode;
 }
 
-function calculateReplacementVariables(){
+function calculateReplacementVariables(assemblyCode){
     // Calculate variables to be used for replacements (only works once code has been compiled)
     // InstructionsEndAddress (the first address following the end of global instructions)
     let instructionsEndAddr = calculateInstructionsLength(assemblyCode);
@@ -187,7 +186,7 @@ function writeMultiByte(value, address, addressesNeeded){
 
 function copy(srcAddress, dstAddress, bytes){
     // Return a list of instructions to copy specified number of bytes from source starting at srcAddress to destination starting at dstAddress
-    let instructs = [];
+    let instructs = ["AND 0"];
     for (let i = 0; i < bytes; i++){
         instructs.push(`ADD A ${srcAddress + i}`);
         instructs.push(`WRT ${dstAddress + i}`);
@@ -444,6 +443,7 @@ function SETUP(){
     // Setup the runtime environment
     // Start loading values into reserved area
     // Load location of start of stack into StackPointer
+    let assemblyCode = [];
     assemblyCode = assemblyCode.concat(
         writeMultiByte(Addresses.StackStart, Addresses.StackPointer, 4)
     );
@@ -597,4 +597,6 @@ function SETUP(){
     // Add constant procedures
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(AddConstantProcedures(assCodeLength));
+
+    return assemblyCode;
 }
