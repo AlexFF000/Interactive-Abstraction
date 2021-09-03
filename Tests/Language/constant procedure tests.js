@@ -291,16 +291,10 @@ async function test_AllocationProc_GlobalHeapAllocateWhenEmpty(){
    let firstByteAfterMidpoint = Math.floor((readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4)) / 2) + 1;
    let currentBlockPos = 32;
    let expectedExp = 5;
-   let incrementExp = false;
    while (currentBlockPos <= firstByteAfterMidpoint){
        checkResult = assertMemoryEqualToInt(expectedExp, startOfHeap + currentBlockPos, 1);
-       if (checkResult !== true) return `Test failed on check D with currentBlockPos = ${currentBlockPos} and expectedExp = ${expectedExp0}: ${checkResult}`;
-       // Only increment expectedExp every other loop
-       if (incrementExp){
-           expectedExp++;
-           incrementExp = false;
-        }
-        else incrementExp = true;
+       if (checkResult !== true) return `Test failed on check D with currentBlockPos = ${currentBlockPos} and expectedExp = ${expectedExp}: ${checkResult}`;
+        expectedExp++;
         currentBlockPos *= 2;
    }
    return true;
