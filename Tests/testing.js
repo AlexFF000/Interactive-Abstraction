@@ -41,7 +41,7 @@ function assertMemoryEqualToInt(expected, addressOfActual, noOfBytes){
     // Same as assertMemoryEqual but takes an integer for expected
     let binArray = [];
     for (let i = 0; i < noOfBytes; i++){
-        binArray.push(intToBinArray(getByteOfInt(expected, i)));
+        binArray.unshift(intToBinArray(getByteOfInt(expected, 3 - i)));
     }
     return assertMemoryEqual(binArray, addressOfActual, noOfBytes);
 }
