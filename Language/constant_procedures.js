@@ -266,6 +266,7 @@ AllocationProc = AllocationProc.concat(
 AllocationProc = AllocationProc.concat(
     copyToAddress(Addresses.ps3, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The pointers to this chunk now have the new start location
     [
+        "GTO #allocate_finish",
         "#allocate_global_block_found_not_chunkStart AND 0",
     ]
 );
@@ -322,13 +323,26 @@ AllocationProc = AllocationProc.concat(
     //      - chunkEnd already contains the end address
     // Copy chunkEnd to ps5 to allow a single call to copyToAddress()
     copy(chunkEnd, Addresses.ps5, 4),
-    copy(chunkStart, Addresses.psAddr)
+    copy(chunkStart, Addresses.psAddr, 4)
 );
 AllocationProc = AllocationProc.concat(
     incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocationProc))
 );
 AllocationProc = AllocationProc.concat(
     copyToAddress(Addresses.ps4, 8, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The pointers in the old chunk now contain the start and end addresses of the new one
+);
+AllocationProc = AllocationProc.concat(
+    // Update the chunkEnd pointer in the previous chunk
+    add32BitIntegers(blockStart, -1, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    copy(Addresses.ps3, Addresses.ps4, 4),  // ps4 now contains the last address of the old chunk
+);
+AllocationProc = AllocationProc.concat(
+    add32BitIntegers(previousChunkPointers, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc), false, true),
+    copy(Addresses.ps3, Addresses.psAddr, 4)
+);
+AllocationProc = AllocationProc.concat(
+    copyToAddress(Addresses.ps4, 4, ProcedureOffset + calculateInstructionsLength(AllocationProc)),  // The previous chunk's next chunk end pointer now points to the end of the new chunk
+    copy(blockStart, allocatedAddress, 4),  // allocatedAddress now contains the address of the allocated block
     [
         "GTO #allocate_finish",
         "#allocate_global_all_chunks_searched AND 0",

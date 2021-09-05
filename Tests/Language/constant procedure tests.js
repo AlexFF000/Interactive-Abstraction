@@ -309,11 +309,27 @@ async function test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull(){
             c) The first free chunk's next start pointer at heap[65-68] points to heap[8192], and heap[69-72] points to the last byte of the heap (as there should now be two free chunks, separated by the 4096 bytes just allocated)
             d) The second free chunk's next start pointer at heap[8193-8196] contains 0 (as there are no more free chunks)
     */
-   runInstructions(IntermediateFunctions["SETUP"]());
+   await runSetup();
    let startOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
-   writeIntToMemory(startOfHeap + 64, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
+   // writeIntToMemory(startOfHeap + 64, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
+   // Allocate 64 bytes
    let code = ["GTO #test_afterEndInstruction"];
    let endInstructionAddr = calculateInstructionsLength(code);
+   code = code.concat(
+       [ 
+       "END",
+       "#test_afterEndInstruction AND 0",
+       "ADD 6",
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"]
+   );
+   await runInstructions(code, false);
+   code = ["GTO #test_afterEndInstruction"];
+   endInstructionAddr = calculateInstructionsLength(code);
    code = code.concat(
        [
            "END",
@@ -326,10 +342,9 @@ async function test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull(){
        ],
        writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
        writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
-       ["GTO #allocate"],
-       AllocationProc
+       ["GTO #allocate"]
    );
-   runInstructions(code, false);
+   await runInstructions(code, false);
 
    // Check a
    let checkResult = assertMemoryEqualToInt(startOfHeap + 4096, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
