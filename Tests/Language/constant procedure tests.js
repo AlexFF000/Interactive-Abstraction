@@ -49,7 +49,7 @@ async function test_Base2ExponentProc_AllValues(){
     Procedure for allocating memory
 */
 var tests_AllocationProc_GlobalPool = [test_AllocationProc_GlobalPoolAllocateWhenEmpty, test_AllocationProc_GlobalPoolAllocateWhenHalfFull, test_AllocationProc_GlobalPoolAllocateWhenFull, test_AllocationProc_GlobalPoolReallocateDeallocated];
-var tests_AllocationProc_GlobalHeap = [test_AllocationProc_GlobalHeapAllocateWhenEmpty, test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull, test_AllocationProc_GlobalHeapReallocateDeallocated];
+var tests_AllocationProc_GlobalHeap = [test_AllocationProc_GlobalHeapAllocateWhenEmpty, test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull, test_AllocationProc_GlobalHeapReallocateDeallocated, test_AllocationProc_GlobalHeapAllocateLastBlockInChunk];
 var tests_AllocationProc_Local = [];
 var tests_AllocationProc = tests_AllocationProc_GlobalPool.concat(tests_AllocationProc_GlobalHeap, tests_AllocationProc_Local);
 // Tests for allocating on the int/float pool
@@ -367,18 +367,18 @@ async function test_AllocationProc_GlobalHeapInsufficientSpace(){
     // Allocate a 32 byte block, followed by three 2^(x-2) byte blocks (where x is the heap size as an exponent of 2)
     // Then request another 2^(x-2) bytes.  This should cause a NOT ENOUGH SPACE error
 }
-// Test8- Allocating from deallocated space
+// Test8- Allocating from deallocated space  TODO: UPDATE THIS WHEN DEALLOC PROCEDURE IS WRITTEN
 async function test_AllocationProc_GlobalHeapReallocateDeallocated(){
     // Allocate a 32 byte block, followed by three 2^(x-2) byte blocks (where x is the heap size as an exponent of 2)
     // Then deallocate the block starting at the halfway point of the heap
     // Then request another 2^(x-2) block
     // Then check that the top value on the eval stack is the address of the first byte after the midpoint of the heap (meaning the deallocated space was reallocated)
-    runInstructions(IntermediateFunctions["SETUP"]());
+    await runSetup();
     let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
     writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
     let code = [
         "ADD 5",
-        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`
+        `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
         `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
     ];
     code = code.concat(
@@ -388,7 +388,7 @@ async function test_AllocationProc_GlobalHeapReallocateDeallocated(){
             "GTO #allocate",
             "AND 0",
             `ADD ${heapSizeBase2 - 2}`,
-            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
             `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
         ]
     );
@@ -398,7 +398,7 @@ async function test_AllocationProc_GlobalHeapReallocateDeallocated(){
             "GTO #allocate",
             "AND 0",
             `ADD ${heapSizeBase2 - 2}`,
-            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
             `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
         ]
     );
@@ -408,7 +408,7 @@ async function test_AllocationProc_GlobalHeapReallocateDeallocated(){
             "GTO #allocate",
             "AND 0",
             `ADD ${heapSizeBase2 - 2}`,
-            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`
+            `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
             `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
         ]
     );
@@ -418,11 +418,10 @@ async function test_AllocationProc_GlobalHeapReallocateDeallocated(){
             "GTO #allocate",
             "END",
         ],
-        AllocationProc
     );
     runInstructions(code, false);
     // Deallocate the block at the halfway point
-    let firstByteAfterMidpoint = Addresses.GlobalArea + Offsets.frame.HeapStartPointer + Math.floor((readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4)) / 2) + 1;
+    let firstByteAfterMidpoint = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4) + Math.floor((readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4)) / 2) + 1;
     writeIntToMemory(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4), firstByteAfterMidpoint + 1, 4);
     writeIntToMemory(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, 4), firstByteAfterMidpoint + 5, 4);
     writeIntToMemory(firstByteAfterMidpoint, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
@@ -445,7 +444,62 @@ async function test_AllocationProc_GlobalHeapReallocateDeallocated(){
 }
 // Test9- Allocating last block in chunk
 async function test_AllocationProc_GlobalHeapAllocateLastBlockInChunk(){
-    // Check the pointer to the end of the chunk points to the new end of the chunk (the byte before the start of the allocated block)
+    // Allocate a 32 byte (2 ^ 5) block, followed by a 2^(x-1) block (where x is the heap size as an exponent of 2), therefore leaving a large free chunk between the allocated blocks
+    // Then allocate a 2^(x-2) block, as this will allocate the last block in the chunk.
+    // Then check that the pointer to the end of the chunk points to the new end of the chunk (the byte before the start of the allocated block)
+    await runSetup();
+    let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
+    // Allocate 32 bytes
+    let code = ["GTO #test_afterEndInstruction"];
+    let endInstructionAddr = calculateInstructionsLength(code);
+    code = code.concat(
+       [ 
+       "END",
+       "#test_afterEndInstruction AND 0",
+       "ADD 5",
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"]
+    );
+    await runInstructions(code, false);
+    // Allocate 2^(x-1) bytes
+    code = ["GTO #test_afterEndInstruction"];
+    endInstructionAddr = calculateInstructionsLength(code);
+    code = code.concat(
+       [ 
+       "END",
+       "#test_afterEndInstruction AND 0",
+       `ADD ${heapSizeBase2 - 1}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"]
+    );
+    await runInstructions(code, false);
+    // Allocate 2^(x-2) bytes
+    code = ["GTO #test_afterEndInstruction"];
+    endInstructionAddr = calculateInstructionsLength(code);
+    code = code.concat(
+       [ 
+       "END",
+       "#test_afterEndInstruction AND 0",
+       `ADD ${heapSizeBase2 - 2}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"]
+    );
+    await runInstructions(code, false);
+    // Calculate the correct end address of the first chunk (should be the byte before the 2^(x-2) block before the midpoint)
+    let expectedChunkEnd = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4) + (((2 ** (heapSizeBase2 - 1)) - 1) - (2 ** (heapSizeBase2 - 2)))
+    return assertMemoryEqualToInt(expectedChunkEnd, Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, 4);
 }
 // Test10- Allocating first block in chunk
 async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
