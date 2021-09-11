@@ -121,12 +121,20 @@ function calculateReplacementVariables(assemblyCode){
     // Calculate Heap details
     let heapSizeBase2 = Math.floor(Math.log2((reservedArea - 1) - instructionsEndAddr));
     replacementVariables["HeapSizeBase2"] = heapSizeBase2;
+    // The address after the end of the heap
     let heapEndAddress = instructionsEndAddr + 2 ** heapSizeBase2;
     replacementVariables["HeapEndAddress"] = heapEndAddress;
     replacementVariables["HeapEndAddress[0]"] = getByte(heapEndAddress, 0);
     replacementVariables["HeapEndAddress[1]"] = getByte(heapEndAddress, 1);
     replacementVariables["HeapEndAddress[2]"] = getByte(heapEndAddress, 2);
     replacementVariables["HeapEndAddress[3]"] = getByte(heapEndAddress, 3);
+    // The last address in the heap
+    let heapLastAddress = heapEndAddress - 1;
+    replacementVariables["HeapLastAddress"] = heapLastAddress;
+    replacementVariables["HeapLastAddress[0]"] = getByte(heapLastAddress, 0);
+    replacementVariables["HeapLastAddress[1]"] = getByte(heapLastAddress, 1);
+    replacementVariables["HeapLastAddress[2]"] = getByte(heapLastAddress, 2);
+    replacementVariables["HeapLastAddress[3]"] = getByte(heapLastAddress, 3);
 }
 
 function performReplacements(intermediates, requestedReplacements, variables){
@@ -506,25 +514,34 @@ function SETUP(){
         `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer + 3}`,
         `WRT ${Addresses.psAddr + 3}`,
         "AND 0",
-        // Write heap end address (this could be worked out at runtime, but requires finding a logarithm so it is much more efficient to calculate it at compile time).  Also write to StartChunkEnd
+        // Write heap end address (this could be worked out at runtime, but requires finding a logarithm so it is much more efficient to calculate it at compile time)
         registerReplacement("HeapEndAddress[0]", assemblyCode.length + 20, "ADD #"),
         `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer}`,
+        "AND 0",
+        registerReplacement("HeapEndAddress[1]", assemblyCode.length + 23, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 1}`,
+        "AND 0",
+        registerReplacement("HeapEndAddress[2]", assemblyCode.length + 26, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 2}`,
+        "AND 0",
+        registerReplacement("HeapEndAddress[3]", assemblyCode.length + 29, "ADD #"),
+        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 3}`,
+        "AND 0",
+        // Load address of last byte of heap into StartChunkEndPointer
+        registerReplacement("HeapLastAddress[0]", assemblyCode.length + 32, "ADD #"),
         `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer}`,
         "AND 0",
-        registerReplacement("HeapEndAddress[1]", assemblyCode.length + 24, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 1}`,
+        registerReplacement("HeapLastAddress[1]", assemblyCode.length + 35, "ADD #"),
         `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 1}`,
         "AND 0",
-        registerReplacement("HeapEndAddress[2]", assemblyCode.length + 28, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 2}`,
+        registerReplacement("HeapLastAddress[2]", assemblyCode.length + 38, "ADD #"),
         `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 2}`,
         "AND 0",
-        registerReplacement("HeapEndAddress[3]", assemblyCode.length + 32, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 3}`,
+        registerReplacement("HeapLastAddress[3]", assemblyCode.length + 41, "ADD #"),
         `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 3}`,
         "AND 0",
         // Place size of first block (which will be size of whole heap as nothing has been allocated yet) in first position
-        registerReplacement("HeapSizeBase2", assemblyCode.length + 36, "ADD #"),
+        registerReplacement("HeapSizeBase2", assemblyCode.length + 44, "ADD #"),
         `WRT A ${Addresses.psAddr}`,
         "AND 0",
     ]);
