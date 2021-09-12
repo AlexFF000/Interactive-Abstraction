@@ -562,7 +562,7 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
     );
     await runInstructions(code, false);
     let firstByteAfterMidpoint = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4) + Math.floor((readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4)) / 2) + 1;
-    let startOfHeap = readMemoryAsInt(Addreses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
+    let startOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
     let lastByteOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - 1;
     // Check a
     let checkResult = assertMemoryEqualToInt(startOfHeap + 64, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
