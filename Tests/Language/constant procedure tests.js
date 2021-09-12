@@ -508,7 +508,7 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
     /*
         Then afterwards check that:
             a) StartChunkPointer points to heapAddress + 64 (the new start of the chunk)
-            b) heap[65-68] points to the address after the heap midpoint (meaning the next chunk start pointer was correctly moved)
+            b) heap[65-68] points to the heap midpoint (meaning the next chunk start pointer was correctly moved)
             c) heap[69-72] points to the last byte in the heap (meaning the next chunk end pointer was moved correctly)
     */
     await runSetup();
@@ -561,14 +561,14 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
        ["GTO #allocate"]
     );
     await runInstructions(code, false);
-    let firstByteAfterMidpoint = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4) + Math.floor((readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4)) / 2) + 1;
+    let heapMidpoint = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4) + Math.floor((readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4)) / 2);
     let startOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
     let lastByteOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - 1;
     // Check a
     let checkResult = assertMemoryEqualToInt(startOfHeap + 64, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
     if (checkResult !== true) return checkResult;
     // Check b
-    checkResult = assertMemoryEqualToInt(firstByteAfterMidpoint, startOfHeap + 65, 4);
+    checkResult = assertMemoryEqualToInt(heapMidpoint, startOfHeap + 65, 4);
     if (checkResult !== true) return checkResult;
     // Check c
     return assertMemoryEqualToInt(lastByteOfHeap, startOfHeap + 69, 4);
