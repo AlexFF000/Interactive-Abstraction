@@ -14,6 +14,7 @@ async function runTests(tests){
                 passed++;
                 console.log(`${t.name}: PASS`);
             }
+            else if (result === "NOT IMPLEMENTED") console.log(`${t.name}: TEST NOT IMPLEMENTED`);
             else console.log(`${t.name}: FAIL: ${result}`);
         }
         catch (e){

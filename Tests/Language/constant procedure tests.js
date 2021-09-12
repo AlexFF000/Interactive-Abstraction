@@ -49,8 +49,8 @@ async function test_Base2ExponentProc_AllValues(){
     Procedure for allocating memory
 */
 var tests_AllocationProc_GlobalPool = [test_AllocationProc_GlobalPoolAllocateWhenEmpty, test_AllocationProc_GlobalPoolAllocateWhenHalfFull, test_AllocationProc_GlobalPoolAllocateWhenFull, test_AllocationProc_GlobalPoolReallocateDeallocated];
-var tests_AllocationProc_GlobalHeap = [test_AllocationProc_GlobalHeapAllocateWhenEmpty, test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull, test_AllocationProc_GlobalHeapReallocateDeallocated, test_AllocationProc_GlobalHeapAllocateLastBlockInChunk, test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk];
-var tests_AllocationProc_Local = [];
+var tests_AllocationProc_GlobalHeap = [test_AllocationProc_GlobalHeapAllocateWhenEmpty, test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull, test_AllocationProc_GlobalHeapInsufficientSpace, test_AllocationProc_GlobalHeapReallocateDeallocated, test_AllocationProc_GlobalHeapAllocateLastBlockInChunk, test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk, test_AllocationProc_GlobalHeapAllocateMidBlockInChunk];
+var tests_AllocationProc_Local = [test_AllocationProc_FrameHeapAllocateWhenEmpty, test_AllocationProc_FrameHeapInsufficientSpace, test_AllocationProc_FrameHeapReallocateDeallocated, test_AllocationProc_FrameHeapAllocateFromTooLargeChunk, test_AllocationProc_FrameHeapAllocateLastChunkPartial, test_AllocationProc_FrameHeapAllocateLastChunkWhole];
 var tests_AllocationProc = tests_AllocationProc_GlobalPool.concat(tests_AllocationProc_GlobalHeap, tests_AllocationProc_Local);
 // Tests for allocating on the int/float pool
 
@@ -196,7 +196,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenFull(){
    return assertMemoryEqualToInt(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
 }
 // Test4- Reallocating previously deallocated space
-async function test_AllocationProc_GlobalPoolReallocateDeallocated(){
+async function test_AllocationProc_GlobalPoolReallocateDeallocated(){ return "NOT IMPLEMENTED";
     // Fill half of the free spaces in the pool, then deallocate one of these spaces (but not one at the start or end)
     // Then use Eval stack to request a space and run the procedure
     /*
@@ -363,12 +363,12 @@ async function test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull(){
    return assertMemoryEqualToInt(0, startOfHeap + 8193, 4);
 }
 // Test7- Allocating when heap has no large enough blocks
-async function test_AllocationProc_GlobalHeapInsufficientSpace(){
+async function test_AllocationProc_GlobalHeapInsufficientSpace(){ return "NOT IMPLEMENTED";
     // Allocate a 32 byte block, followed by three 2^(x-2) byte blocks (where x is the heap size as an exponent of 2)
     // Then request another 2^(x-2) bytes.  This should cause a NOT ENOUGH SPACE error
 }
 // Test8- Allocating from deallocated space  TODO: UPDATE THIS WHEN DEALLOC PROCEDURE IS WRITTEN
-async function test_AllocationProc_GlobalHeapReallocateDeallocated(){
+async function test_AllocationProc_GlobalHeapReallocateDeallocated(){ return "NOT IMPLEMENTED";
     // Allocate a 32 byte block, followed by three 2^(x-2) byte blocks (where x is the heap size as an exponent of 2)
     // Then deallocate the block starting at the halfway point of the heap
     // Then request another 2^(x-2) block
@@ -574,13 +574,13 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
     return assertMemoryEqualToInt(lastByteOfHeap, startOfHeap + 69, 4);
 }
 // Test11- Allocating block in middle of chunk
-async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){
+async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){ return "NOT IMPLEMENTED";
     // Check the area after the allocated block has been turned into a new chunk, the pointers in the existing chunk now point to the new chunk, and the new chunks pointers point to whichever chunk the existing chunk pointed to before
 }
 // Tests for allocation within stack frame
 
 // Test12- Allocating when frame heap is empty
-async function test_AllocationProc_FrameHeapAllocateWhenEmpty(){
+async function test_AllocationProc_FrameHeapAllocateWhenEmpty(){ return "NOT IMPLEMENTED";
     // Request the smallest allowed space (32 bytes) and run the procedure
     /*
         Then afterwards check that:
@@ -591,12 +591,12 @@ async function test_AllocationProc_FrameHeapAllocateWhenEmpty(){
     */
 }
 // Test13- Allocating when there is not enough space left on stack
-async function test_AllocationProc_FrameHeapInsufficientSpace(){
+async function test_AllocationProc_FrameHeapInsufficientSpace(){ return "NOT IMPLEMENTED";
     // Request an amount of space larger than what is left on the stack and run the procedure
     // This should throw a NOT ENOUGH SPACE error
 }
 // Test14- Allocating from deallocated space
-async function test_AllocationProc_FrameHeapReallocateDeallocated(){
+async function test_AllocationProc_FrameHeapReallocateDeallocated(){ return "NOT IMPLEMENTED";
     // Allocate 256 bytes on the heap
     // Then deallocate 64 bytes at frame heap start + 128
     // Then request 32 bytes and run the procedure
@@ -608,14 +608,14 @@ async function test_AllocationProc_FrameHeapReallocateDeallocated(){
     */
 }
 // Test15- Allocating from a chunk that is too large (but which is not the first chunk)
-async function test_AllocationProc_FrameHeapAllocateFromTooLargeChunk(){
+async function test_AllocationProc_FrameHeapAllocateFromTooLargeChunk(){ return "NOT IMPLEMENTED";
     
 }
 // Test16- Allocating part of the last chunk
-async function test_AllocationProc_FrameHeapAllocateLastChunkPartial(){
+async function test_AllocationProc_FrameHeapAllocateLastChunkPartial(){ return "NOT IMPLEMENTED";
     // Make sure StackPointer and LastChunkStartPointer now point to the new start of the chunk, as well as the previous chunk's pointers.  Also make sure the size field in the new chunk is correct
 }
 // Test17- Allocating the whole last chunk
-async function test_AllocationProc_FrameHeapAllocateLastChunkWhole(){
+async function test_AllocationProc_FrameHeapAllocateLastChunkWhole(){ return "NOT IMPLEMENTED";
     // Make sure the previous chunk's pointer to the start of next chunk contains 0, and StackPointer and lastChunkStartPointer point to the address after the end of the stack
 }
