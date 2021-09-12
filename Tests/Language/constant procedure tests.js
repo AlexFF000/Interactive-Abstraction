@@ -503,7 +503,8 @@ async function test_AllocationProc_GlobalHeapAllocateLastBlockInChunk(){
 }
 // Test10- Allocating first block in chunk
 async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
-    // Allocate a 32 (2^5) byte block, followed by a 2^(x-2) block (where x is the size of the heap as an exponent of 2).  This will leave a large free chunk between the two allocated blocks, and another free chunk after the midpoint of the heap
+    // Allocate a 32 (2^5) byte block, followed by a 2^(x-2) block (where x is the size of the heap as an exponent of 2).  This will leave a large free chunk between the two allocated blocks, and another free chunk starting at the midpoint of the heap
+    // Although the second free chunk is not used, it must exist to be able to check if the pointers are correct (as otherwise the pointers would contain 0, the same value as unwritten memory addresses)
     // Then allocate another 32 byte block, thus allocating the first block in the chunk
     /*
         Then afterwards check that:
@@ -574,8 +575,84 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
     return assertMemoryEqualToInt(lastByteOfHeap, startOfHeap + 69, 4);
 }
 // Test11- Allocating block in middle of chunk
-async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){ return "NOT IMPLEMENTED";
-    // Check the area after the allocated block has been turned into a new chunk, the pointers in the existing chunk now point to the new chunk, and the new chunks pointers point to whichever chunk the existing chunk pointed to before
+async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){
+    // Allocate a 32 (2^5) byte block, followed by a 2^(x-2) block (where x is the size of the heap as an exponent of 2).  This will leave 2 free chunks, one starting at heap[32] and the other at the midpoint
+    // Although the second free chunk is not used, it must exist to be able to check if the pointers are correct (as otherwise the pointers would contain 0, the same value as unwritten memory addresses)
+    // Then allocate a 128 (2^7) byte block (this size is arbitrary, we could allocate any block in the first free chunk as long as it isn't the first or last (i.e. any size between 2^6 and 2^(x-3) would be suitable))
+    /*
+        Then afterwards check that:
+            a) The next chunk start pointer (at heap[33-36]) in the first chunk points to heap[256] (meaning the first chunk's next chunk start pointer has been correctly updated)
+            b) The next chunk end pointer (at heap[37-40]) in the first chunk contains the original end pointer for the first chunk (i.e. the end point of the first chunk before the 2^7 block was allocated) (this means the first chunk's next chunk end pointer has been correctly updated)
+            c) The pointers starting at heap[257] are the same as the next chunk pointers from the original first chunk (i.e. the next chunk start and end pointers from the first chunk, before the 2^7 block was allocated) (this means the new chunk has correctly been given the pointers to the next chunk)
+    */
+   await runSetup();
+   let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
+   // Allocate 32 byte block
+    let code = ["GTO #test_afterEndInstruction"];
+    let endInstructionAddr = calculateInstructionsLength(code);
+    code = code.concat(
+       [ 
+       "END",
+       "#test_afterEndInstruction AND 0",
+       "ADD 5",
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"]
+    );
+    await runInstructions(code, false);
+    // Allocate 2^(x-2) bytes
+    code = ["GTO #test_afterEndInstruction"];
+    endInstructionAddr = calculateInstructionsLength(code);
+    code = code.concat(
+       [ 
+       "END",
+       "#test_afterEndInstruction AND 0",
+       `ADD ${heapSizeBase2 - 2}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"]
+    );
+    await runInstructions(code, false);
+    // Record the pointers for and from the first chunk
+    let originalFirstChunkEnd = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer, 4);
+    let originalFirstChunkStart = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
+    let orignalFirstChunkNextChunkStartPointer = readMemoryAsInt(originalFirstChunkStart + 1, 4);
+    let originalFirstChunkNextChunkEndPointer = readMemoryAsInt(originalFirstChunkStart + 5, 4);
+    // Allocate 2^7 byte block
+    code = ["GTO #test_afterEndInstruction"];
+    endInstructionAddr = calculateInstructionsLength(code);
+    code = code.concat(
+       [ 
+       "END",
+       "#test_afterEndInstruction AND 0",
+       `ADD 7`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart}`,
+       `WRT ${Addresses.GlobalArea + Offsets.frame.EvalStart + 2}`
+       ],
+       writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4),
+       writeMultiByte(endInstructionAddr, Addresses.psReturnAddr, 4),
+       ["GTO #allocate"]
+    );
+    await runInstructions(code, false);
+    let startOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(startOfHeap + 256, startOfHeap + 33, 4);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    checkResult = assertMemoryEqualToInt(originalFirstChunkEnd, startOfHeap + 37, 4);
+    if (checkResult !== true) return checkResult;
+    // Check c
+    // I
+    checkResult = assertMemoryEqualToInt(orignalFirstChunkNextChunkStartPointer, startOfHeap + 257, 4);
+    if (checkResult !== true) return checkResult;
+    // II
+    return assertMemoryEqualToInt(originalFirstChunkNextChunkEndPointer, startOfHeap + 261, 4);
 }
 // Tests for allocation within stack frame
 
