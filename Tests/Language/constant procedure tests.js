@@ -1,7 +1,6 @@
 /*
     Automated tests for testing runtime constant procedures.
     The tests use functions from the testing.js file.
-    Before running replace **place procedure here** with the code of the procedure to be tested
 */
 
 /* 

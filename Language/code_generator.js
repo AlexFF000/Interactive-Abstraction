@@ -447,6 +447,49 @@ function checkZero(address, bytes, branchAddressIfZero, branchAddressIfNotZero){
     return instructs;
 }
 
+function generateByteSequence(inputSeq, length){
+    // Generate a sequence of bytes described by the input sequence
+    /*
+        inputSeq syntax:
+        Should be an array, containing an element describing each byte of the output sequence
+            - Any byte not described will be set to 0 in the output sequence
+        Descriptions should be one of:
+            - An integer
+                - This integer will be used as the output byte
+            - "<"
+                - This indicates that the integer from the previous integer byte should take up both that byte and this one
+                - e.g. [300, "<"] would mean that 300 is a 2 byte number to be written across two bytes in the output sequence (so the output would be [1, 44])
+                - This can also be used across more than two bytes.  e.g. [300, "<", "<", "<"] would write the 300 across four bytes (so output would be [0, 0, 1, 44]).  This only supports up to 4 bytes  
+    */
+    let outputSeq = [];
+    // Use 0's for any bytes without descriptions
+    for (let i = 0; i < length - inputSeq.length; i++){
+        outputSeq.unshift(0);
+    }
+    // Generate bytes from descriptions
+    let bytesNeeded = 1;
+    for (let i = inputSeq.length - 1; 0 <= i; i--){
+        if (inputSeq[i] == "<"){
+            bytesNeeded++;
+        }
+        else if (typeof inputSeq[i] == "number"){
+            for (let j = 0; j < bytesNeeded; j++){
+                outputSeq.unshift((inputSeq[i] >> (j * 8)) & 255)
+            }
+            bytesNeeded = 1;
+        }
+        else throw "Invalid input";
+    }
+    if (outputSeq.length != length) throw "Failed to generate a sequence of given length";
+    return outputSeq;
+}
+
+function createVariableTable(){
+    // Return instructions to create a variable table in the current scope (this function only handles creating new tables, not expansion tables)
+    // First need to allocate the space for the table
+    let instructs = pushToEvalStack(generateByteSequence([Math.log2(runtime_options.VariableTableSize)], 5));
+}
+
 function SETUP(){
     // Setup the runtime environment
     // Start loading values into reserved area
@@ -614,6 +657,11 @@ function SETUP(){
     // Add constant procedures
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(AddConstantProcedures(assCodeLength));
+    // Create global variable table and name pool
+    assemblyCode = assemblyCode.concat(
+        createVariableTable(),
+        createNamePool()
+    );
 
     return assemblyCode;
 }
