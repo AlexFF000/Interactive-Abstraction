@@ -7,6 +7,8 @@ var breakInstructionAddresses = [];  // List of addresses (as ints) of instructi
 async function runTests(tests){
     // Takes list of test functions, and runs them, reporting the results of each
     let passed = 0;
+    let notImplemented = 0;
+    let failed = 0;
     for (let t of tests){
         try{
             let result = await t();
@@ -14,14 +16,23 @@ async function runTests(tests){
                 passed++;
                 console.log(`${t.name}: PASS`);
             }
-            else if (result === "NOT IMPLEMENTED") console.log(`${t.name}: TEST NOT IMPLEMENTED`);
-            else console.log(`${t.name}: FAIL: ${result}`);
+            else if (result === "NOT IMPLEMENTED") {
+                notImplemented++;
+                console.log(`${t.name}: TEST NOT IMPLEMENTED`);
+            }
+            else {
+                failed++;
+                console.log(`${t.name}: FAIL: ${result}`);
+            }
         }
         catch (e){
+            failed++;
             console.log(`${t.name}: ERROR: ${e}`);
         }
     }
     console.log(`${passed}/${tests.length} passed`);
+    if (notImplemented != 0) console.log(`${notImplemented} not implemented`);
+    if (failed != 0) console.log(`${failed} failed`);
 }
 
 function assertMemoryEqual(expected, addressOfActual, noOfBytes){
