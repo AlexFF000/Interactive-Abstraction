@@ -484,10 +484,87 @@ function generateByteSequence(inputSeq, length){
     return outputSeq;
 }
 
-function createVariableTable(){
+function allocateMemory(spaceNeeded, instructionsLength, typeTag=0, forceGlobal=false, copyResult=true, copyResultDst=Addresses.ps0){
+    /*
+        spaceNeeded should be given as an exponent of 2
+        if typeTag is set to a type that can utilise the int/float pool, and the memory is to be allocated globally, the memory will be allocated on the int/float pool (if it has space)
+            - typeTag does not need to be provided otherwise
+        if forceGlobal is true, the memory will be allocated globally regardless of whether current scope is global
+        if copyResult is true, the address of the allocated area will be copied from the eval stack to the 4 addresses starting at copyResultDst
+    */
+    // Call AllocationProc
+    let instructs = EvalStack.pushLiteral(generateByteSequence([spaceNeeded, typeTag, Number(forceGlobal)], 5), instructionsLength);
+    instructs = instructs.concat(
+        writeMultiByte(instructionsLength + calculateInstructionsLength(instructs.concat(writeMultiByte(5, 5, 4), ["GTO #allocate"])), Addresses.psReturnAddr, 4),
+        [
+            "GTO #allocate"
+        ]
+    )
+    if (copyResult){
+        // Copy result into addresses specified in copyResultDst, and remove layer from eval stack
+        instructs = instructs.concat(
+            copy(Addresses.EvalTop, Addresses.psAddr, 4)
+        )
+        instructs = instructs.concat(
+            copyFromAddress(copyResultDst, 4, instructionsLength + calculateInstructionsLength(instructs))
+        )
+        instructs = instructs.concat(
+            EvalStack.removeLayer(instructionsLength + calculateInstructionsLength(instructs))
+        )
+    }
+    return instructs;
+}
+
+function createVariableTable(instructionsLength, parentAddress=false){
     // Return instructions to create a variable table in the current scope (this function only handles creating new tables, not expansion tables)
+    // If parentAddress contains a number, it will be used as the address for the parent entry.  Otherwise the address of the global variable table will be used
+    if (typeof parentAddress != "number") parentAddress = Addresses.GlobalArea + Offsets.frame.VariableTable;
     // First need to allocate the space for the table
-    let instructs = pushToEvalStack(generateByteSequence([Math.log2(runtime_options.VariableTableSize)], 5));
+    let instructs = allocateMemory(Math.log2(runtime_options.VariableTableSize), instructionsLength);
+    let tableAddressPointer = Addresses.ps0;  // Pointer to the start address of the space allocated for the table
+    // Set up variable table in the allocated space
+
+    // Construct headers (Do this in registers then copy all the headers over to the allocated space)
+    instructs.push(
+        // Load type tag into first byte
+        "AND 0",
+        `ADD ${type_tags.var_table}`,
+        `WRT ${Addresses.ps1}`,
+        // Load table length (number of entries) into second-third bytes.  Set this to 1 as we will create a parent entry in the table
+        "AND 0",
+        `WRT ${Addresses.ps1 + 1}`,
+        "ADD 1",
+        `WRT ${Addresses.ps1 + 2}`,
+        "AND 0",
+        // Fourth byte holds the number of expansion tables (will be 0 as there aren't any yet)
+        `WRT ${Addresses.ps1 + 3}`,
+        // Fifth-sixth bytes contain index of next free slot (these start from 1 to allow 0 to indicate the table is full. Set to 2 to point to second slot, as we will put the parent entry in the first)
+        `WRT ${Addresses.ps2}`,
+        "ADD 2",
+        `WRT ${Addresses.ps2 + 1}`,
+        // Set up parent entry in first slot (this is not part of headers, but makes sense to do this now)
+        "AND 0",
+        `ADD ${type_tags.var_table_entry}`,
+        `WRT ${Addresses.ps2 + 2}`,
+        // Set name length to 0, as the parent entry doesn't have a name
+        "AND 0",
+        `WRT ${Addresses.ps2 + 3}`,
+        // Write parentAddress
+    );
+    instructs = instructs.concat(
+        writeMultiByte(parentAddress, Addresses.ps4, 4)
+    )
+    instructs.push(
+        // Make sure the second slot's index of next free slot contains 0
+        `WRT ${Addresses.ps5 + 2}`,  // Index stored in third-fourth byte of free slots (where the name address would be if the slot wasn't empty.  Can't be stored in first two bytes as otherwise this slot might be misinterpreted as a non-empty slot when searching the table)
+        `WRT ${Addresses.ps5 + 3}`
+    );
+    instructs = instructs.concat(
+        writeMultiByte(tableAddressPointer, Addresses.psAddr, 4)
+    );
+    instructs.concat(
+        copyToAddress(Addresses.ps1, 20, instructionsLength + calculateInstructionsLength(instructs))
+    )
 }
 
 function SETUP(){
