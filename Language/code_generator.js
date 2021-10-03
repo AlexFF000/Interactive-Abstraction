@@ -183,9 +183,9 @@ function writeMultiByte(value, address, addressesNeeded){
     let instructs = ["AND 0"];
     for (let i = 0; i < addressesNeeded; i++){
         // Add and write, one byte at a time
-        let byteValue = getByte(value, i);
+        let byteValue = getByte(value, 3 - i);
         instructs.push(`ADD ${byteValue}`);
-        instructs.push(`WRT ${address + i}`);
+        instructs.push(`WRT ${address + ((addressesNeeded - 1)- i)}`);
         // And with 0 so accumulator is clear ready for next instruction
         instructs.push("AND 0");
     }
@@ -658,10 +658,10 @@ function SETUP(){
     assCodeLength = calculateInstructionsLength(assemblyCode);
     assemblyCode = assemblyCode.concat(AddConstantProcedures(assCodeLength));
     // Create global variable table and name pool
-    assemblyCode = assemblyCode.concat(
+    /* assemblyCode = assemblyCode.concat(
         createVariableTable(),
         createNamePool()
-    );
+    ); */
 
     return assemblyCode;
 }

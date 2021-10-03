@@ -96,7 +96,7 @@ function writeMemory(value, address){
 function writeIntToMemory(integer, address, bytes){
     // Write the integer to the bytes starting at the given address
     for (let i = 0; i < bytes; i++){
-        writeMemory(intToBinArray(getByteOfInt(integer, i)), address + i);
+        writeMemory(intToBinArray(getByteOfInt(integer, 3 - i)), address + ((bytes - 1) - i));
     }
 }
 
