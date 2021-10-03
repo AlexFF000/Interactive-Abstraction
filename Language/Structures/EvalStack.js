@@ -2,7 +2,7 @@
     Methods for generating code for managing evaluation stacks
 */
 
-static class EvalStack{
+class EvalStack{
     
     static addLayer(instructionsLength){
         // Return instructions to add layer to current scope's eval stack (or raise error if there is not enough space)
@@ -11,6 +11,9 @@ static class EvalStack{
             `RED ${Addresses.EvalSlotsUsed}`,
             `SUB ${runtime_options.EvalStackSize}`,
             // `BIZ EvalFullError`  // THIS NEEDS TO BE COMPLETED WHEN ERROR HANDLING IS SET UP
+            // Increment EvalSlotsUsed
+            `ADD ${runtime_options.EvalStackSize + 1}`,  // Better to just re-add EvalStackSize to get current value of EvalSlotsUsed, as addition is faster than loading from memory
+            `WRT ${Addresses.EvalSlotsUsed}`
         ];
         // Increment EvalTop pointer by 5 to add another layer
         return instructs.concat(
@@ -43,8 +46,8 @@ static class EvalStack{
 
     static pushLiteral(bytesSequence, instructionsLength){
         // Add new layer to Eval stack and write the given bytes to it
-        let instructs = addEvalStackLayer(instructionsLength);
-        return instructs.concat(writeLiteralEvalTopItem(bytesSequence, instructionLength + calculateInstructionsLength(instructs)));
+        let instructs = this.addLayer(instructionsLength);
+        return instructs.concat(this.writeToTopLayer(bytesSequence, instructionsLength + calculateInstructionsLength(instructs)));
     }
     
     static copyToTopLayer(srcAddress, instructionsLength){
@@ -73,6 +76,6 @@ static class EvalStack{
             `ADD ${bytesSequence[4]}`,
             `WRT ${Addresses.ps3}`
         ];
-        return instructs.concat(copyToTopLayer(Addresses.ps2, instructionsLength + calculateInstructionsLength(instructs)));
+        return instructs.concat(this.copyToTopLayer(Addresses.ps2, instructionsLength + calculateInstructionsLength(instructs)));
     }
 }

@@ -87,7 +87,7 @@ async function test_EvalStack_writeLiteralToTopLayer(){
    await runInstructions(EvalStack.writeToTopLayer([5, 6, 7, 8, 9], 0), false, true);
    let checkResult;
    for (let i = 5; i < 10; i++){
-        checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5, 1);
+        checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5 + (i - 5), 1);
         if (checkResult !== true) return checkResult;
    }
    return true;
@@ -105,7 +105,7 @@ async function test_EvalStack_copyToTopLayer(){
     await runInstructions(EvalStack.copyToTopLayer(Addresses.ps0, 0), false, true);
     let checkResult;
     for (let i = 5; i < 10; i++){
-        checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5, 1);
+        checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5 + (i - 5), 1);
         if (checkResult !== true) return checkResult;
     }
     return true;
@@ -120,7 +120,7 @@ async function test_EvalStack_writeLiteralToNewLayer(){
     await runInstructions(EvalStack.pushLiteral([5, 6, 7, 8, 9], 0), false, true);
     let checkResult;
     for (let i = 5; i < 10; i++){
-        checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5, 1);
+        checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5 + (i - 5), 1);
         if (checkResult !== true) return checkResult;
     }
     return true;
@@ -136,7 +136,7 @@ async function test_EvalStack_copyToNewLayer(){
    await runInstructions(EvalStack.copyToNewLayer(Addresses.ps7, 0), false, true);
    let checkResult;
     for (let i = 5; i < 10; i++){
-        checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5, 1);
+        checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5 + (i - 5), 1);
         if (checkResult !== true) return checkResult;
     }
     return true;
