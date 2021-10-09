@@ -141,3 +141,82 @@ async function test_EvalStack_copyToNewLayer(){
     }
     return true;
 }
+
+/*
+    Tests for Tables
+*/
+/* Tests for Variable Tables */
+let tests_VarTable = [test_VarTable_createCheckCorrectFormat, test_VarTable_createCheckSlotsClear, test_VarTable_createCheckParentEntry];
+
+// Test1- Create table, and check it is is in the correct format (has all the correct headers)
+async function test_VarTable_createCheckCorrectFormat(){
+    /*
+        Allocate space for and create a new global variable table
+        Then check that:
+            a) The first byte of the allocated space contains the type tag for variable tables
+            b) AllocatedSpace[1:2] (0 indexed) contains 1 (the number of entries in the table, should be 1 as the "parent" entry should have been added)
+            c) AllocatedSpace[3] contains 0 (the number of expansion tables, 0 as there aren't any yet)
+            d) AllocatedSpace[4:5] contains 2 (the index of the next free slot in the table, should be 2 as the index starts from 1 to allow 0 to represent any empty table, and the first space is already taken by the "parent" entry)
+    */
+   await runSetup();
+   // As table will be allocated globally straight after setup, it will be located at the start of the heap
+   let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
+   await runInstructions(VarTable.create(0, Addresses.NullAddress), false, true);
+   // Check a
+   let checkResult = assertMemoryEqualToInt(type_tags.var_table, tableAddress, 1);
+   if (checkResult !== true) return checkResult;
+   // Check b
+   checkResult = assertMemoryEqualToInt(1, tableAddress + 1, 2);
+   if (checkResult !== true) return checkResult;
+   // Check c
+   checkResult = assertMemoryEqualToInt(0, tableAddress + 3, 1);
+   if (checkResult !== true) return checkResult;
+   // Check d
+   return assertMemoryEqualToInt(2, tableAddress + 4, 2);
+}
+// Test2- Create table, and check all of the empty slots have been cleared
+async function test_VarTable_createCheckSlotsClear(){
+    /*
+        Allocate space for and create a new global variable table
+        Then check that:
+            a) AllocatedSpace[18:19] (the next free slot index of the second slot) contains 0
+            b) The second byte of every slot, except the first contains 0 (meaning the name length field is set to 0 for every empty slot) (the first slot may also be 0, but for different reasons so don't check it)
+    */
+    await runSetup();
+    // As table will be allocated globally straight after setup, it will be located at the start of the heap
+    let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
+    await runInstructions(VarTable.create(0, Addresses.NullAddress), false, true);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(0, tableAddress + 18, 2);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    let currentSlot = tableAddress + VarTable._headersLength + VarTable._entryLength + 1;
+    for (let i = 0; i < Math.floor((runtime_options.VariableTableSize - (VarTable._headersLength + VarTable._entryLength + 4)) / VarTable._entryLength); i++){
+        checkResult = assertMemoryEqualToInt(0, currentSlot, 1);
+        if (checkResult !== true) return checkResult;
+        checkResult + VarTable._entryLength;
+    }
+    return true;
+}
+// Test3- Create table, and check parent entry created correctly
+async function test_VarTable_createCheckParentEntry(){
+    /*
+        Allocate space for and create a new global variable table
+        Then check that:
+            a) AllocatedSpace[6] contains the type tag for a variable table entry
+            b) AllocatedSpace[7] contains 0 (the name length, 0 as parent entry has no name)
+            c) AllocatedSpace[12:15] contains the null address (as global variable tables have no parent table)
+    */
+    await runSetup();
+    // As table will be allocated globally straight after setup, it will be located at the start of the heap
+    let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
+    await runInstructions(VarTable.create(0, Addresses.NullAddress), false, true);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(type_tags.var_table_entry, tableAddress + 6, 1);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    checkResult = assertMemoryEqualToInt(0, tableAddress + 7, 1);
+    if (checkResult !== true) return checkResult;
+    // Check c
+    return assertMemoryEqualToInt(Addresses.NullAddress, tableAddress + 12, 4);
+}

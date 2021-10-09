@@ -27,6 +27,6 @@ var runtime_options = {
   "EvalStackSize": 100,  // Must be 255 or less
   "IntFloatPoolSize": 4095,  // Must be a multiple of 5
   "MemorySize": 2 ** 32,
-  "VariableTableSize": 2 ** 10,  // Size of variable tables.  Must be a power of 2
+  "VariableTableSize": 2 ** 10,  // Size of variable tables.  Must be a power of 2.  Should not allow for more than 255 slots
   "NamePoolSize": 2 ** 10,  // Size of name pools.  Must be a power of 2
 }
