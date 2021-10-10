@@ -204,6 +204,7 @@ function runInstructions(instructions, resetCPU=true, addEndInstruction=false){
                 PC = intTo32BinArray(runtime_options.MemorySize);
                 control_original(instructions, frequency, runtime_options.MemorySize);
             }
+            instructionsStartAddress = runtime_options.MemorySize;
         }
         else throw "Cannot run instructions without overwriting existing memory. MemorySize needs to be 2^31 or less for this"
     }
@@ -217,6 +218,7 @@ function runInstructions(instructions, resetCPU=true, addEndInstruction=false){
                 initBus = initBus_original;
                 initReg = initReg_original;
                 control = control_original;
+                instructionsStartAddress = 0;
             }
             resolve();
         };

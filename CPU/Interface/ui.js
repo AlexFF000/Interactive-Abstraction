@@ -10,6 +10,7 @@ var watchlist = {};  // List of memory addresses being watched (32 bit mode)
 var labels = {};  // Maps labels to memory addresses
 
 var currentInstructionAddress = 0;  // Start address in memory of the next instruction to be parsed (assembler only)
+var instructionsStartAddress = 0;  // The first memory address where instructions should be loaded to.  Should normally be 0, but some test functions need to use other addresses
 
 function getOutputs(){
   // Contains DOM IDs of elements on HTML page
@@ -803,7 +804,7 @@ function start_expanded_mode(){
   var speed = document.getElementById(speed_field).value;
   var usrInput = document.getElementById(input_box).value;
   var instructions = [];
-  currentInstructionAddress = 0;
+  currentInstructionAddress = instructionsStartAddress;
   usrInput = usrInput.split(/[\r?\n]/g);
 
   if (inputType == 0){ // Convert assembly code instructions

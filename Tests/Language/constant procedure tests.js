@@ -65,7 +65,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenEmpty(){
    await runSetup();
    // Add END instruction to jump back to afterwards
     let code = ["GTO #test_afterEndInstruction"];
-    let endInstructionAddr = calculateInstructionsLength(code);
+    let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
     [
         "END",

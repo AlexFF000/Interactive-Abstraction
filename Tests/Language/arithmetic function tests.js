@@ -14,15 +14,15 @@ async function test_add32BitIntegers_nonLiterals(){
     // Then load 3000 into ps5 again, and provide literal 5 as int1 and ps5 as int2.  Check again ps3 contains 3005
     // Then load 3000 into ps5 again, and 5 into ps6.  Provide ps5 as int1 and ps6 as int2.  Check again ps3 contains 3005
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4), true, true);
-    await runInstructions(add32BitIntegers(Addresses.ps5, 5, 0, false, true), false, true);
+    await runInstructions(add32BitIntegers(Addresses.ps5, 5, testsInstructionsStart, false, true), false, true);
     let checkResult = assertMemoryEqualToInt(3005, Addresses.ps3, 4);
     if (checkResult !== true) return checkResult;
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4), true, true);
-    await runInstructions(add32BitIntegers(5, Addresses.ps5, 0, true, false), false, true);
+    await runInstructions(add32BitIntegers(5, Addresses.ps5, testsInstructionsStart, true, false), false, true);
     checkResult = assertMemoryEqualToInt(3005, Addresses.ps3, 4);
     if (checkResult !== true) return checkResult; 
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4).concat(writeMultiByte(5, Addresses.ps6, 4)), true, true);
-    await runInstructions(add32BitIntegers(Addresses.ps5, Addresses.ps6, 0), false, true);
+    await runInstructions(add32BitIntegers(Addresses.ps5, Addresses.ps6, testsInstructionsStart), false, true);
     return assertMemoryEqualToInt(3005, Addresses.ps3, 4);
 
 }
@@ -83,15 +83,15 @@ async function test_sub32BitInteger_nonLiterals(){
     // Then load 3000 into ps5 again, and provide literal 4000 as minuend and ps5 as subtrahend.  Check ps3 contains 1000
     // Then load 3000 into ps5 again, and 5 into ps6.  Provide ps5 as minuend and ps6 as subtrahend.  Check ps3 contains 2995
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4), true, true);
-    await runInstructions(sub32BitInteger(Addresses.ps5, 5, 0, false, true), false, true);
+    await runInstructions(sub32BitInteger(Addresses.ps5, 5, testsInstructionsStart, false, true), false, true);
     let checkResult = assertMemoryEqualToInt(2995, Addresses.ps3, 4);
     if (checkResult !== true) return checkResult;
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4), true, true);
-    await runInstructions(sub32BitInteger(4000, Addresses.ps5, 0, true, false), false, true);
+    await runInstructions(sub32BitInteger(4000, Addresses.ps5, testsInstructionsStart, true, false), false, true);
     checkResult = assertMemoryEqualToInt(1000, Addresses.ps3, 4);
     if (checkResult !== true) return checkResult; 
     await runInstructions(writeMultiByte(3000, Addresses.ps5, 4).concat(writeMultiByte(5, Addresses.ps6, 4)), true, true);
-    await runInstructions(sub32BitInteger(Addresses.ps5, Addresses.ps6, 0), false, true);
+    await runInstructions(sub32BitInteger(Addresses.ps5, Addresses.ps6, testsInstructionsStart), false, true);
     return assertMemoryEqualToInt(2995, Addresses.ps3, 4);
 }
 // Test2 Positive - Positive to get Positive
