@@ -2,6 +2,8 @@
     Provides functions for use in tests
 */
 
+const testsInstructionsStart = runtime_options.MemorySize;  // Address instructions for tests will be loaded into when resetCPU==false
+
 var breakInstructionAddresses = [];  // List of addresses (as ints) of instructions to pause on if breakInstructions have been turned on
 
 async function runTests(tests){
@@ -122,6 +124,20 @@ function intToBinArray(integer){
     return output;
 }
 
+function intTo32BinArray(integer){
+    // Convert integer between 0 and 4,294,967,295 to array of 32 1s and 0s
+    let output = [];
+    let divisionResult = integer;
+    for (let i = 0; i < 32; i++){
+        divisionResult = divisionResult / 2;
+        let floored = Math.floor(divisionResult);
+        // Get remainder and insert at start of output
+        output.unshift((divisionResult - floored) * 2);
+        divisionResult = floored;
+    }
+    return output;
+}
+
 function binArrayToInt(binArray){
     // Takes array of 1s and 0s and converts to an (unsigned) integer
     // Can take array of any length, and also allows 2d arrays with subarrays for each byte
@@ -163,6 +179,7 @@ function runInstructions(instructions, resetCPU=true, addEndInstruction=false){
         var initMem_original = initMem;
         var initBus_original = initBus;
         var initReg_original = initReg;
+        var control_original = control;
         initMem = () => {
             // If already initialised, don't do it again
             if (RAM === undefined) initMem_original();
@@ -172,8 +189,23 @@ function runInstructions(instructions, resetCPU=true, addEndInstruction=false){
         };
         initReg = () => {
             if (PC == undefined || MAR == undefined || MDR == undefined || CIR == undefined || ACC == undefined || STATUS == undefined) initReg_original();
-            else PC = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];  // PC must always be cleared
         }
+        /*
+            If resetCPU is false, then we need to add these new instructions without overwriting the existing ones
+            We should therefore start writing the instructions after the end of the memory already used
+            This requires that the setup procedure has not been run with the full 2^32 bytes memory, meaning that the program so far will have used half or less than half of the actual maximum memory, so there is plenty of unused space we can load the instructions into.
+            e.g. if MemorySize was set to 2^31 when the setup procedure was run, then there are still another 2,147,483,648 bytes that it was unaware of, which we can load the new instructions into without overwriting anything already existing
+            Note: This will still overwrite instructions already run by runInstructions with resetCPU set to false
+        */
+        if (runtime_options.MemorySize <= 2 ** 31){
+            // Instructions must be loaded in starting from Memory[MemorySize] rather than from 0, so place wrapper around CU's control function to do this
+            control = (instructions, frequency) => {
+                // Set PC to point to new instructions
+                PC = intTo32BinArray(runtime_options.MemorySize);
+                control_original(instructions, frequency, runtime_options.MemorySize);
+            }
+        }
+        else throw "Cannot run instructions without overwriting existing memory. MemorySize needs to be 2^31 or less for this"
     }
     if (addEndInstruction === true) instructions = instructions.concat("END");
     // Set up promise, placing its resolve function in onEndCallback
@@ -184,6 +216,7 @@ function runInstructions(instructions, resetCPU=true, addEndInstruction=false){
                 initMem = initMem_original;
                 initBus = initBus_original;
                 initReg = initReg_original;
+                control = control_original;
             }
             resolve();
         };

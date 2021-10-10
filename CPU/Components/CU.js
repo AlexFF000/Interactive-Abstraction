@@ -13,7 +13,7 @@ var paused = false;
 var ioWaiting = 0;  // Indicates that a waiting I/O request has already been aknowledged by CPU but is waiting for CPU time to be processed
 
 
-function control(instructions, frequency){ // Recieve instructions, load into memory, start simulation
+function control(instructions, frequency, instructionsStartAddress=0){ // Recieve instructions, load into memory, start simulation.  instructionsStartAddress specifies the address in memory to start loading instructions into (should normally be 0, but may be useful to load into different places for testing)
   freq = 1000 / frequency;
   initMem();
   initBus();
@@ -38,7 +38,7 @@ function control(instructions, frequency){ // Recieve instructions, load into me
   ];
   // Load instructions into memory
   reporting("Loading instructions into memory");
-  var x = 0;  // Instructions are 14 bits long but RAM supports only 8 bits
+  var x = instructionsStartAddress;  // Instructions are 14 bits long but RAM supports only 8 bits
   for (var i = 0; i < instructions.length; i++){
     if (expanded_memory == true){  // 32 bit mode instructions are formatted differently, so a different loading procedure is necessary
       var currentInst = instructions[i]
