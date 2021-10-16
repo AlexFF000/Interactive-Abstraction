@@ -15,7 +15,7 @@ async function test_EvalStack_addLayerWhenEmpty(){
     */
    await runSetup();
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
-   await runInstructions(EvalStack.addLayer(0), false, true);
+   await runInstructions(EvalStack.addLayer(testsInstructionsStart), false, true);
    // Check a
    let checkResult = assertMemoryEqualToInt(1, Addresses.EvalSlotsUsed, 1);
    if (checkResult !== true) return checkResult;
@@ -34,7 +34,7 @@ async function test_EvalStack_addLayerWhenPartiallyFull(){
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    writeIntToMemory(originalEvalTopAddr + (5 * 5), Addresses.EvalTop, 4);
    writeIntToMemory(5, Addresses.EvalSlotsUsed, 1);
-   await runInstructions(EvalStack.addLayer(0), false, true);
+   await runInstructions(EvalStack.addLayer(testsInstructionsStart), false, true);
    // Check a
    let checkResult = assertMemoryEqualToInt(6, Addresses.EvalSlotsUsed, 1);
    if (checkResult !== true) return checkResult;
@@ -55,7 +55,7 @@ async function test_EvalStack_removeLayerWhenNotEmpty(){
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    writeIntToMemory(originalEvalTopAddr + (5 * 5), Addresses.EvalTop, 4);
    writeIntToMemory(5, Addresses.EvalSlotsUsed, 1);
-   await runInstructions(EvalStack.removeLayer(0), false, true);
+   await runInstructions(EvalStack.removeLayer(testsInstructionsStart), false, true);
    // Check a
    let checkResult = assertMemoryEqualToInt(4, Addresses.EvalSlotsUsed, 1);
    if (checkResult !== true) return checkResult;
@@ -70,7 +70,7 @@ async function test_EvalStack_removeLayerWhenEmpty(){
    await runSetup();
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    writeIntToMemory(0, Addresses.EvalSlotsUsed, 1);
-   await runInstructions(EvalStack.removeLayer(0), false, true);
+   await runInstructions(EvalStack.removeLayer(testsInstructionsStart), false, true);
    let checkResult = assertMemoryEqualToInt(0, Addresses.EvalSlotsUsed, 1);
    if (checkResult !== true) return checkResult;
    return assertMemoryEqualToInt(originalEvalTopAddr, Addresses.EvalTop, 4);
@@ -84,7 +84,7 @@ async function test_EvalStack_writeLiteralToTopLayer(){
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    writeIntToMemory(originalEvalTopAddr + 5, Addresses.EvalTop, 4);
    writeIntToMemory(1, Addresses.EvalSlotsUsed, 1);
-   await runInstructions(EvalStack.writeToTopLayer([5, 6, 7, 8, 9], 0), false, true);
+   await runInstructions(EvalStack.writeToTopLayer([5, 6, 7, 8, 9], testsInstructionsStart), false, true);
    let checkResult;
    for (let i = 5; i < 10; i++){
         checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5 + (i - 5), 1);
@@ -102,7 +102,7 @@ async function test_EvalStack_copyToTopLayer(){
     writeIntToMemory(originalEvalTopAddr + 5, Addresses.EvalTop, 4);
     writeIntToMemory(1, Addresses.EvalSlotsUsed, 1);
     for (let i = 5; i < 10; i++) writeIntToMemory(i, Addresses.ps0 + (i - 5), 1);
-    await runInstructions(EvalStack.copyToTopLayer(Addresses.ps0, 0), false, true);
+    await runInstructions(EvalStack.copyToTopLayer(Addresses.ps0, testsInstructionsStart), false, true);
     let checkResult;
     for (let i = 5; i < 10; i++){
         checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5 + (i - 5), 1);
@@ -117,7 +117,7 @@ async function test_EvalStack_writeLiteralToNewLayer(){
     */
     await runSetup();
     let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
-    await runInstructions(EvalStack.pushLiteral([5, 6, 7, 8, 9], 0), false, true);
+    await runInstructions(EvalStack.pushLiteral([5, 6, 7, 8, 9], testsInstructionsStart), false, true);
     let checkResult;
     for (let i = 5; i < 10; i++){
         checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5 + (i - 5), 1);
@@ -133,7 +133,7 @@ async function test_EvalStack_copyToNewLayer(){
    await runSetup();
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    for (let i = 5; i < 10; i++) writeIntToMemory(i, Addresses.ps7 + (i - 5), 1);
-   await runInstructions(EvalStack.copyToNewLayer(Addresses.ps7, 0), false, true);
+   await runInstructions(EvalStack.copyToNewLayer(Addresses.ps7, testsInstructionsStart), false, true);
    let checkResult;
     for (let i = 5; i < 10; i++){
         checkResult = assertMemoryEqualToInt(i, originalEvalTopAddr + 5 + (i - 5), 1);
