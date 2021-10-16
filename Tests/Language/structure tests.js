@@ -220,3 +220,53 @@ async function test_VarTable_createCheckParentEntry(){
     // Check c
     return assertMemoryEqualToInt(Addresses.NullAddress, tableAddress + 12, 4);
 }
+
+/*
+    Tests for name pools
+*/
+let tests_NamePool = [test_NamePool_createCheckCorrectFormat, test_NamePool_createCheckFirstChunkPointerToNextFreeClear];
+
+// Test1- Create name pool, and check headers are correct
+async function test_NamePool_createCheckCorrectFormat(){
+    /*
+        Allocate space for and create a new name pool
+        Then check that:
+            a) AllocatedSpace[0] contains the type tag for name pools
+            b) AllocatedSpace[1:4] contains the address of AllocatedSpace[7] (the start of the first free chunk)
+            c) AllocatedSpace[5] contains the maximum number of blocks in a pool (This field should contain the number of blocks in the first free chunk. As there is only one free chunk and no blocks have been used, this will be the total number of blocks in the pool)
+            d) AllocatedSpace[6] contains 0 (the number of expansion pools, 0 as there are none)
+    */
+   await runSetup();
+   // As pool will be allocated globally straight after setup, it will be located at the start of the heap
+   let poolAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
+   await runInstructions(NamePool.create(testsInstructionsStart), false, true);
+   // Check a
+   let checkResult = assertMemoryEqualToInt(type_tags.name_pool, poolAddress, 1);
+   if (checkResult !== true) return checkResult;
+   // Check b
+   checkResult = assertMemoryEqualToInt(poolAddress + 7, poolAddress + 1, 4);
+   if (checkResult !== true) return checkResult;
+   // Check c
+   checkResult = assertMemoryEqualToInt(Math.floor(runtime_options.NamePoolSize - 7 / 5), poolAddress + 5, 1);
+   if (checkResult !== true) return checkResult;
+   // Check d
+   return assertMemoryEqualToInt(0, poolAddress + 6, 1);
+}
+// Test2- Create name pool, and check details of next free chunk in first free chunk contain 0
+async function test_NamePool_createCheckFirstChunkPointerToNextFreeClear(){
+    /*
+        Allocate space for and create a new name pool
+        Then check that:
+            a) AllocatedSpace[7:10] contains 0 (the pointer to the next free chunk, 0 as there isn't another free chunk)
+            b) AllocatedSpace[11] contains 0 (the number of blocks in the next free chunk, 0 as there isn't another free chunk)
+    */
+   await runSetup();
+   // As pool will be allocated globally straight after setup, it will be located at the start of the heap
+   let poolAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
+   await runInstructions(NamePool.create(testsInstructionsStart), false, true);
+   // Check a
+   let checkResult = assertMemoryEqualToInt(0, poolAddress + 7, 4);
+   if (checkResult !== true) return checkResult;
+   // Check b
+   return assertMemoryEqualToInt(0, poolAddress + 11, 1);
+}
