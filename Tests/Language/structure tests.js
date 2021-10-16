@@ -247,7 +247,7 @@ async function test_NamePool_createCheckCorrectFormat(){
    checkResult = assertMemoryEqualToInt(poolAddress + 7, poolAddress + 1, 4);
    if (checkResult !== true) return checkResult;
    // Check c
-   checkResult = assertMemoryEqualToInt(Math.floor(runtime_options.NamePoolSize - 7 / 5), poolAddress + 5, 1);
+   checkResult = assertMemoryEqualToInt(Math.floor((runtime_options.NamePoolSize - 7) / 5), poolAddress + 5, 1);
    if (checkResult !== true) return checkResult;
    // Check d
    return assertMemoryEqualToInt(0, poolAddress + 6, 1);
