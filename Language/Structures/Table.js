@@ -3,12 +3,12 @@
 */
 class Table{
     // Number of bytes used by the headers of the table
-    _headersLength;
+    static _headersLength;
     // Number of bytes used by an entry in the table
-    _entryLength;
+    static _entryLength;
     
     // Number of slots the table has
-    _totalSlots = Math.floor((runtime_options.VariableTableSize - (this._headersLength + 4)) / this._entryLength)  // Subtract _headersLength + 4 so the space used for the headers and the pointer at the end of the table to the next expansion table are not taken into account
+    static _totalSlots = Math.floor((runtime_options.VariableTableSize - (this._headersLength + 4)) / this._entryLength)  // Subtract _headersLength + 4 so the space used for the headers and the pointer at the end of the table to the next expansion table are not taken into account
     // Allocate the memory for a new table in the current scope, and then create the table
     static create(instructionsLength, parentAddress=false){};
     // Allocate the memory for and create an extension table to provide extra space when existing tables become full
@@ -48,5 +48,6 @@ class Table{
                 `GTO ${clearSlot}`
             ]
         );
+        return instructs;
     }
 }

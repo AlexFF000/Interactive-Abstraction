@@ -161,7 +161,7 @@ async function test_VarTable_createCheckCorrectFormat(){
    await runSetup();
    // As table will be allocated globally straight after setup, it will be located at the start of the heap
    let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
-   await runInstructions(VarTable.create(0, Addresses.NullAddress), false, true);
+   await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
    // Check a
    let checkResult = assertMemoryEqualToInt(type_tags.var_table, tableAddress, 1);
    if (checkResult !== true) return checkResult;
@@ -185,7 +185,7 @@ async function test_VarTable_createCheckSlotsClear(){
     await runSetup();
     // As table will be allocated globally straight after setup, it will be located at the start of the heap
     let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
-    await runInstructions(VarTable.create(0, Addresses.NullAddress), false, true);
+    await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
     // Check a
     let checkResult = assertMemoryEqualToInt(0, tableAddress + 18, 2);
     if (checkResult !== true) return checkResult;
@@ -194,7 +194,7 @@ async function test_VarTable_createCheckSlotsClear(){
     for (let i = 0; i < Math.floor((runtime_options.VariableTableSize - (VarTable._headersLength + VarTable._entryLength + 4)) / VarTable._entryLength); i++){
         checkResult = assertMemoryEqualToInt(0, currentSlot, 1);
         if (checkResult !== true) return checkResult;
-        checkResult + VarTable._entryLength;
+        currentSlot + VarTable._entryLength;
     }
     return true;
 }
@@ -210,7 +210,7 @@ async function test_VarTable_createCheckParentEntry(){
     await runSetup();
     // As table will be allocated globally straight after setup, it will be located at the start of the heap
     let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
-    await runInstructions(VarTable.create(0, Addresses.NullAddress), false, true);
+    await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
     // Check a
     let checkResult = assertMemoryEqualToInt(type_tags.var_table_entry, tableAddress + 6, 1);
     if (checkResult !== true) return checkResult;

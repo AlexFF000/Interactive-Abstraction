@@ -2,8 +2,9 @@
     Methods for generating code for managing variable tables
 */
 class VarTable extends Table{
-    _headersLength = 6;
-    _entryLength = 10;
+    static _headersLength = 6;
+    static _entryLength = 10;
+    static _totalSlots = Math.floor((runtime_options.VariableTableSize - (this._headersLength + 4)) / this._entryLength)
 
     static create(instructionsLength, parentAddress=false){
         // Return instructions to create a variable table in the current scope (this function only handles creating new tables, not expansion tables)
@@ -13,7 +14,7 @@ class VarTable extends Table{
         let instructs = allocateMemory(Math.log2(runtime_options.VariableTableSize), instructionsLength);
         let tableAddressPointer = Addresses.ps0;  // Pointer to the start address of the space allocated for the table
         // Clear name length field of each slot to ensure no deallocated data is still there
-        this._clearNameLengthFields(instructionsLength + calculateInstructionsLength(instructs));
+        instructs = instructs.concat(this._clearNameLengthFields(instructionsLength + calculateInstructionsLength(instructs)));
         // Set up variable table in the allocated space
     
         // Construct headers (Do this in registers then copy all the headers over to the allocated space)
@@ -54,7 +55,7 @@ class VarTable extends Table{
         instructs = instructs.concat(
             copy(tableAddressPointer, Addresses.psAddr, 4)
         );
-        instructs.concat(
+        instructs = instructs.concat(
             copyToAddress(Addresses.ps1, 20, instructionsLength + calculateInstructionsLength(instructs))
         )
         return instructs;
