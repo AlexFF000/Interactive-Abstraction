@@ -115,7 +115,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenHalfFull(){
    writeIntToMemory(poolMidSlot, Addresses.PoolFreePointer, 4);
    // Add END instruction to jump back ot afterwards
     let code = ["GTO #test_afterEndInstruction"];
-    let endInstructionAddr = calculateInstructionsLength(code);
+    let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
     [
         "END",
@@ -162,7 +162,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenFull(){
    writeIntToMemory(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
    // Add END instruction to jump back to afterwards
     let code = ["GTO #test_afterEndInstruction"];
-    let endInstructionAddr = calculateInstructionsLength(code);
+    let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
     [
         "END",
@@ -258,7 +258,7 @@ async function test_AllocationProc_GlobalHeapAllocateWhenEmpty(){
     */
    await runSetup();
    let code = ["GTO #test_afterEndInstruction"];
-   let endInstructionAddr = calculateInstructionsLength(code);
+   let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
    code = code.concat(
        [
            "END",
@@ -313,7 +313,7 @@ async function test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull(){
    // writeIntToMemory(startOfHeap + 64, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
    // Allocate 64 bytes
    let code = ["GTO #test_afterEndInstruction"];
-   let endInstructionAddr = calculateInstructionsLength(code);
+   let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
    code = code.concat(
        [ 
        "END",
@@ -328,7 +328,7 @@ async function test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull(){
    );
    await runInstructions(code, false);
    code = ["GTO #test_afterEndInstruction"];
-   endInstructionAddr = calculateInstructionsLength(code);
+   endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
    code = code.concat(
        [
            "END",
@@ -450,7 +450,7 @@ async function test_AllocationProc_GlobalHeapAllocateLastBlockInChunk(){
     let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
     // Allocate 32 bytes
     let code = ["GTO #test_afterEndInstruction"];
-    let endInstructionAddr = calculateInstructionsLength(code);
+    let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
@@ -466,7 +466,7 @@ async function test_AllocationProc_GlobalHeapAllocateLastBlockInChunk(){
     await runInstructions(code, false);
     // Allocate 2^(x-1) bytes
     code = ["GTO #test_afterEndInstruction"];
-    endInstructionAddr = calculateInstructionsLength(code);
+    endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
@@ -482,7 +482,7 @@ async function test_AllocationProc_GlobalHeapAllocateLastBlockInChunk(){
     await runInstructions(code, false);
     // Allocate 2^(x-2) bytes
     code = ["GTO #test_afterEndInstruction"];
-    endInstructionAddr = calculateInstructionsLength(code);
+    endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
@@ -515,7 +515,7 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
     let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
     // Allocate 32 bytes
     let code = ["GTO #test_afterEndInstruction"];
-    let endInstructionAddr = calculateInstructionsLength(code);
+    let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
@@ -531,7 +531,7 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
     await runInstructions(code, false);
     // Allocate 2^(x-2) bytes
     code = ["GTO #test_afterEndInstruction"];
-    endInstructionAddr = calculateInstructionsLength(code);
+    endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
@@ -547,7 +547,7 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
     await runInstructions(code, false);
     // Allocate another 32 byte block
     code = ["GTO #test_afterEndInstruction"];
-    endInstructionAddr = calculateInstructionsLength(code);
+    endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
@@ -588,7 +588,7 @@ async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){
    let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
    // Allocate 32 byte block
     let code = ["GTO #test_afterEndInstruction"];
-    let endInstructionAddr = calculateInstructionsLength(code);
+    let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
@@ -604,7 +604,7 @@ async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){
     await runInstructions(code, false);
     // Allocate 2^(x-2) bytes
     code = ["GTO #test_afterEndInstruction"];
-    endInstructionAddr = calculateInstructionsLength(code);
+    endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
@@ -625,7 +625,7 @@ async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){
     let originalFirstChunkNextChunkEndPointer = readMemoryAsInt(originalFirstChunkStart + 5, 4);
     // Allocate 2^7 byte block
     code = ["GTO #test_afterEndInstruction"];
-    endInstructionAddr = calculateInstructionsLength(code);
+    endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
     code = code.concat(
        [ 
        "END",
