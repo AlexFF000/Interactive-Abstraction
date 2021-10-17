@@ -6,14 +6,15 @@
     Tests for evaluation stack
 */
 let tests_EvalStack = [test_EvalStack_addLayerWhenEmpty, test_EvalStack_addLayerWhenPartiallyFull, test_EvalStack_addLayerWhenFull, test_EvalStack_removeLayerWhenNotEmpty, test_EvalStack_removeLayerWhenEmpty, test_EvalStack_writeLiteralToTopLayer, test_EvalStack_copyToTopLayer, test_EvalStack_writeLiteralToNewLayer, test_EvalStack_copyToNewLayer];
-
+// Setup subprocedures that need to be run before these tests can work
+let evalStackTests_neededSetup = [setupReservedArea];
 // Test1- Add a new layer when there are no layers on the stack
 async function test_EvalStack_addLayerWhenEmpty(){
     /* Add a new layer, then check that:
         a) EvalSlotsUsed contains 1
         b) EvalTop has been incremented by 5
     */
-   await runSetup();
+   await runSetup(evalStackTests_neededSetup);
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    await runInstructions(EvalStack.addLayer(testsInstructionsStart), false, true);
    // Check a
@@ -30,7 +31,7 @@ async function test_EvalStack_addLayerWhenPartiallyFull(){
             a) EvalSlotsUsed contains 6
             b) EvalTop has been incremented by 5
     */
-   await runSetup();
+   await runSetup(evalStackTests_neededSetup);
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    writeIntToMemory(originalEvalTopAddr + (5 * 5), Addresses.EvalTop, 4);
    writeIntToMemory(5, Addresses.EvalSlotsUsed, 1);
@@ -51,7 +52,7 @@ async function test_EvalStack_removeLayerWhenNotEmpty(){
             a) EvalSlotsUsed contains 4
             b) EvalTop has been decremented by 5
     */
-   await runSetup();
+   await runSetup(evalStackTests_neededSetup);
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    writeIntToMemory(originalEvalTopAddr + (5 * 5), Addresses.EvalTop, 4);
    writeIntToMemory(5, Addresses.EvalSlotsUsed, 1);
@@ -67,7 +68,7 @@ async function test_EvalStack_removeLayerWhenEmpty(){
     /*
         Try to remove a layer from EvalStack when it is empty, and then check that EvalTop and EvalSlotsUsed have not changed (meaning nothing was removed)
     */
-   await runSetup();
+   await runSetup(evalStackTests_neededSetup);
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    writeIntToMemory(0, Addresses.EvalSlotsUsed, 1);
    await runInstructions(EvalStack.removeLayer(testsInstructionsStart), false, true);
@@ -80,7 +81,7 @@ async function test_EvalStack_writeLiteralToTopLayer(){
     /*
         Try to write to the top layer, then check that it has been written
     */
-   await runSetup();
+   await runSetup(evalStackTests_neededSetup);
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    writeIntToMemory(originalEvalTopAddr + 5, Addresses.EvalTop, 4);
    writeIntToMemory(1, Addresses.EvalSlotsUsed, 1);
@@ -97,7 +98,7 @@ async function test_EvalStack_copyToTopLayer(){
     /*
         Try to copy to the top layer, then check that it has been written
     */
-    await runSetup();
+    await runSetup(evalStackTests_neededSetup);
     let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
     writeIntToMemory(originalEvalTopAddr + 5, Addresses.EvalTop, 4);
     writeIntToMemory(1, Addresses.EvalSlotsUsed, 1);
@@ -115,7 +116,7 @@ async function test_EvalStack_writeLiteralToNewLayer(){
     /*
         Try to create and write to new layer, then check that it has been written
     */
-    await runSetup();
+    await runSetup(evalStackTests_neededSetup);
     let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
     await runInstructions(EvalStack.pushLiteral([5, 6, 7, 8, 9], testsInstructionsStart), false, true);
     let checkResult;
@@ -130,7 +131,7 @@ async function test_EvalStack_copyToNewLayer(){
     /*
         Try to create and copy data to new layer, then check that it has been written
     */
-   await runSetup();
+   await runSetup(evalStackTests_neededSetup);
    let originalEvalTopAddr = readMemoryAsInt(Addresses.EvalTop, 4);
    for (let i = 5; i < 10; i++) writeIntToMemory(i, Addresses.ps7 + (i - 5), 1);
    await runInstructions(EvalStack.copyToNewLayer(Addresses.ps7, testsInstructionsStart), false, true);
@@ -147,7 +148,8 @@ async function test_EvalStack_copyToNewLayer(){
 */
 /* Tests for Variable Tables */
 let tests_VarTable = [test_VarTable_createCheckCorrectFormat, test_VarTable_createCheckSlotsClear, test_VarTable_createCheckParentEntry];
-
+// The setup subprocedures that need to be run before these tests can work
+let varTableTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures];
 // Test1- Create table, and check it is is in the correct format (has all the correct headers)
 async function test_VarTable_createCheckCorrectFormat(){
     /*
@@ -158,7 +160,7 @@ async function test_VarTable_createCheckCorrectFormat(){
             c) AllocatedSpace[3] contains 0 (the number of expansion tables, 0 as there aren't any yet)
             d) AllocatedSpace[4:5] contains 2 (the index of the next free slot in the table, should be 2 as the index starts from 1 to allow 0 to represent any empty table, and the first space is already taken by the "parent" entry)
     */
-   await runSetup();
+   await runSetup(varTableTests_neededSetup);
    // As table will be allocated globally straight after setup, it will be located at the start of the heap
    let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
    await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
@@ -182,7 +184,7 @@ async function test_VarTable_createCheckSlotsClear(){
             a) AllocatedSpace[18:19] (the next free slot index of the second slot) contains 0
             b) The second byte of every slot, except the first contains 0 (meaning the name length field is set to 0 for every empty slot) (the first slot may also be 0, but for different reasons so don't check it)
     */
-    await runSetup();
+    await runSetup(varTableTests_neededSetup);
     // As table will be allocated globally straight after setup, it will be located at the start of the heap
     let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
     await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
@@ -207,7 +209,7 @@ async function test_VarTable_createCheckParentEntry(){
             b) AllocatedSpace[7] contains 0 (the name length, 0 as parent entry has no name)
             c) AllocatedSpace[12:15] contains the null address (as global variable tables have no parent table)
     */
-    await runSetup();
+    await runSetup(varTableTests_neededSetup);
     // As table will be allocated globally straight after setup, it will be located at the start of the heap
     let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
     await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
@@ -225,6 +227,8 @@ async function test_VarTable_createCheckParentEntry(){
     Tests for name pools
 */
 let tests_NamePool = [test_NamePool_createCheckCorrectFormat, test_NamePool_createCheckFirstChunkPointerToNextFreeClear];
+// The setup subprocedures that must be run before these tests can work
+let namePoolTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures];
 
 // Test1- Create name pool, and check headers are correct
 async function test_NamePool_createCheckCorrectFormat(){
@@ -236,7 +240,7 @@ async function test_NamePool_createCheckCorrectFormat(){
             c) AllocatedSpace[5] contains the maximum number of blocks in a pool (This field should contain the number of blocks in the first free chunk. As there is only one free chunk and no blocks have been used, this will be the total number of blocks in the pool)
             d) AllocatedSpace[6] contains 0 (the number of expansion pools, 0 as there are none)
     */
-   await runSetup();
+   await runSetup(namePoolTests_neededSetup);
    // As pool will be allocated globally straight after setup, it will be located at the start of the heap
    let poolAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
    await runInstructions(NamePool.create(testsInstructionsStart), false, true);
@@ -260,7 +264,7 @@ async function test_NamePool_createCheckFirstChunkPointerToNextFreeClear(){
             a) AllocatedSpace[7:10] contains 0 (the pointer to the next free chunk, 0 as there isn't another free chunk)
             b) AllocatedSpace[11] contains 0 (the number of blocks in the next free chunk, 0 as there isn't another free chunk)
     */
-   await runSetup();
+   await runSetup(namePoolTests_neededSetup);
    // As pool will be allocated globally straight after setup, it will be located at the start of the heap
    let poolAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
    await runInstructions(NamePool.create(testsInstructionsStart), false, true);

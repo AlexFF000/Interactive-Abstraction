@@ -1,6 +1,6 @@
-const IntermediateFunctions = {
+/* const IntermediateFunctions = {
     "SETUP": SETUP,
-}
+} */
 
 // Data is stored in big-endian format
 
@@ -20,9 +20,11 @@ const Offsets = {
         // A pointer to the first instruction in the frame is needed for calculating return addresses when calling other functions (as the value of Program Counter cannot be read using an instruction)
         "FirstInstructionPointer": 32,
         // Locations of structures in the frame
+        "VarTablePointer": 36,
+        "NamePoolPointer": 40,
 
         // The start of the evaluation stack
-        "EvalStart": 36,
+        "EvalStart": 44,
         
     }
 }
@@ -97,7 +99,7 @@ function registerReplacement(varToReplaceWith, instructionIndex, instruction){
 
 function generate_code(intermediates){
     // Get setup code
-    let assemblyCode = SETUP();
+    let assemblyCode = SETUP(setup_allSubprocedures);
     // Compile intermediates
     for (let i = 0; i < intermediates.length; i++){
         IntermediateFunctions[intermediates[i][0]](intermediates[i][1]);
@@ -513,180 +515,4 @@ function allocateMemory(spaceNeeded, instructionsLength, typeTag=0, forceGlobal=
         )
     }
     return instructs;
-}
-
-function SETUP(){
-    // Setup the runtime environment
-    // Start loading values into reserved area
-    // Load location of start of stack into StackPointer
-    let assemblyCode = [];
-    assemblyCode = assemblyCode.concat(
-        writeMultiByte(Addresses.StackStart, Addresses.StackPointer, 4)
-    );
-    
-    // Set initial scope to global
-    assemblyCode = assemblyCode.concat(
-        writeMultiByte(Addresses.GlobalArea, Addresses.ScopePointer, 4)
-    );
-    // Make sure certain memory addresses are cleared
-    assemblyCode = assemblyCode.concat([
-        `WRT ${Addresses.NullAddress}`,
-        `WRT ${Addresses.AllParents}`,
-        `WRT ${Addresses.Modifiers}`,
-        `WRT ${Addresses.DeclareGlobal}`,
-    ]).concat(
-        // Initialise global area
-        // Point EvalTop pointer to start of eval stack as there is nothing on it yet
-        writeMultiByte(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.GlobalArea + Offsets.frame.EvalTopPointer, 4),
-        // As this is global, there is no return address or previous frame.  So set return and previous frame pointers to point to null
-        writeMultiByte(Addresses.NullAddress, Addresses.GlobalArea + Offsets.frame.PreviousFramePointer, 4),
-        writeMultiByte(Addresses.NullAddress, Addresses.GlobalArea + Offsets.frame.ReturnPointer, 4),
-        // Global heap uses a different allocation system to normal frames, so LastChunkStart is not needed so set that to null as well
-        writeMultiByte(Addresses.NullAddress, Addresses.GlobalArea + Offsets.frame.LastChunkStartPointer, 4),
-        writeMultiByte(Addresses.FirstInstruction, Addresses.GlobalArea + Offsets.frame.FirstInstructionPointer, 4),
-
-        // Setup int / float pool
-        [
-            // Make sure first 4 bytes of pool contain 0
-            "AND 0",
-            `WRT ${Addresses.IntFloatPool}`,
-            `WRT ${Addresses.IntFloatPool + 1}`,
-            `WRT ${Addresses.IntFloatPool + 2}`,
-            `WRT ${Addresses.IntFloatPool + 3}`,
-        ],
-        // Set free pointer to point to first position
-        writeMultiByte(Addresses.IntFloatPool, Addresses.PoolFreePointer, 4),
-    );
-    // Setup heap
-    // Location of start of heap can't be known until after instructions compiled as they are placed before the heap in memory
-    // First bytes of free block contain info about that block and pointers to next free one
-    assemblyCode = assemblyCode.concat([
-        // Also write start address of heap into StartChunkPointer and address pseudo-register as we will need to add to it to get pointers
-        registerReplacement("InstructionsEndAddress[0]", assemblyCode.length, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapStartPointer}`,
-        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer}`,
-        `WRT ${Addresses.psAddr}`,
-        "AND 0",
-        registerReplacement("InstructionsEndAddress[1]", assemblyCode.length + 5, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapStartPointer + 1}`,
-        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer + 1}`,
-        `WRT ${Addresses.psAddr + 1}`,
-        "AND 0",
-        registerReplacement("InstructionsEndAddress[2]", assemblyCode.length + 10, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapStartPointer + 2}`,
-        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer + 2}`,
-        `WRT ${Addresses.psAddr + 2}`,
-        "AND 0",
-        registerReplacement("InstructionsEndAddress[3]", assemblyCode.length + 15, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapStartPointer + 3}`,
-        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkPointer + 3}`,
-        `WRT ${Addresses.psAddr + 3}`,
-        "AND 0",
-        // Write heap end address (this could be worked out at runtime, but requires finding a logarithm so it is much more efficient to calculate it at compile time)
-        registerReplacement("HeapEndAddress[0]", assemblyCode.length + 20, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer}`,
-        "AND 0",
-        registerReplacement("HeapEndAddress[1]", assemblyCode.length + 23, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 1}`,
-        "AND 0",
-        registerReplacement("HeapEndAddress[2]", assemblyCode.length + 26, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 2}`,
-        "AND 0",
-        registerReplacement("HeapEndAddress[3]", assemblyCode.length + 29, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.HeapEndPointer + 3}`,
-        "AND 0",
-        // Load address of last byte of heap into StartChunkEndPointer
-        registerReplacement("HeapLastAddress[0]", assemblyCode.length + 32, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer}`,
-        "AND 0",
-        registerReplacement("HeapLastAddress[1]", assemblyCode.length + 35, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 1}`,
-        "AND 0",
-        registerReplacement("HeapLastAddress[2]", assemblyCode.length + 38, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 2}`,
-        "AND 0",
-        registerReplacement("HeapLastAddress[3]", assemblyCode.length + 41, "ADD #"),
-        `WRT ${Addresses.GlobalArea + Offsets.frame.StartChunkEndPointer + 3}`,
-        "AND 0",
-        // Place size of first block (which will be size of whole heap as nothing has been allocated yet) in first position
-        registerReplacement("HeapSizeBase2", assemblyCode.length + 44, "ADD #"),
-        `WRT A ${Addresses.psAddr}`,
-        "AND 0",
-    ]);
-    let assCodeLength = calculateInstructionsLength(assemblyCode);
-    // Bytes 1-4 (indexing from 0) of free block contain pointer to start of next free block, bytes 5-9 pointer to end of next free block
-    // Currently this is the only block, so make sure the pointers contain 0 
-    assemblyCode = assemblyCode.concat(
-        incrementAddress(assCodeLength),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(
-        incrementAddress(assCodeLength),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(
-        incrementAddress(assCodeLength),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(
-        incrementAddress(assCodeLength),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(
-        incrementAddress(assCodeLength),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(
-        incrementAddress(assCodeLength),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(
-        incrementAddress(assCodeLength),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(
-        incrementAddress(assCodeLength),
-        [
-            "AND 0",
-            `WRT A ${Addresses.psAddr}`
-        ]
-    );
-    // Add constant procedures
-    assCodeLength = calculateInstructionsLength(assemblyCode);
-    assemblyCode = assemblyCode.concat(AddConstantProcedures(assCodeLength));
-    // Create global variable table and name pool
-    /* assemblyCode = assemblyCode.concat(
-        createVariableTable(),
-        createNamePool()
-    ); */
-
-    return assemblyCode;
 }

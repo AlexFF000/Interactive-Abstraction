@@ -239,9 +239,9 @@ function runInstructions(instructions, resetCPU=true, addEndInstruction=false){
     return onEndPromise;
 }
 
-function runSetup(){
+function runSetup(subprocedures=setup_allSubprocedures){
     // Run the setup procedure
-    let code = IntermediateFunctions["SETUP"]();
+    let code = SETUP(subprocedures);
     code.push("END");  // END instruction must be added here rather than by runInstructions, as otherwise calculateReplacementVariables will have the wrong length
     calculateReplacementVariables(code);
     performReplacements(code, replacements, replacementVariables);

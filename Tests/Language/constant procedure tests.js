@@ -51,6 +51,8 @@ var tests_AllocationProc_GlobalPool = [test_AllocationProc_GlobalPoolAllocateWhe
 var tests_AllocationProc_GlobalHeap = [test_AllocationProc_GlobalHeapAllocateWhenEmpty, test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull, test_AllocationProc_GlobalHeapInsufficientSpace, test_AllocationProc_GlobalHeapReallocateDeallocated, test_AllocationProc_GlobalHeapAllocateLastBlockInChunk, test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk, test_AllocationProc_GlobalHeapAllocateMidBlockInChunk];
 var tests_AllocationProc_Local = [test_AllocationProc_FrameHeapAllocateWhenEmpty, test_AllocationProc_FrameHeapInsufficientSpace, test_AllocationProc_FrameHeapReallocateDeallocated, test_AllocationProc_FrameHeapAllocateFromTooLargeChunk, test_AllocationProc_FrameHeapAllocateLastChunkPartial, test_AllocationProc_FrameHeapAllocateLastChunkWhole];
 var tests_AllocationProc = tests_AllocationProc_GlobalPool.concat(tests_AllocationProc_GlobalHeap, tests_AllocationProc_Local);
+// The setup subprocedures that need to be run before these tests can work
+var allocationProcTests_neededSetup = [setupReservedArea, setupIntFloatPool, setupGlobalHeap, setupConstantProcedures];
 // Tests for allocating on the int/float pool
 
 // Test1- Allocating when the pool is empty
@@ -62,7 +64,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenEmpty(){
         c) The first four bytes of the next space after the one allocated (i.e. the 6th to 10th bytes of the pool) contain 0 (showing that there is no previously deallocated space)
     */
    // First run the setup procedure, so the runtime environment is setup and the procedures loaded into memory
-   await runSetup();
+   await runSetup(allocationProcTests_neededSetup);
    // Add END instruction to jump back to afterwards
     let code = ["GTO #test_afterEndInstruction"];
     let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
@@ -110,7 +112,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenHalfFull(){
         c) The first four bytes of the next space after the one allocated contain 0
     */
    // Run setup first as it will overwrite PoolFreePointer
-   await runSetup();
+   await runSetup(allocationProcTests_neededSetup);
    let poolMidSlot = Addresses.IntFloatPool + ((runtime_options.IntFloatPoolSize - 5) / 2);
    writeIntToMemory(poolMidSlot, Addresses.PoolFreePointer, 4);
    // Add END instruction to jump back ot afterwards
@@ -158,7 +160,7 @@ async function test_AllocationProc_GlobalPoolAllocateWhenFull(){
         a) The top value on the Eval stack contains an address, but not one from inside the pool
         b) The PoolFreePointer has not been changed
     */
-   await runSetup();
+   await runSetup(allocationProcTests_neededSetup);
    writeIntToMemory(Addresses.IntFloatPool + runtime_options.IntFloatPoolSize, Addresses.PoolFreePointer, 4);
    // Add END instruction to jump back to afterwards
     let code = ["GTO #test_afterEndInstruction"];
@@ -256,7 +258,7 @@ async function test_AllocationProc_GlobalHeapAllocateWhenEmpty(){
             c) The 2nd - 5th bytes of the free chunk contain 0 (meaning there is no next free chunk)
             d)  Starting from 0, heap[32] contains "5", heap[64] and heap[128] contain "6", heap[192] and heap[320] contain "7", this pattern continues and ends with the first byte in the second half of the heap, which contains x-1 where x is the size of the heap as an exponent of 2
     */
-   await runSetup();
+   await runSetup(allocationProcTests_neededSetup);
    let code = ["GTO #test_afterEndInstruction"];
    let endInstructionAddr = testsInstructionsStart + calculateInstructionsLength(code);
    code = code.concat(
@@ -274,7 +276,7 @@ async function test_AllocationProc_GlobalHeapAllocateWhenEmpty(){
    );
    await runInstructions(code, false);
    // Heap starts after the last instruction
-   let startOfHeap = calculateInstructionsLength(IntermediateFunctions["SETUP"]()) + calculateInstructionsLength(["END"]);
+   let startOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
    // Check a
    let checkResult = assertMemoryEqualToInt(startOfHeap, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
    if (checkResult !== true) return checkResult;
@@ -308,7 +310,7 @@ async function test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull(){
             c) The first free chunk's next start pointer at heap[65-68] points to heap[8192], and heap[69-72] points to the last byte of the heap (as there should now be two free chunks, separated by the 4096 bytes just allocated)
             d) The second free chunk's next start pointer at heap[8193-8196] contains 0 (as there are no more free chunks)
     */
-   await runSetup();
+   await runSetup(allocationProcTests_neededSetup);
    let startOfHeap = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
    // writeIntToMemory(startOfHeap + 64, Addresses.GlobalArea + Offsets.frame.StartChunkPointer, 4);
    // Allocate 64 bytes
@@ -446,7 +448,7 @@ async function test_AllocationProc_GlobalHeapAllocateLastBlockInChunk(){
     // Allocate a 32 byte (2 ^ 5) block, followed by a 2^(x-1) block (where x is the heap size as an exponent of 2), therefore leaving a large free chunk between the allocated blocks
     // Then allocate a 2^(x-2) block, as this will allocate the last block in the chunk.
     // Then check that the pointer to the end of the chunk points to the new end of the chunk (the byte before the start of the allocated block)
-    await runSetup();
+    await runSetup(allocationProcTests_neededSetup);
     let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
     // Allocate 32 bytes
     let code = ["GTO #test_afterEndInstruction"];
@@ -511,7 +513,7 @@ async function test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk(){
             b) heap[65-68] points to the heap midpoint (meaning the next chunk start pointer was correctly moved)
             c) heap[69-72] points to the last byte in the heap (meaning the next chunk end pointer was moved correctly)
     */
-    await runSetup();
+    await runSetup(allocationProcTests_neededSetup);
     let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
     // Allocate 32 bytes
     let code = ["GTO #test_afterEndInstruction"];
@@ -584,7 +586,7 @@ async function test_AllocationProc_GlobalHeapAllocateMidBlockInChunk(){
             b) The next chunk end pointer (at heap[37-40]) in the first chunk contains the original end pointer for the first chunk (i.e. the end point of the first chunk before the 2^7 block was allocated) (this means the first chunk's next chunk end pointer has been correctly updated)
             c) The pointers starting at heap[257] are the same as the next chunk pointers from the original first chunk (i.e. the next chunk start and end pointers from the first chunk, before the 2^7 block was allocated) (this means the new chunk has correctly been given the pointers to the next chunk)
     */
-   await runSetup();
+   await runSetup(allocationProcTests_neededSetup);
    let heapSizeBase2 = Math.log2(readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapEndPointer, 4) - readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4));
    // Allocate 32 byte block
     let code = ["GTO #test_afterEndInstruction"];
