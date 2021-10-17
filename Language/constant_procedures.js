@@ -802,6 +802,25 @@ var Base2ExponentProc = [
 
 ProcedureOffset += calculateInstructionsLength(Base2ExponentProc);  // Increase ProcedureOffset to contain the start address of the next procedure
 
+/*
+    Procedure for allocating space on a name pool
+    The details of how much space is needed, and from where, is provided on the top entry of EvalStack:
+        - EvalTop[0] = Number of 5 byte "blocks" needed
+        - EvalTop[1] = Set to 1 to force the space to be allocated from the global name pool.  If the DeclareGlobal flag is set, it will be allocated globally regardless
+
+    Upon completion, the first address of the allocated space is placed in the first four bytes of EvalTop
+*/
+let neededNameDetails = Addresses.ps7;  // Contains a copy of the details provided on the EvalStack
+
+var AllocateNameProc = [
+    "#allocateName AND 0",
+    // First copy the details from EvalTop to neededNameDetails
+    copy(Addresses.EvalTop, Addresses.psAddr, 4)
+]
+AllocateNameProc = AllocateNameProc.concat(
+    copyFromAddress(neededNameDetails, 2, ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
+    
+);
 // Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
 return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
     .concat(AllocationProc)
