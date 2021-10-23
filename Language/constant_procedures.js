@@ -17,7 +17,7 @@ ProcedureOffset += calculateInstructionsLength([`GTO ${ProcedureOffset}`]);
     The details about how much to allocate and where from are provided in the top entry on EvalStack:
         - EvalTop[0] = Amount of space needed (as a power of 2)
         - EvalTop[1] = The type tag of the object that the allocation is for (used to know whether the int/float pool can be used)
-        - EvalTop[2] = Set to 1 to force the space to be allocated globally (i.e. on the heap or int/float pool).  If the DeclareGlobal flag is set it will be allocated globally regardless of whether this is set
+        - EvalTop[2] = Set to 1 to force the space to be allocated globally (i.e. on the heap or int/float pool).
 
     Upon completion, the first address of the newly allocated space is placed in the first 4 bytes of EvalTop
 */
@@ -806,21 +806,69 @@ ProcedureOffset += calculateInstructionsLength(Base2ExponentProc);  // Increase 
     Procedure for allocating space on a name pool
     The details of how much space is needed, and from where, is provided on the top entry of EvalStack:
         - EvalTop[0] = Number of 5 byte "blocks" needed
-        - EvalTop[1] = Set to 1 to force the space to be allocated from the global name pool.  If the DeclareGlobal flag is set, it will be allocated globally regardless
+        - EvalTop[1] = Set to 1 to force the space to be allocated from the global name pool.
 
     Upon completion, the first address of the allocated space is placed in the first four bytes of EvalTop
 */
 let neededNameDetails = Addresses.ps7;  // Contains a copy of the details provided on the EvalStack
+let namePoolPointer = Addresses.ps8;  // Address of the name pool to be used
+let currentFreeSpacePtr = Addresses.ps9;  // The address of the free space currently being searched
+let currentFreeSpaceSize = Addresses.ps7 + 2;  // The size of the free space currently being searched (only 1 byte so can use one of the unused bytes in ps7)
+let currentFreeSpaceDetailsPtr = Addresses.ps10;  // The address of the details of the current free space
 
 var AllocateNameProc = [
-    "#allocateName AND 0",
+    "#allocateName AND 0"
+].concat(
     // First copy the details from EvalTop to neededNameDetails
     copy(Addresses.EvalTop, Addresses.psAddr, 4)
-]
-AllocateNameProc = AllocateNameProc.concat(
-    copyFromAddress(neededNameDetails, 2, ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
-    
 );
+AllocateNameProc = AllocateNameProc.concat(
+    copyFromAddress(neededNameDetails, 2, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    // Load the correct name pool address into namePoolPointer
+    `RED ${neededNameDetails + 1}`,
+    `BIZ #allocateName_current_scope`,
+    // EvalTop[1] is set, so allocate globally
+    writeMultiByte(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, namePoolPointer, 4),
+    "GTO #allocateName_searchPool",
+    // EvalTop[1] is not set, so allocate in current scope
+    "#allocateName_current_scope AND 0"
+);
+AllocateNameProc = AllocateNameProc.concat(
+    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.NamePoolPointer, ProcedureOffset + calculateInstructionsLength(AllocateNameProc), false, true),  // ps3 now contains the address of the current scope's name pool
+    copy(Addresses.ps3, namePoolPointer, 4),
+    
+    // Search the pool for a large enough free space
+    "#allocateName_searchPool AND 0"
+);
+// Load in the details of the first free space
+AllocateNameProc = AllocateNameProc.concat(
+    // Details of first free space start at 2nd byte of pool headers
+    add32BitIntegers(namePoolPointer, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc), false, true),
+    copy(Addresses.ps3, currentFreeSpaceDetailsPtr, 4),
+    copy(currentFreeSpaceDetailsPtr, Addresses.psAddr, 4),
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(currentFreeSpacePtr, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // currentFreeSpacePtr now contains the address of the first free space in the pool
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(currentFreeSpaceSize, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)), // currentFreeSpaceSize now contains the size (in blocks) of the first free space
+    // Check if current space is large enough
+    `#allocateName_checkSpace RED ${currentFreeSpaceSize}`,
+    `SUB A ${neededNameDetails}`,
+    "BIZ #allocateName_spacePerfect" ,
+    "BIN #allocateName_spaceTooSmall",
+    // The space is larger than we need, so take only as much as is needed
+    "#allocateName_spaceTooBig AND 0",
+    // We will take the space needed from the start of this chunk, so adjust the pointer to this chunk to point to the new start and decrease it's size field accordingly
+);
+AllocateNameProc = AllocateNameProc.concat(
+    add32BitIntegers(currentFreeSpacePtr, "NEED TO MULTIPLY: multiply32BitIntegers(neededNameDetails, NamePool._blockSize)"),
+
+    // The space is exactly the right size
+    "#allocateName_spacePerfect AND 0",
+    // The space is too small, so move onto the next one
+    "#allocateName_spaceTooSmall AND 0"
+)
 // Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
 return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
     .concat(AllocationProc)
