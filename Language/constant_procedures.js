@@ -869,6 +869,17 @@ AllocateNameProc = AllocateNameProc.concat(
     // The space is too small, so move onto the next one
     "#allocateName_spaceTooSmall AND 0"
 )
+
+ProcedureOffset += calculateInstructionsLength(AllocateNameProc)
+
+/*
+    Procedure for multiplying integers
+    Takes the 32 bit multiplicand in ps0, and 32 bit multiplier in ps1, and leaves the 32 bit result in ps2
+*/
+var IntMultProc = [
+    "#intMult AND 0",
+    
+]
 // Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
 return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
     .concat(AllocationProc)
