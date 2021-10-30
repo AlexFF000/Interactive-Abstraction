@@ -873,13 +873,132 @@ AllocateNameProc = AllocateNameProc.concat(
 ProcedureOffset += calculateInstructionsLength(AllocateNameProc)
 
 /*
-    Procedure for multiplying integers
+    Procedure for multiplying signed integers
     Takes the 32 bit multiplicand in ps0, and 32 bit multiplier in ps1, and leaves the 32 bit result in ps2
 */
+let intMultiplicand = Addresses.ps0;
+let intMultiplier = Addresses.ps1;
+let intMultResult = Addresses.ps2;
+let intMultResultNegative = Addresses.ps4;  // One byte.  If set, the result should be negative
+let intMultExponent = Addresses.ps4 + 1;  // One byte. Records which bit of the multiplier we are checking
+let intMultiplierCurrentBit = Addresses.ps4 + 2;  // One byte.  A counter to tell us when we have checked each bit in a byte
+let intMultiplierCurrentByte = Addresses.ps4 + 3;  // One byte.  Contains the current byte of multiplier, shifted as necessary
+let intMultiplierByteIndex = Addresses.ps5 + 3;  //   Index of the byte of multiplier currently being checked.  NOTE: Although this is one byte, it requires a whole pseudo-register and must be in the last byte (this allows it to be added to 32 bit addresses).
+let intMultiplicandShifted = Addresses.ps6;  // Holds version of multiplicand while it is being shifted
 var IntMultProc = [
     "#intMult AND 0",
-    
+    // Make sure result register contains 0 initially
+    `WRT ${intMultResult}`,
+    `WRT ${intMultResult + 1}`,
+    `WRT ${intMultResult + 2}`,
+    `WRT ${intMultResult + 3}`,
+
+    // Both operands need to be positive, so flip any negative ones and set intMultResultNegative for later
+    `WRT ${intMultResultNegative}`,  // Make sure intMultResultNegative is 0 initially
+    `ADD A ${intMultiplicand}`,
+    "BIN #intMult_flipMultiplicand",
+    "#intMult_checkMultiplierSign AND 0",
+    `ADD A ${intMultiplier}`,
+    "BIN #intMult_flipMultiplier",
+    "GTO #intMult_startMult",
+
+    // When flipping operands invert intMultResultNegative, rather than setting it explicitly, as if both operands are negative the result will be positive
+    // Multiplicand is negative, so flip it to positive and invert intMultResultNegative
+    `#intMult_flipMultiplicand RED ${intMultResultNegative}`,
+    "NOT",
+    `WRT ${intMultResultNegative}`
 ]
+IntMultProc = IntMultProc.concat(
+    flip32BitInt2C(intMultiplicand, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
+    [
+    "GTO #intMult_checkMultiplierSign",
+    `#intMult_flipMultiplier ADD ${intMultResultNegative}`,
+    "NOT",
+    `WRT ${intMultResultNegative}`,
+    ]
+);
+IntMultProc = IntMultProc.concat(
+    flip32BitInt2C(intMultiplier, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
+    [
+    // Prepare to start the multiplication
+    "#intMult_startMult AND 0",
+    `WRT ${intMultiplierByteIndex}`,  // Load 0 into intMultiplierByteIndex, as we will start checking from the byte in intMultiplier + 0
+    // The exponent of the bit currently being checked determines how many shifts will be needed.  Start at 30 as we can ignore the MSBit (which would have exponent 31) as we know it will always be 0 as we flipped operands to positive 
+    "ADD 30",
+    `WRT ${intMultExponent}`,
+    // Load the MSByte of multiplier into intMultiplierCurrentByte, shifting out the MSBit as we can ignore it
+    `RED ${intMultiplier}`,
+    `ADD A ${intMultiplier}`,  // Add to itself to shift left (as CPU does not have shift instructions)
+    `WRT ${intMultiplierCurrentByte}`,
+    // Load 7 into intMultiplierCurrentBit (usually this would be 8, but we are starting from the second most significant byte)
+    "AND 0",
+    "ADD 7",
+    `WRT ${intMultiplierCurrentBit}`
+    ]
+);
+IntMultProc = IntMultProc.concat(
+    [
+        /* 
+            Perform the actual multiplication
+            For each bit in multiplier:
+                - If it is 1, left shift multiplicand by ${intMultExponent} places and add to result
+                    - If the result of either the shifts or addition uses more than 32 bits, then we have overflowed and the multiplication cannot be done in 32 bits
+                - Otherwise skip straight to next bit
+        */
+       `#intMult_compute AND 0`,
+       `ADD A ${intMultiplierCurrentByte}`,
+       "BIN #intMult_shiftAdd",  // If MSBit is 1, negative flag will be set so we can use BIN to determine if bit is 1
+       // Decrement counter, shift intMultiplierCurrentByte (so that the next bit to be checked is in MSBit position), then repeat
+       `#intMult_nextBit RED ${intMultiplierCurrentBit}`,
+       "SUB 1",
+       "BIZ #intMult_nextByte"  // The counter has reached 0, so this whole byte has been checked.  So move to the next one
+       `WRT ${intMultiplierCurrentBit}`,
+       `RED ${intMultiplierCurrentByte}`,
+       `ADD A ${intMultiplierCurrentByte}`  // Add to itself to shift left
+       `WRT ${intMultiplierCurrentByte}`,
+       // Decrement intMultExponent
+       `RED ${intMultExponent}`,
+       "SUB 1",
+       `WRT ${intMultExponent}`,
+       "GTO #intMult_compute",
+
+       // Move to next byte
+       `#intMult_nextByte RED ${intMultiplierByteIndex}`,
+       "ADD 1",
+       `WRT ${intMultiplierByteIndex}`,
+       // If byteIndex == 4, then we have checked all bytes
+       "SUB 4",
+       "BIZ #intMult_setSign",
+       // Otherwise, reset counter to 8 and load the new byte into intMultiplierCurrentByte
+       "AND 0",
+       "ADD 8",
+       `WRT ${intMultiplierCurrentBit}`,
+    ]
+);
+IntMultProc = IntMultProc.concat(
+    add32BitIntegers(intMultiplier, intMultiplierByteIndex, ProcedureOffset + calculateInstructionsLength(ProcedureOffset)),
+    copy(Addresses.ps3, Addresses.psAddr, 4),  // psAddr now contains the address containing the next byte of multiplier to be checked
+);
+IntMultProc = IntMultProc.concat(
+    copyFromAddress(intMultiplierCurrentByte, 1, ProcedureOffset + calculateInstructionsLength(ProcedureOffset)),
+    [
+        "GTO #intMult_compute"
+
+        // Left shift multiplicand by ${intMultExponent} places and add to result
+        /* First need to copy intMultExponent into a counter to keep track of how many shifts we have done
+           As this will only take one byte and is only needed temporarily, we can use one of the unused bytes in intMultiplierByteIndex for this to avoid wasting space (as long as we set it back to 0 after) */
+        `RED ${intMultExponent}`,
+        `WRT ${intMultiplierByteIndex - 1}`,
+    ],
+    copy(intMultiplicand, intMultiplicandShifted, 4),
+    [
+        `#intMult_shift RED ${intMultiplierByteIndex - 1}`,
+        "BIZ #intMult_add"  // If shift counter is zero, no more shifts are needed so add to result
+    ]
+);
+IntMultProc = IntMultProc.concat(
+    add32BitIntegers(intMultiplicandShifted, intMultiplicandShifted, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
+)
 // Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
 return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
     .concat(AllocationProc)

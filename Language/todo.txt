@@ -1,0 +1,4 @@
+Need to find out how we broke add32BitIntegers and fix it, also test sub32BitInt
+Then continue writing multiplication (was on line 1000)
+Then test it
+Then continue writing AllocateNameProc

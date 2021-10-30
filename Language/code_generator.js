@@ -249,6 +249,7 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
     instructs.push(
         // ps2 is used to hold carry flags, so make sure it is clear
         "AND 0",
+        `WRT ${Addresses.ps2}`,
         `WRT ${Addresses.ps2 + 1}`,
         `WRT ${Addresses.ps2 + 2}`,
         `WRT ${Addresses.ps2 + 3}`,
@@ -261,36 +262,39 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
     instructionsLength += calculateInstructionsLength(instructs);
     instructs.push(
         // Check for carry
-        `BIC ${instructionsLength + 110}`,  // Each of these instructions uses 5 bytes, so +100 will give address of first instruction in first byte carry procdure
+        `BIC ${instructionsLength + 120}`,  // Each of these instructions uses 5 bytes, so +120 will give address of first instruction in first byte carry procdure
         // Second byte
         `RED ${int1 + 2}`,
         `ADD A ${int2 + 2}`,
         `WRT ${Addresses.ps3 + 2}`,
         // Carry for this byte must be checked before adding carry from previous, otherwise carry will be wiped
-        `BIC ${instructionsLength + 124}`,
+        `BIC ${instructionsLength + 134}`,
         // Add carry for first byte (if there was one)
         `RED ${Addresses.ps3 + 2}`,
         `ADD A ${Addresses.ps2 + 3}`,
         `WRT ${Addresses.ps3 + 2}`,
         // Check if adding the carry caused a carry
-        `BIC ${instructionsLength + 138}`,
+        `BIC ${instructionsLength + 148}`,
         // Third byte
         `RED ${int1 + 1}`,
         `ADD A ${int2 + 1}`,
         `WRT ${Addresses.ps3 + 1}`,
-        `BIC ${instructionsLength + 152}`,
+        `BIC ${instructionsLength + 162}`,
         `RED ${Addresses.ps3 + 1}`,
         `ADD A ${Addresses.ps2 + 2}`,
         `WRT ${Addresses.ps3 + 1}`,
         // Check if adding the carry caused a carry
-        `BIC ${instructionsLength + 166}`,
+        `BIC ${instructionsLength + 176}`,
         // Fourth byte
         `RED ${int1}`,
         `ADD A ${int2}`,
+        `BIC ${instructionsLength + 190}`,
         `ADD A ${Addresses.ps2 + 1}`,
         `WRT ${Addresses.ps3}`,
+        // Check if adding the carry caused a carry
+        `BIC ${instructionsLength + 204}`,
         // Skip over carry procedures
-        `GTO ${instructionsLength + 180}`
+        `GTO ${instructionsLength + 213}`
     );
     // Instructions for handling carries.  These just store 1 in the appropriate byte of ps2
     instructs.push(
@@ -318,7 +322,17 @@ function add32BitIntegers(int1, int2, instructionsLength, int1IsLiteral=false, i
         "AND 0",
         "ADD 1",
         `WRT ${Addresses.ps2 + 1}`,
-        `GTO ${instructionsLength + 85}`
+        `GTO ${instructionsLength + 85}`,
+        // Carry for 4th (MSB) byte
+        "AND 0",
+        "ADD 1",
+        `WRT ${Addresses.ps2}`,
+        `GTO ${instructionsLength + 105}`,
+        // Carry for 4th (MSB) byte (after adding carry from previous byte)
+        // If the 4th byte carried, then the result cannot be represented in 32 bits.  But leave it up to users of this function to check ps2 and handle this instead of throwing an error here
+        "AND 0",
+        "ADD 1",
+        `WRT ${Addresses.ps2}`,
     );
     return instructs;
 }
