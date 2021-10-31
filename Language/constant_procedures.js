@@ -1032,7 +1032,8 @@ IntMultProc = IntMultProc.concat(
 );
 IntMultProc = IntMultProc.concat(
     flip32BitInt2C(intMultResult, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
-    "intMult_finish AND 0" 
+    // Exit procedure
+    `intMult_finish GTO ${Addresses.psReturnAddr}`
 );
 // Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
 return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
