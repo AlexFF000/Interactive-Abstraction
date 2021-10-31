@@ -824,21 +824,27 @@ var AllocateNameProc = [
 );
 AllocateNameProc = AllocateNameProc.concat(
     copyFromAddress(neededNameDetails, 2, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    [
     // Load the correct name pool address into namePoolPointer
     `RED ${neededNameDetails + 1}`,
     `BIZ #allocateName_current_scope`,
     // EvalTop[1] is set, so allocate globally
+    ],
     writeMultiByte(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, namePoolPointer, 4),
+    [
     "GTO #allocateName_searchPool",
     // EvalTop[1] is not set, so allocate in current scope
     "#allocateName_current_scope AND 0"
+    ]
 );
 AllocateNameProc = AllocateNameProc.concat(
     add32BitIntegers(Addresses.ScopePointer, Offsets.frame.NamePoolPointer, ProcedureOffset + calculateInstructionsLength(AllocateNameProc), false, true),  // ps3 now contains the address of the current scope's name pool
     copy(Addresses.ps3, namePoolPointer, 4),
+    [
     
     // Search the pool for a large enough free space
     "#allocateName_searchPool AND 0"
+    ]
 );
 // Load in the details of the first free space
 AllocateNameProc = AllocateNameProc.concat(
@@ -852,6 +858,7 @@ AllocateNameProc = AllocateNameProc.concat(
 );
 AllocateNameProc = AllocateNameProc.concat(
     copyToAddress(currentFreeSpaceSize, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)), // currentFreeSpaceSize now contains the size (in blocks) of the first free space
+    [
     // Check if current space is large enough
     `#allocateName_checkSpace RED ${currentFreeSpaceSize}`,
     `SUB A ${neededNameDetails}`,
@@ -859,15 +866,18 @@ AllocateNameProc = AllocateNameProc.concat(
     "BIN #allocateName_spaceTooSmall",
     // The space is larger than we need, so take only as much as is needed
     "#allocateName_spaceTooBig AND 0",
+    ]
     // We will take the space needed from the start of this chunk, so adjust the pointer to this chunk to point to the new start and decrease it's size field accordingly
 );
 AllocateNameProc = AllocateNameProc.concat(
-    add32BitIntegers(currentFreeSpacePtr, "NEED TO MULTIPLY: multiply32BitIntegers(neededNameDetails, NamePool._blockSize)"),
+    // add32BitIntegers(currentFreeSpacePtr, "NEED TO MULTIPLY: multiply32BitIntegers(neededNameDetails, NamePool._blockSize)"),
+    [
 
     // The space is exactly the right size
     "#allocateName_spacePerfect AND 0",
     // The space is too small, so move onto the next one
     "#allocateName_spaceTooSmall AND 0"
+    ]
 )
 
 ProcedureOffset += calculateInstructionsLength(AllocateNameProc)
@@ -912,7 +922,7 @@ IntMultProc = IntMultProc.concat(
     flip32BitInt2C(intMultiplicand, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
     [
     "GTO #intMult_checkMultiplierSign",
-    `#intMult_flipMultiplier ADD ${intMultResultNegative}`,
+    `#intMult_flipMultiplier ADD A ${intMultResultNegative}`,
     "NOT",
     `WRT ${intMultResultNegative}`,
     ]
@@ -976,18 +986,18 @@ IntMultProc = IntMultProc.concat(
     ]
 );
 IntMultProc = IntMultProc.concat(
-    add32BitIntegers(intMultiplier, intMultiplierByteIndex, ProcedureOffset + calculateInstructionsLength(ProcedureOffset)),
+    add32BitIntegers(intMultiplier, intMultiplierByteIndex, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
     copy(Addresses.ps3, Addresses.psAddr, 4),  // psAddr now contains the address containing the next byte of multiplier to be checked
 );
 IntMultProc = IntMultProc.concat(
-    copyFromAddress(intMultiplierCurrentByte, 1, ProcedureOffset + calculateInstructionsLength(ProcedureOffset)),
+    copyFromAddress(intMultiplierCurrentByte, 1, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
     [
         "GTO #intMult_compute",
 
         // Left shift multiplicand by ${intMultExponent} places and add to result
         /* First need to copy intMultExponent into a counter to keep track of how many shifts we have done
            As this will only take one byte and is only needed temporarily, we can use one of the unused bytes in intMultiplierByteIndex for this to avoid wasting space (as long as we set it back to 0 after) */
-        `RED ${intMultExponent}`,
+        `#intMult_shiftAdd RED ${intMultExponent}`,
         `WRT ${intMultiplierByteIndex - 1}`,
     ],
     copy(intMultiplicand, intMultiplicandShifted, 4),
@@ -1033,13 +1043,19 @@ IntMultProc = IntMultProc.concat(
 IntMultProc = IntMultProc.concat(
     flip32BitInt2C(intMultResult, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
     // Exit procedure
-    `intMult_finish GTO ${Addresses.psReturnAddr}`
+    [
+        `#intMult_finish GTO A ${Addresses.psReturnAddr}`
+    ]
 );
+ProcedureOffset += calculateInstructionsLength(IntMultProc);
+
 // Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
 return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
     .concat(AllocationProc)
     .concat(CheckGreaterProc)
-    .concat(Base2ExponentProc);
+    .concat(Base2ExponentProc)
+    .concat(AllocateNameProc)
+    .concat(IntMultProc);
 }
 
 
