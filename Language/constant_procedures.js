@@ -874,17 +874,17 @@ ProcedureOffset += calculateInstructionsLength(AllocateNameProc)
 
 /*
     Procedure for multiplying signed integers
-    Takes the 32 bit multiplicand in ps0, and 32 bit multiplier in ps1, and leaves the 32 bit result in ps2
+    Takes the 32 bit multiplicand in ps0, and 32 bit multiplier in ps1, and leaves the 32 bit result in ps4
 */
 let intMultiplicand = Addresses.ps0;
 let intMultiplier = Addresses.ps1;
-let intMultResult = Addresses.ps2;
-let intMultResultNegative = Addresses.ps4;  // One byte.  If set, the result should be negative
-let intMultExponent = Addresses.ps4 + 1;  // One byte. Records which bit of the multiplier we are checking
-let intMultiplierCurrentBit = Addresses.ps4 + 2;  // One byte.  A counter to tell us when we have checked each bit in a byte
-let intMultiplierCurrentByte = Addresses.ps4 + 3;  // One byte.  Contains the current byte of multiplier, shifted as necessary
-let intMultiplierByteIndex = Addresses.ps5 + 3;  //   Index of the byte of multiplier currently being checked.  NOTE: Although this is one byte, it requires a whole pseudo-register and must be in the last byte (this allows it to be added to 32 bit addresses).
-let intMultiplicandShifted = Addresses.ps6;  // Holds version of multiplicand while it is being shifted
+let intMultResult = Addresses.ps4;
+let intMultResultNegative = Addresses.ps5;  // One byte.  If set, the result should be negative
+let intMultExponent = Addresses.ps5 + 1;  // One byte. Records which bit of the multiplier we are checking
+let intMultiplierCurrentBit = Addresses.ps5 + 2;  // One byte.  A counter to tell us when we have checked each bit in a byte
+let intMultiplierCurrentByte = Addresses.ps5 + 3;  // One byte.  Contains the current byte of multiplier, shifted as necessary
+let intMultiplierByteIndex = Addresses.ps6 + 3;  //   Index of the byte of multiplier currently being checked.  NOTE: Although this is one byte, it requires a whole pseudo-register and must be in the last byte (this allows it to be added to 32 bit addresses).
+let intMultiplicandShifted = Addresses.ps7;  // Holds version of multiplicand while it is being shifted
 var IntMultProc = [
     "#intMult AND 0",
     // Make sure result register contains 0 initially
@@ -951,10 +951,10 @@ IntMultProc = IntMultProc.concat(
        // Decrement counter, shift intMultiplierCurrentByte (so that the next bit to be checked is in MSBit position), then repeat
        `#intMult_nextBit RED ${intMultiplierCurrentBit}`,
        "SUB 1",
-       "BIZ #intMult_nextByte"  // The counter has reached 0, so this whole byte has been checked.  So move to the next one
+       "BIZ #intMult_nextByte",  // The counter has reached 0, so this whole byte has been checked.  So move to the next one
        `WRT ${intMultiplierCurrentBit}`,
        `RED ${intMultiplierCurrentByte}`,
-       `ADD A ${intMultiplierCurrentByte}`  // Add to itself to shift left
+       `ADD A ${intMultiplierCurrentByte}`,  // Add to itself to shift left
        `WRT ${intMultiplierCurrentByte}`,
        // Decrement intMultExponent
        `RED ${intMultExponent}`,
@@ -982,7 +982,7 @@ IntMultProc = IntMultProc.concat(
 IntMultProc = IntMultProc.concat(
     copyFromAddress(intMultiplierCurrentByte, 1, ProcedureOffset + calculateInstructionsLength(ProcedureOffset)),
     [
-        "GTO #intMult_compute"
+        "GTO #intMult_compute",
 
         // Left shift multiplicand by ${intMultExponent} places and add to result
         /* First need to copy intMultExponent into a counter to keep track of how many shifts we have done
@@ -998,7 +998,42 @@ IntMultProc = IntMultProc.concat(
 );
 IntMultProc = IntMultProc.concat(
     add32BitIntegers(intMultiplicandShifted, intMultiplicandShifted, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
-)
+    // Check for overflow
+    [
+        "AND 0",
+        `ADD A ${Addresses.ps2}`,  // If there is overflow, ps2 will not contain 0
+        `BIZ #intMult_shiftNoOverflow`,
+        // ELSE THROW OVERFLOW ERROR.  NEED TO DO THIS WHEN ERRORS ARE IMPLEMENTED
+    ],
+    copy(Addresses.ps3, intMultiplicandShifted, 4),
+    [
+        `#intMult_shiftNoOverflow RED ${intMultiplierByteIndex - 1}`,
+        "SUB 1",
+        `WRT ${intMultiplierByteIndex - 1}`,
+        "GTO #intMult_shift",
+        "#intMult_add AND 0",
+    ]
+);
+IntMultProc = IntMultProc.concat(
+    add32BitIntegers(intMultiplicandShifted, intMultResult, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
+    copy(Addresses.ps3, intMultResult, 4),  // The shifted value has been added to result
+    // Check for overflow
+    [
+        "AND 0",
+        `ADD A ${Addresses.ps2}`,
+        "BIZ #intMult_nextBit",
+        // ELSE THROW OVERFLOW ERROR.  NEED TO DO THIS WHEN ERRORS ARE IMPLEMENTED
+
+        // Make result negative if necessary
+        "#intMult_setSign AND 0",
+        `ADD A ${intMultResultNegative}`,
+        "BIZ #intMult_finish",  // If intMultResultNegative is 0 then we don't need to do anything
+    ]
+);
+IntMultProc = IntMultProc.concat(
+    flip32BitInt2C(intMultResult, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
+    "intMult_finish AND 0" 
+);
 // Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
 return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
     .concat(AllocationProc)
