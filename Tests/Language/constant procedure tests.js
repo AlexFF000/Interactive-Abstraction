@@ -709,58 +709,58 @@ var tests_IntMultProc = [test_IntMultProc_ZeroByZero, test_IntMultProc_ZeroByOne
 async function test_IntMultProc_ZeroByZero(){
     // Multiply 0 by 0, and then check that result is 0
     await runSetup(intMultProcTests_neededSetup);
-    // Set ps4 to contain something other than 0 to make sure it was not already 0
-    writeIntToMemory((2 ** 32)- 1, Addresses.ps4, 4);
-    writeIntToMemory(0, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(0, Addresses.ps1, 4);  // Write multiplier
+    // Set ps10 to contain something other than 0 to make sure it was not already 0
+    writeIntToMemory((2 ** 32)- 1, Addresses.ps10, 4);
+    writeIntToMemory(0, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(0, Addresses.ps9, 4);  // Write multiplier
     let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(0, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(0, Addresses.ps10, 4);
 }
 // Test2- 0 x 1
 async function test_IntMultProc_ZeroByOne(){
     // Multiply 0 by 1, and then check that the result is 0
     await runSetup(intMultProcTests_neededSetup);
-    // Set ps4 to contain something other than 0 to make sure it was not already 0
-    writeIntToMemory((2 ** 32)- 1, Addresses.ps4, 4);
-    writeIntToMemory(0, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(1, Addresses.ps1, 4);  // Write multiplier
+    // Set ps10 to contain something other than 0 to make sure it was not already 0
+    writeIntToMemory((2 ** 32)- 1, Addresses.ps10, 4);
+    writeIntToMemory(0, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(1, Addresses.ps9, 4);  // Write multiplier
     let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(0, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(0, Addresses.ps10, 4);
 }
 // Test3 1 x 1
 async function test_IntMultProc_OneByOne(){
     // Multiply 1 by 1, and then check that the result is 1
     await runSetup(intMultProcTests_neededSetup);
-    writeIntToMemory(1, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(1, Addresses.ps1, 4);  // Write multiplier
+    writeIntToMemory(1, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(1, Addresses.ps9, 4);  // Write multiplier
     let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(1, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(1, Addresses.ps10, 4);
 }
 // Test4- Commutative
 async function test_IntMultProc_Commutative(){
     // Multiply 301256 by 461, and check the result is 138879016
     // Then multiply 461 by 301256, and check the result is also 138879016
     await runSetup(intMultProcTests_neededSetup);
-    writeIntToMemory(301256, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(461, Addresses.ps1, 4);  // Write multiplier
+    writeIntToMemory(301256, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(461, Addresses.ps9, 4);  // Write multiplier
     let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    let checkResult = assertMemoryEqualToInt(138879016, Addresses.ps4, 4);
+    let checkResult = assertMemoryEqualToInt(138879016, Addresses.ps10, 4);
     if (checkResult !== true) return checkResult;
     // Clear output to make sure it has actually been recalculated
-    writeIntToMemory(0, Addresses.ps4, 4);
-    writeIntToMemory(461, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(301256, Addresses.ps1, 4);  // Write multiplier
+    writeIntToMemory(0, Addresses.ps10, 4);
+    writeIntToMemory(461, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(301256, Addresses.ps9, 4);  // Write multiplier
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(138879016, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(138879016, Addresses.ps10, 4);
 }
 // Test5- 1 byte * 1 byte, 2 byte * 2 byte with carrying (i.e. result should use more bytes than the operands, e.g. the result of the 1 byte * 1 byte should use 2 bytes)
 async function test_IntMultProc_NBytesByNBytes(){
@@ -771,63 +771,64 @@ async function test_IntMultProc_NBytesByNBytes(){
     */
     await runSetup(intMultProcTests_neededSetup);
     // a
-    writeIntToMemory(126, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(81, Addresses.ps1, 4);  // Write multiplier
+    writeIntToMemory(126, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(81, Addresses.ps9, 4);  // Write multiplier
     let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    let checkResult = assertMemoryEqualToInt(10206, Addresses.ps4, 4);
+    let checkResult = assertMemoryEqualToInt(10206, Addresses.ps10, 4);
     if (checkResult !== true) return checkResult;
     // b
-    writeIntToMemory(21936, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(287, Addresses.ps1, 4);  // Write multiplier
+    writeIntToMemory(21936, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(287, Addresses.ps9, 4);  // Write multiplier
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(6295632, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(6295632, Addresses.ps10, 4);
 }
 // Test6- 4 byte * 1 byte
 async function test_IntMultProc_4BytesBy1Byte(){
     // Multiply 125 by 16777217 and check result is 2097152125
     await runSetup(intMultProcTests_neededSetup);
-    writeIntToMemory(125, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(16777217, Addresses.ps1, 4);  // Write multiplier
+    writeIntToMemory(125, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(16777217, Addresses.ps9, 4);  // Write multiplier
     let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(2097152125, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(2097152125, Addresses.ps10, 4);
 }
 // Test7- Neg * Pos
 async function test_IntMultProc_NegByPos(){
     // Multiply -16777217 by 11 and check result is -184549387
     await runSetup(intMultProcTests_neededSetup);
-    writeIntToMemory(-16777217, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(11, Addresses.ps1, 4);  // Write multiplier
+    writeIntToMemory(-16777217, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(11, Addresses.ps9, 4);  // Write multiplier
     let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(-184549387, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(-184549387, Addresses.ps10, 4);
 }
 // Test8- Neg * Neg
 async function test_IntMultProc_NegByNeg(){
     // Multiply -16777217 by -11 and check result is 184549387
     await runSetup(intMultProcTests_neededSetup);
-    writeIntToMemory(-16777217, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(-11, Addresses.ps1, 4);  // Write multiplier
+    writeIntToMemory(-16777217, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(-11, Addresses.ps9, 4);  // Write multiplier
     let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(184549387, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(184549387, Addresses.ps10, 4);
 }
 // Test9- Neg * 0
 async function test_IntMultProc_NegByZero(){
     // Multiply -16777217 by 0 and check result is 0
     await runSetup(intMultProcTests_neededSetup);
-    writeIntToMemory(-16777217, Addresses.ps0, 4);  // Write multiplicand
-    writeIntToMemory(0, Addresses.ps1, 4);  // Write multiplier
-    writeIntToMemory((2 ** 32) - 1, Addresses.ps4, 4);  // Make sure result doesn't already contain 0, otherwise the test will pass if the result is not loaded into ps4
+    writeIntToMemory(-16777217, Addresses.ps8, 4);  // Write multiplicand
+    writeIntToMemory(0, Addresses.ps9, 4);  // Write multiplier
+    writeIntToMemory((2 ** 32) - 1, Addresses.ps10, 4);  // Make sure result doesn't already contain 0, otherwise the test will pass if the result is not loaded into ps10
+    let code = ["GTO #intMult"]
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
     await runInstructions(code, false, true);
-    return assertMemoryEqualToInt(0, Addresses.ps4, 4);
+    return assertMemoryEqualToInt(0, Addresses.ps10, 4);
 }
 // Test10- Overflow during shifting
 async function test_IntMultProc_OverflowDuringShift(){

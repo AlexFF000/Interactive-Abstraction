@@ -884,11 +884,11 @@ ProcedureOffset += calculateInstructionsLength(AllocateNameProc)
 
 /*
     Procedure for multiplying signed integers
-    Takes the 32 bit multiplicand in ps0, and 32 bit multiplier in ps1, and leaves the 32 bit result in ps4
+    Takes the 32 bit multiplicand in ps8, and 32 bit multiplier in ps9, and leaves the 32 bit result in ps10
 */
-let intMultiplicand = Addresses.ps0;
-let intMultiplier = Addresses.ps1;
-let intMultResult = Addresses.ps4;
+let intMultiplicand = Addresses.ps8;
+let intMultiplier = Addresses.ps9;
+let intMultResult = Addresses.ps10;
 let intMultResultNegative = Addresses.ps5;  // One byte.  If set, the result should be negative
 let intMultExponent = Addresses.ps5 + 1;  // One byte. Records which bit of the multiplier we are checking
 let intMultiplierCurrentBit = Addresses.ps5 + 2;  // One byte.  A counter to tell us when we have checked each bit in a byte
@@ -922,7 +922,7 @@ IntMultProc = IntMultProc.concat(
     flip32BitInt2C(intMultiplicand, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
     [
     "GTO #intMult_checkMultiplierSign",
-    `#intMult_flipMultiplier ADD A ${intMultResultNegative}`,
+    `#intMult_flipMultiplier RED ${intMultResultNegative}`,
     "NOT",
     `WRT ${intMultResultNegative}`,
     ]
@@ -952,24 +952,23 @@ IntMultProc = IntMultProc.concat(
             Perform the actual multiplication
             For each bit in multiplier:
                 - If it is 1, left shift multiplicand by ${intMultExponent} places and add to result
-                    - If the result of either the shifts or addition uses more than 32 bits, then we have overflowed and the multiplication cannot be done in 32 bits
+                    - If the result of either the shifts or addition uses more than 31 bits, then we have overflowed and the multiplication cannot be done in 31 bits
                 - Otherwise skip straight to next bit
         */
        `#intMult_compute AND 0`,
        `ADD A ${intMultiplierCurrentByte}`,
        "BIN #intMult_shiftAdd",  // If MSBit is 1, negative flag will be set so we can use BIN to determine if bit is 1
-       // Decrement counter, shift intMultiplierCurrentByte (so that the next bit to be checked is in MSBit position), then repeat
-       `#intMult_nextBit RED ${intMultiplierCurrentBit}`,
+       // Decrement counter and exponent, shift intMultiplierCurrentByte (so that the next bit to be checked is in MSBit position), then repeat
+       `#intMult_nextBit RED ${intMultExponent}`,  // Decrement exponent
+       "SUB 1",
+       `WRT ${intMultExponent}`,
+       `RED ${intMultiplierCurrentBit}`,  // Decrement counter
        "SUB 1",
        "BIZ #intMult_nextByte",  // The counter has reached 0, so this whole byte has been checked.  So move to the next one
        `WRT ${intMultiplierCurrentBit}`,
        `RED ${intMultiplierCurrentByte}`,
        `ADD A ${intMultiplierCurrentByte}`,  // Add to itself to shift left
        `WRT ${intMultiplierCurrentByte}`,
-       // Decrement intMultExponent
-       `RED ${intMultExponent}`,
-       "SUB 1",
-       `WRT ${intMultExponent}`,
        "GTO #intMult_compute",
 
        // Move to next byte
@@ -986,7 +985,7 @@ IntMultProc = IntMultProc.concat(
     ]
 );
 IntMultProc = IntMultProc.concat(
-    add32BitIntegers(intMultiplier, intMultiplierByteIndex, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
+    add32BitIntegers(intMultiplier, intMultiplierByteIndex - 3, ProcedureOffset + calculateInstructionsLength(IntMultProc), true, false),
     copy(Addresses.ps3, Addresses.psAddr, 4),  // psAddr now contains the address containing the next byte of multiplier to be checked
 );
 IntMultProc = IntMultProc.concat(
@@ -1003,6 +1002,7 @@ IntMultProc = IntMultProc.concat(
     copy(intMultiplicand, intMultiplicandShifted, 4),
     [
         `#intMult_shift RED ${intMultiplierByteIndex - 1}`,
+        "ADD 0",
         "BIZ #intMult_add"  // If shift counter is zero, no more shifts are needed so add to result
     ]
 );
@@ -1010,18 +1010,23 @@ IntMultProc = IntMultProc.concat(
     add32BitIntegers(intMultiplicandShifted, intMultiplicandShifted, ProcedureOffset + calculateInstructionsLength(IntMultProc)),
     // Check for overflow
     [
-        "AND 0",
-        `ADD A ${Addresses.ps2}`,  // If there is overflow, ps2 will not contain 0
+        // If MSBit of the MSbyte contains 1 then there is "overflow" (as this is signed multiplication, so the MSbit is the sign bit)
+        `RED ${Addresses.ps3}`,
+        "ADD 0",
+        "BIN #intMult_overflow",
+        `RED ${Addresses.ps2}`,  // If it has overflowed beyond 32 bits, ps2 will not contain 0
+        "ADD 0",
         `BIZ #intMult_shiftNoOverflow`,
-        // ELSE THROW OVERFLOW ERROR.  NEED TO DO THIS WHEN ERRORS ARE IMPLEMENTED
+        "GTO #intMult_overflow",
+        "#intMult_shiftNoOverflow AND 0",
     ],
     copy(Addresses.ps3, intMultiplicandShifted, 4),
     [
-        `#intMult_shiftNoOverflow RED ${intMultiplierByteIndex - 1}`,
+        `RED ${intMultiplierByteIndex - 1}`,
         "SUB 1",
         `WRT ${intMultiplierByteIndex - 1}`,
         "GTO #intMult_shift",
-        "#intMult_add AND 0",
+        "#intMult_add AND 0"
     ]
 );
 IntMultProc = IntMultProc.concat(
@@ -1029,10 +1034,17 @@ IntMultProc = IntMultProc.concat(
     copy(Addresses.ps3, intMultResult, 4),  // The shifted value has been added to result
     // Check for overflow
     [
-        "AND 0",
-        `ADD A ${Addresses.ps2}`,
+        // Check MSByte of result to check if we have overflowed into sign bit
+        `RED ${intMultResult}`,
+        "ADD 0",
+        "BIN #intMult_overflow",
+        // Check if we have overflowed beyond 32 bits
+        `RED ${Addresses.ps2}`,
+        "ADD 0",
         "BIZ #intMult_nextBit",
-        // ELSE THROW OVERFLOW ERROR.  NEED TO DO THIS WHEN ERRORS ARE IMPLEMENTED
+
+        "#intMult_overflow AND 0",
+        // THROW OVERFLOW ERROR.  NEED TO DO THIS WHEN ERRORS ARE IMPLEMENTED
 
         // Make result negative if necessary
         "#intMult_setSign AND 0",
