@@ -814,7 +814,9 @@ let neededNameDetails = Addresses.ps7;  // Contains a copy of the details provid
 let namePoolPointer = Addresses.ps8;  // Address of the name pool to be used
 let currentFreeSpacePtr = Addresses.ps9;  // The address of the free space currently being searched
 let currentFreeSpaceSize = Addresses.ps7 + 2;  // The size of the free space currently being searched (only 1 byte so can use one of the unused bytes in ps7)
+let multiplicationCounter = Addresses.ps7 + 3;  // A counter needed when multiplying to find totalBytesNeeded.  Only uses 1 byte so use another unused byte from ps7
 let currentFreeSpaceDetailsPtr = Addresses.ps10;  // The address of the details of the current free space
+let generalPointer = Addresses.ps11 + 3;  // Holds addresses we only need temporarily
 
 var AllocateNameProc = [
     "#allocateName AND 0"
@@ -827,6 +829,7 @@ AllocateNameProc = AllocateNameProc.concat(
     [
     // Load the correct name pool address into namePoolPointer
     `RED ${neededNameDetails + 1}`,
+    "ADD 0",
     `BIZ #allocateName_current_scope`,
     // EvalTop[1] is set, so allocate globally
     ],
@@ -870,14 +873,82 @@ AllocateNameProc = AllocateNameProc.concat(
     // We will take the space needed from the start of this chunk, so adjust the pointer to this chunk to point to the new start and decrease it's size field accordingly
 );
 AllocateNameProc = AllocateNameProc.concat(
-    // add32BitIntegers(currentFreeSpacePtr, "NEED TO MULTIPLY: multiply32BitIntegers(neededNameDetails, NamePool._blockSize)"),
+    // Need to get the actual number of bytes (i.e. block size * blocks requested)
+    /*  As the result of this multiplication is only 1 byte, it would be wasteful to use the full multiplication procedure.  
+        Instead just add blockSize to itself repeatedly 
+        This could be done more efficiently by just duplicating an "ADD A ${neededNameDetails}" instruction at compile time (as we will always know blockSize at compile time)
+         - However, this would mean that constant procedures wouldn't always be the same length (which might be a problem in future) 
+        We can use the last byte of generalPointer to hold the result, as we will need a full pseudoregister to use add32BitIntegers on it */
     [
-
+    // First make sure generalPointer is clear
+    "AND 0",
+    `WRT ${generalPointer}`,
+    `WRT ${generalPointer + 1}`,
+    `WRT ${generalPointer + 2}`,
+    `WRT ${generalPointer + 3}`,
+    `RED ${neededNameDetails}`,
+    `WRT ${multiplicationCounter}`,
+    // Start the multiplication
+    "#allocateName_calculateTotalBytes AND 0",
+    `ADD ${NamePool._blockSize}`,
+    `WRT ${generalPointer + 3}`,
+    `RED ${multiplicationCounter}`,
+    "SUB 1",
+    "BIZ #allocateName_totalBytesCalculated",
+    `WRT ${multiplicationCounter}`,
+    "GTO #allocateName_calculateTotalBytes",
+    "#allocateName_totalBytesCalculated AND 0"
+    ]
+);
+AllocateNameProc = AllocateNameProc.concat(
+    add32BitIntegers(currentFreeSpacePtr, generalPointer, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    copy(Addresses.ps3, generalPointer, 4),  // generalPointer now contains the address the new start address of the chunk
+    copy(currentFreeSpaceDetailsPtr, Addresses.psAddr, 4)
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The pointer to the start of this chunk now points to the new start
+    [
+    `WRT ${currentFreeSpaceSize}`,
+    `SUB A ${neededNameDetails}`,
+    `WRT ${generalPointer}`
+    ]
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(generalPointer, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The size field for the current chunk now contains the new size
+    [
+    "GTO #allocateName_finish",
     // The space is exactly the right size
     "#allocateName_spacePerfect AND 0",
+    // We will allocate this space, so replace the pointer and size field for this space with those of the next one
+    ],
+    copy(currentFreeSpacePtr, Addresses.psAddr, 4)
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyFromAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // generalPointer now contains the address of next free chunk (if it exists)
+);
+AllocateNameProc = AllocateNameProc.concat(
+    // NOTE: multiplicationCounter is used here because it isn't currently being used for anything else.
+    copyFromAddress(multiplicationCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // multiplicationCounter now contains size of next free chunk
+    copy(currentFreeSpaceDetailsPtr, Addresses.psAddr, 4)
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The pointer to this chunk now points to the next one
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(multiplicationCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The size field now contains the size of the next chunk
+    [
+    "GTO #allocateName_finish",
     // The space is too small, so move onto the next one
-    "#allocateName_spaceTooSmall AND 0"
-    ]
+    "#allocateName_spaceTooSmall AND 0",
+
+    "#allocateName_finish AND 0",
+    // Copy the address of the found space into EvalTop and jump to the return address
+    ],
+    copy(Addresses.EvalTop, Addresses.psAddr, 4)
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(currentFreeSpacePtr, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    `GTO A ${Addresses.psReturnAddr}`
 )
 
 ProcedureOffset += calculateInstructionsLength(AllocateNameProc)

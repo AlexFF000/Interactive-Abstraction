@@ -1,0 +1,57 @@
+Versions of the intMult overflow tests that will work before error handling is set up.  These require #intMult_overflow to have the following instructions:
+
+"#intMult_overflow AND 0",
+// THROW OVERFLOW ERROR.  NEED TO DO THIS WHEN ERRORS ARE IMPLEMENTED
+"ADD 255",
+`WRT ${Addresses.ps12}`,
+"GTO #intMult_finish",
+
+These tests will pass using the version of the procedure in commit 3fd688a4b01ce0922ff7caa26dd0f9e29a0e129d (if the above is added to #intMult_overflow)
+
+// Test10- Overflow during shifting
+async function test_IntMultProc_OverflowDuringShift(){
+    /* 
+        Multiply 1073741824 by 4 and check that overflow error has been raised
+        1,073,741,824 has been chosen as left shifting it by 2 (which multiplying by 4 will do) will shift the 1 beyond 32 bits.  The procedure should detect this at the point of doing the shift and should throw error
+    */
+   await runSetup(intMultProcTests_neededSetup);
+   writeIntToMemory(1073741824, Addresses.ps8, 4);
+   writeIntToMemory(4, Addresses.ps9, 4);
+   writeIntToMemory(0, Addresses.ps12, 4);
+   let code = ["GTO #intMult"]
+    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
+    await runInstructions(code, false, true);
+    return assertMemoryEqualToInt(255, Addresses.ps12, 1);
+}
+// Test11- Overflow into sign bit during shifting
+async function test_IntMultProc_OverflowIntoSignBitDuringShift(){
+    /*
+        Multiply 1073741824 by 2 and check that overflow error has been raised
+        1,073,741,824 has been chosen as left shifting by 1 (which multiplying by 2 will do) will shift into the sign bit
+        This should cause an overflow error
+    */
+   await runSetup(intMultProcTests_neededSetup);
+   writeIntToMemory(1073741824, Addresses.ps8, 4);
+   writeIntToMemory(2, Addresses.ps9, 4);
+   writeIntToMemory(0, Addresses.ps12, 4);
+   let code = ["GTO #intMult"]
+    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
+    await runInstructions(code, false, true);
+    return assertMemoryEqualToInt(255, Addresses.ps12, 1);
+}
+// Test12- Overflow during addition
+async function test_IntMultProc_OverflowDuringAdd(){
+    /*
+        Multiply 1073741823 by 3 and check that overflow error has been raised
+        These operands have been chosen as multiplying by 3 will mean left shifting by 1 and 0 places
+        Although neither of these shifts will overflow alone, when we try to add them to the result it will overflow into the sign bit.
+    */
+   await runSetup(intMultProcTests_neededSetup);
+   writeIntToMemory(1073741823, Addresses.ps8, 4);
+   writeIntToMemory(3, Addresses.ps9, 4);
+   writeIntToMemory(0, Addresses.ps12, 4);
+   let code = ["GTO #intMult"]
+    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(code), Addresses.psReturnAddr, 4);
+    await runInstructions(code, false, true);
+    return assertMemoryEqualToInt(255, Addresses.ps12, 1);
+}
