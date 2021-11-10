@@ -1,2 +1,2 @@
-Continue writing AllocateNameProc.  Need to write allocateName_spaceTooSmall
+Write NamePool.createExpansion and make changes to #allocateName_createExpansion so that it passes the correct parent pool to NamePool.createExpansion and then allocates space from the new pool
 Need to consider whether to detect and throw error when a 32 bit number is provided to ADD without an A.  Spent ages sunday working out why output from calculateInstructionsLength was differnt to actual.  Though perhaps not a problem as long as it WOULD HAVE errored had the offending instruction actually been run (it was just skipped over as part of constand procedures)

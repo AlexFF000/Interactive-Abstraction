@@ -940,7 +940,33 @@ AllocateNameProc = AllocateNameProc.concat(
     "GTO #allocateName_finish",
     // The space is too small, so move onto the next one
     "#allocateName_spaceTooSmall AND 0",
+    // Move to the next free chunk, or create a new expansion pool if there isn't another chunk
+    ],
+    // First 4 bytes of free chunk contain pointer to next free chunk. Copy into currentFreeSpacePtr
+    copy(currentFreeSpacePtr, Addresses.psAddr, 4)
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyFromAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
+);
+AllocateNameProc = AllocateNameProc.concat(
+    // 5th byte contains size of next space, so copy into currentFreeSpaceSize
+    copyFromAddress(currentFreeSpaceSize, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    [
+    // If next free space size is 0, there is no next free space so we need to create an expansion pool
+    `RED ${currentFreeSpaceSize}`,
+    "ADD 0",
+    "BIZ #allocateName_createExpansion"
+    ],
+    copy(currentFreeSpacePtr, currentFreeSpaceDetailsPtr, 4),  // currentFreeSpaceDetailsPtr now contains the address of the details of the next free chunk
+    copy(generalPointer, currentFreeSpacePtr, 4),  // currentFreeSpacePtr now contains the address of next free chunk
+    [
+    "GTO #allocateName_checkSpace",
 
+    // Create a new expansion pool and allocate from it
+    "#allocateName_createExpansion AND 0",
+    ],
+    NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    [
     "#allocateName_finish AND 0",
     // Copy the address of the found space into EvalTop and jump to the return address
     ],

@@ -49,4 +49,8 @@ class NamePool{
         )
         return instructs;
     }
+
+    static createExpansion(instructionsLength){
+        
+    }
 }
