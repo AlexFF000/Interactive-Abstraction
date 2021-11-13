@@ -78,4 +78,13 @@ class EvalStack{
         ];
         return instructs.concat(this.copyToTopLayer(Addresses.ps2, instructionsLength + calculateInstructionsLength(instructs)));
     }
+
+    static copyFromTopLayer(dstAddress, bytes, offset, instructionsLength){
+        // Copy ${bytes} bytes starting from ${offset} from the top layer on the eval stack into ${dstAddress}
+        let instructs = copy(Addresses.EvalTop, Addresses.psAddr, 4);
+        for (let i = 0; i < offset; i++){
+            instructs = instructs.concat(incrementAddress(instructionsLength + calculateInstructionsLength(instructs)));
+        }
+        return instructs.concat(copyFromAddress(dstAddress, bytes, instructionsLength + calculateInstructionsLength(instructs)));
+    }
 }
