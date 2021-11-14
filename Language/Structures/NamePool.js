@@ -216,7 +216,10 @@ class NamePool{
                 `ADD ${NamePool._expansionTotalBlocks}`,
                 `WRT A ${Addresses.psAddr}`,  // The "number of blocks in next chunk" header now contains the number of blocks in the new chunk
             ]
-        )
-
+        );
+        // Place the address of the new pool on EvalTop
+        instructs = instructs.concat(
+            EvalStack.copyNToTopLayer(newPoolPointer, 4, 0, instructionsLength + calculateInstructionsLength(instructs))
+        );
     }
 }
