@@ -50,10 +50,15 @@ class EvalStack{
         return instructs.concat(this.writeToTopLayer(bytesSequence, instructionsLength + calculateInstructionsLength(instructs)));
     }
     
+    static copyNToTopLayer(srcAddress, bytes, offset, instructionsLength){
+        // Copy ${bytes} starting from given address + ${offset}, to the top layer of current scope's eval stack
+        let instructs = copy(Addresses.EvalTop, Addresses.psAddr, 4);
+        return instructs.concat(copyToAddress(srcAddress + offset, bytes, instructionsLength + calculateInstructionsLength(instructs)));
+    }
+
     static copyToTopLayer(srcAddress, instructionsLength){
         // Copy 5 bytes starting from given address, to the top layer of current scope's eval stack
-        let instructs = copy(Addresses.EvalTop, Addresses.psAddr, 4);
-        return instructs.concat(copyToAddress(srcAddress, 5, instructionsLength + calculateInstructionsLength(instructs)));
+        return this.copyNToTopLayer(srcAddress, 5, 0, instructionsLength);
     }
     
     static writeToTopLayer(bytesSequence, instructionsLength){
@@ -79,12 +84,17 @@ class EvalStack{
         return instructs.concat(this.copyToTopLayer(Addresses.ps2, instructionsLength + calculateInstructionsLength(instructs)));
     }
 
-    static copyFromTopLayer(dstAddress, bytes, offset, instructionsLength){
+    static copyNFromTopLayer(dstAddress, bytes, offset, instructionsLength){
         // Copy ${bytes} bytes starting from ${offset} from the top layer on the eval stack into ${dstAddress}
         let instructs = copy(Addresses.EvalTop, Addresses.psAddr, 4);
         for (let i = 0; i < offset; i++){
             instructs = instructs.concat(incrementAddress(instructionsLength + calculateInstructionsLength(instructs)));
         }
         return instructs.concat(copyFromAddress(dstAddress, bytes, instructionsLength + calculateInstructionsLength(instructs)));
+    }
+
+    static copyFromTopLayer(dstAddress, instructionsLength){
+        // Copy whole top layer (5 bytes) to addresses starting from dstAddress
+        return this.copyNFromTopLayer(dstAddress, 5, 0, instructionsLength);
     }
 }
