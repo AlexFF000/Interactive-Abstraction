@@ -274,3 +274,47 @@ async function test_NamePool_createCheckFirstChunkPointerToNextFreeClear(){
    // Check b
    return assertMemoryEqualToInt(0, poolAddress + 11, 1);
 }
+
+// Tests for expansion pools
+let tests_NamePool_Expansion = [test_NamePool_ExpansionCreateGlobalWhenNoneAlreadyExist, test_NamePool_ExpansionCreateLocalWhenNoneAlreadyExist, test_NamePool_ExpansionCreateGlobalWhenSomeAlreadyExist, test_NamePool_ExpansionCreateLocalWhenSomeAlreadyExist, test_NamePool_ExpansionCreateGlobalWhenLimitReached, test_NamePool_ExpansionCreateLocalWhenLimitReached];
+let namePoolExpansionTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures, setupGlobalNamePool]
+// Test3- Create expansion pool in global scope when there are no existing expansion pools
+async function test_NamePool_ExpansionCreateGlobalWhenNoneAlreadyExist(){
+    /*
+        Create a new expansion name pool, with the forceGlobal flag set
+        Then check that:
+            a) The pool has the correct format (type tag in first byte)
+            b) The parent pool's "number of expansions" header contains 1
+            c) The parent pool's pointer to the next expansion (in the last 4 bytes) points to the new pool
+            d) The "next free space" header in the parent pool points to the second byte of the new pool
+            e) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks}
+            f) the 2nd - 5th bytes of the new pool (i.e. the "next chunk" pointer of the only chunk in the new pool) contains the same value as the parent pool's "next free chunk" header did before the expansion was created
+            g) The 6th byte (i.e. the "next chunk size" field of the only chunk in the new pool) contains the same value as the parent pool's "next free chunk size" header did before the expansion was created
+    */
+    await runSetup(namePoolExpansionTests_neededSetup);
+    // Record the values from the parent pool's "next chunk" details headers
+    let parentPoolPointer = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, 4);
+    let oldFirstFreeChunkPtr = readMemoryAsInt(parentPoolPointer + 1, 4);
+    let oldFirstFreeChunkSize = readMemoryAsInt(parentPoolPointer + 5, 1);
+    
+}
+// Test4- Create expansion pool in local scope when there are no existing expansion pools
+async function test_NamePool_ExpansionCreateLocalWhenNoneAlreadyExist(){
+
+}
+// Test5- Create expansion pool in global scope when there are already 254 expansion pools
+async function test_NamePool_ExpansionCreateGlobalWhenSomeAlreadyExist(){
+
+}
+// Test6- Create expansion pool in local scope when there are already 254 expansion pools
+async function test_NamePool_ExpansionCreateLocalWhenSomeAlreadyExist(){
+
+}
+// Test7- Try to create expansion pool in global scope when the expansion pool limit has been reached
+async function test_NamePool_ExpansionCreateGlobalWhenLimitReached(){
+
+}
+// Test8- Try to create expansion pool in local scope when the expansion pool limit has been reached
+async function test_NamePool_ExpansionCreateLocalWhenLimitReached(){
+
+}
