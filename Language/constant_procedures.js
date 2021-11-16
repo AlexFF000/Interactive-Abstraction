@@ -965,7 +965,7 @@ AllocateNameProc = AllocateNameProc.concat(
     // Create a new expansion pool and allocate from it
     "#allocateName_createExpansion AND 0",
     ],
-    NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    // NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // DON'T RUN THIS FOR NOW UNTIL WORKING
     [
     "#allocateName_finish AND 0",
     // Copy the address of the found space into EvalTop and jump to the return address
@@ -1216,7 +1216,7 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
     ]
 );
 // Allocate space for the pool globally
-ExpandNamePoolProc.concat(
+ExpandNamePoolProc = ExpandNamePoolProc.concat(
     allocateMemory(Math.log2(runtime_options.NamePoolSize), ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc), 0, true, true, newPoolPointer),
     [
         "GTO #expandPool_createHeader",
@@ -1322,7 +1322,11 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
 );
 // Place the address of the new pool on EvalTop
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
-    EvalStack.copyNToTopLayer(newPoolPointer, 4, 0, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc))
+    EvalStack.copyNToTopLayer(newPoolPointer, 4, 0, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc)),
+
+    [
+        "#expandPool_tooManyExpansions AND 0"  // ERROR: ALREADY TOO MANY POOLS IN SCOPE, WRITE THIS WHEN ERROR HANDLING IS SET UP
+    ]
 );
 
 ProcedureOffset += calculateInstructionsLength(ExpandNamePoolProc);

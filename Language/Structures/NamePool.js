@@ -2,10 +2,10 @@
     Methods for generating code for managing name pools
 */
 class NamePool{
-    static _headersLength = 7;
+    static _headersLength = 7;  // Length of headers in parent pool
     static _blockSize = 5;
-    static _parentTotalBlocks;  // Total number of blocks in a parent pool
-    static _expansionTotalBlocks;  // Total number of blocks in an expansion pool
+    static _parentTotalBlocks = Math.floor(((runtime_options.NamePool - this._headersLength) - 4) / 5);  // Total number of blocks in a parent pool
+    static _expansionTotalBlocks = Math.floor(((runtime_options.NamePoolSize - 1) - 4) / 5);  // Total number of blocks in an expansion pool  // Expansion pools have only 1 byte headers
 
     static create(instructionsLength){
         // Return instructions to create a new name pool in the current scope (this function only handles creating new pools, not expansion pools)
