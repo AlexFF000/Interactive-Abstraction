@@ -224,6 +224,6 @@ function setupGlobalNamePool(instructs){
     return instructs.concat(
         NamePool.create(calculateInstructionsLength(instructs)),
         // The address of the created pool is left in ps0, copy to NamePoolPointer
-        copy(Addresses.ps0, Addresses.GlobalArea + Offsets.frame.NamePoolPointer)
+        copy(Addresses.ps0, Addresses.GlobalArea + Offsets.frame.NamePoolPointer, 4)
     );
 }

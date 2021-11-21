@@ -4,14 +4,14 @@
 class NamePool{
     static _headersLength = 7;  // Length of headers in parent pool
     static _blockSize = 5;
-    static _parentTotalBlocks = Math.floor(((runtime_options.NamePool - this._headersLength) - 4) / 5);  // Total number of blocks in a parent pool
+    static _parentTotalBlocks = Math.floor(((runtime_options.NamePoolSize - this._headersLength) - 4) / 5);  // Total number of blocks in a parent pool
     static _expansionTotalBlocks = Math.floor(((runtime_options.NamePoolSize - 1) - 4) / 5);  // Total number of blocks in an expansion pool  // Expansion pools have only 1 byte headers
 
     static create(instructionsLength){
         // Return instructions to create a new name pool in the current scope (this function only handles creating new pools, not expansion pools)
-        // First need to allocate space for the pool
-        let instructs = allocateMemory(Math.log2(runtime_options.NamePoolSize), instructionsLength);
         let poolAddressPointer = Addresses.ps0;  // Pointer to the start address of the space allocated for the pool
+        // First need to allocate space for the pool
+        let instructs = allocateMemory(Math.log2(runtime_options.NamePoolSize), instructionsLength, 0, false, true, poolAddressPointer);
         // Construct headers in pseudo-registers, then copy to pool all at once
         instructs.push(
             // Load type tag into first byte
@@ -27,7 +27,7 @@ class NamePool{
         instructs.push(
             // Load the number of blocks in the first free space into the 6th byte
             "AND 0",
-            `ADD ${Math.floor((runtime_options.NamePoolSize - this._headersLength) / this._blockSize)}`,
+            `ADD ${this._parentTotalBlocks}`,
             `WRT ${Addresses.ps5 + 1}`,
             // Load the number of expansion pools into the 7th byte (there are none yet, so this will be 0)
             "AND 0",
@@ -56,9 +56,13 @@ class NamePool{
         // Return instructions to allocate and create a new name pool in the current scope (or global scope if forceGlobal is true)
         let evalLayer = [0, 0, 0, 0, 0];
         if (forceGlobal) evalLayer[0] = 1;  // Set EvalTop[0] to 1 if the pool should be in the global scope
-        let instructs = EvalStack.pushLiteral(evalLayer);
-        let returnAddr = instructionsLength + calculateInstructionsLength(instructs.concat(writeMultiByte(instructionsLength, instructionsLength, 4)).push("GTO #expandPool"));
-        return instructs.concat(writeMultiByte(returnAddr, Addresses.psReturnAddr, 4)
-            .push("GTO #expandPool"));
+        let instructs = EvalStack.pushLiteral(evalLayer, instructionsLength);
+        let returnAddr = instructionsLength + calculateInstructionsLength(instructs.concat(writeMultiByte(instructionsLength, instructionsLength, 4), ["GTO #expandPool"]));
+        return instructs.concat(
+            writeMultiByte(returnAddr, Addresses.psReturnAddr, 4),
+            [
+               "GTO #expandPool"
+            ]
+        );
     }
 }

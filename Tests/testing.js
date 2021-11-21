@@ -60,6 +60,11 @@ function assertMemoryEqualToInt(expected, addressOfActual, noOfBytes){
     return assertMemoryEqual(binArray, addressOfActual, noOfBytes);
 }
 
+function assertEqual(expected, actual){
+    // Check if the two JS objects are equal
+    return expected === actual ? true : "Assertion Error: Values not equal";
+}
+
 function readMemory(address){
     // Return the value from the given memory address as a an array of ints representing bits
     let byte = RAM[address];

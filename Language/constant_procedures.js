@@ -206,6 +206,7 @@ AllocationProc = AllocationProc.concat(
         "#allocate_global_block_found AND 0"
         // If *blockStart == *chunkStart and chunkEnd + 1 == *blockStart + block size then this block is its entire chunk
     ],
+    copy(blockStart, allocatedAddress, 4),  // Copy address of found block to allocatedAddress
     checkEqual(blockStart, chunkStart, "#allocate_global_block_found_is_chunkStart", "#allocate_global_block_found_not_chunkStart"),
     [
         "#allocate_global_block_found_is_chunkStart AND 0",
@@ -1165,22 +1166,24 @@ ProcedureOffset += calculateInstructionsLength(IntMultProc);
     Leaves the details of the new pool in EvalTop:
         - EvalTop[0:3] = The address of the new expansion pool
 */
-let parentPoolPointer = Addresses.ps4;  // Holds the address of the parent pool for the scope
+let parentPoolPointer = Addresses.ps16;  // Holds the address of the parent pool for the scope
 let newPoolPointer = Addresses.ps5;  // Holds address of the new pool
-let existingExpansionPools = Addresses.ps6;  // Number of existing expansion pools.  Only need 1 byte for this
-let generalCounter = Addresses.ps6 + 1;  // A counter for the loop for finding the last pool.  Only need 1 byte for this
+let existingExpansionPools = Addresses.ps17;  // Number of existing expansion pools.  Only need 1 byte for this
+let generalCounter = Addresses.ps17 + 1;  // A counter for the loop for finding the last pool.  Only need 1 byte for this
 generalPointer = Addresses.ps7;
+returnAddr = Addresses.ps18;  // Holds the returnAddr, as psReturnAddr will have to be overwritten when allocating memory for the new pool
 // Get the address of the parent pool
 let ExpandNamePoolProc = [
-    `#expandPool RED A ${Addresses.EvalTop}`,
-    "ADD 0",
-    "BIZ #expandPool_currentScope",
+    "#expandPool AND 0",
 ].concat(
+    copy(Addresses.psReturnAddr, returnAddr, 4),
+    [
+        `RED A ${Addresses.EvalTop}`,
+        "ADD 0",
+        "BIZ #expandPool_currentScope",
+    ],
     // Else load global parent name pool address into parentPoolPointer
-    copy(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, Addresses.psAddr, 4)
-);
-ExpandNamePoolProc = ExpandNamePoolProc.concat(
-    copyFromAddress(parentPoolPointer, 4, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc)),
+    copy(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, parentPoolPointer, 4),
     [
         "GTO #expandPool_checkExpansionLimit",
         // Load current scope's name pool address into parentPoolPointer
@@ -1268,7 +1271,7 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
 );
 // b) Write the address of the new pool to the footer of the last pool
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
-    add32BitIntegers(generalPointer, runtime_options.NamePoolSize - 4, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc)),
+    add32BitIntegers(generalPointer, runtime_options.NamePoolSize - 4, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc), false, true),
     copy(Addresses.ps3, Addresses.psAddr, 4),
 );
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
@@ -1280,7 +1283,7 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
     [
         `RED ${existingExpansionPools}`,
         "ADD 1",
-        `WRT ${Addresses.ps3}`
+        `WRT A ${Addresses.ps3}`
     ]
 );
 // d) Copy the existing next free chunk details to the chunk in the new pool, and replace them with the details of the new chunk
@@ -1292,6 +1295,9 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
     copyFromAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc)), // generalPointer now contains the "next free chunk" header
 );
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc))
+);
+ExpandNamePoolProc = ExpandNamePoolProc.concat(
     copyFromAddress(generalCounter, 1, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc)),  // generalCounter now contains the number of blocks in the first free chunk
 );
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
@@ -1300,6 +1306,9 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
 );
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
     copyToAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc))  // The first 4 bytes of the chunk in the new pool now contain the existing first chunk pointer
+);
+ExpandNamePoolProc = ExpandNamePoolProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc))
 );
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
     copyToAddress(generalCounter, 1, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc))  // The 5th byte of the chunk in the new pool now contains the number of bytes in the existing first chunk
@@ -1314,6 +1323,9 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
 );
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
     copyToAddress(Addresses.ps3, 4, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc)),  // The "next chunk" header now contains the address of the new chunk
+);
+ExpandNamePoolProc = ExpandNamePoolProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc)),
     [
         `AND 0`,
         `ADD ${NamePool._expansionTotalBlocks}`,
@@ -1323,8 +1335,9 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
 // Place the address of the new pool on EvalTop
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
     EvalStack.copyNToTopLayer(newPoolPointer, 4, 0, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc)),
-
     [
+        `GTO A ${returnAddr}`,  // Finish procedure
+
         "#expandPool_tooManyExpansions AND 0"  // ERROR: ALREADY TOO MANY POOLS IN SCOPE, WRITE THIS WHEN ERROR HANDLING IS SET UP
     ]
 );
