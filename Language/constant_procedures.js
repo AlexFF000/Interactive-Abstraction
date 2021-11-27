@@ -828,6 +828,10 @@ var AllocateNameProc = [
 AllocateNameProc = AllocateNameProc.concat(
     copyFromAddress(neededNameDetails, 2, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
     [
+    // Check that the number of requested blocks is not over the limit
+    `RED ${neededNameDetails}`,
+    `SUB ${NamePool._maxNameSize}`,
+    "BIZ #allocateName_requestTooLarge",
     // Load the correct name pool address into namePoolPointer
     `RED ${neededNameDetails + 1}`,
     "ADD 0",
@@ -972,7 +976,7 @@ AllocateNameProc = AllocateNameProc.concat(
     // The "next free space" header in the parent pool will now point to space in the new expansion pool, so just restart the search.  The new space will be the first one checked
     [
     "GTO #allocateName_searchPool",
-    
+
     "#allocateName_finish AND 0",
     // Copy the address of the found space into EvalTop and jump to the return address
     ],
@@ -980,7 +984,12 @@ AllocateNameProc = AllocateNameProc.concat(
 );
 AllocateNameProc = AllocateNameProc.concat(
     copyToAddress(currentFreeSpacePtr, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
-    `GTO A ${Addresses.psReturnAddr}`
+    [
+    `GTO A ${Addresses.psReturnAddr}`,
+
+    "#allocateName_requestTooLarge AND 0",
+    // Too many blocks were requested.  TODO IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
+    ]
 )
 
 ProcedureOffset += calculateInstructionsLength(AllocateNameProc)
