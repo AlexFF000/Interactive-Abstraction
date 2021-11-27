@@ -1,12 +1,14 @@
 /*
     Automated tests for testing arithmetic code generation functions
 */
+var tests_arithmeticFunctions = [];
 
 /*
     add32BitIntegers
     Function for adding two 32 bit integers, and leaving the result in ps3
 */
 var tests_add32BitIntegers = [test_add32BitIntegers_nonLiterals, test_add32BitIntegers_zero_add_zero, test_add32BitIntegers_commutative, test_add32BitIntegers_carry, test_add32BitIntegers_largePos, test_add32BitIntegers_posAddNegForNeg, test_add32BitIntegers_posAddNegForPos, test_add32BitIntegers_negAddNegForNeg]
+tests_arithmeticFunctions = tests_arithmeticFunctions.concat(tests_add32BitIntegers);
 
 // Test1- providing non-literals
 async function test_add32BitIntegers_nonLiterals(){
@@ -76,6 +78,7 @@ async function test_add32BitIntegers_negAddNegForNeg(){
     Function for subtracting one 32 bit integer (subtrahend) from another (minuend), leaving the result in ps3
 */
 var tests_sub32BitInteger = [test_sub32BitInteger_nonLiterals, test_sub32BitInteger_posSubPosForPos, test_sub32BitInteger_posSubPosForNeg, test_sub32BitInteger_posSubNegForPos, test_sub32BitInteger_negSubNegForPos, test_sub32BitInteger_negSubNegForNeg, test_sub32BitInteger_negSubPosForNeg];
+tests_arithmeticFunctions = tests_arithmeticFunctions.concat(tests_sub32BitInteger);
 
 // Test1 Providing non-literals
 async function test_sub32BitInteger_nonLiterals(){
@@ -130,3 +133,6 @@ async function test_sub32BitInteger_negSubPosForNeg(){
     await runInstructions(sub32BitInteger(4294967291, 122356, 0, true, true), true, true);
     return assertMemoryEqualToInt(4294844935, Addresses.ps3, 4);
 }
+
+
+tests_all = tests_all.concat(tests_arithmeticFunctions);

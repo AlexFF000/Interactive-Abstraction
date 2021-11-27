@@ -1,11 +1,12 @@
 /*
     Automated tests for testing structures
 */
-
+var tests_structures = [];
 /*
     Tests for evaluation stack
 */
 let tests_EvalStack = [test_EvalStack_addLayerWhenEmpty, test_EvalStack_addLayerWhenPartiallyFull, test_EvalStack_addLayerWhenFull, test_EvalStack_removeLayerWhenNotEmpty, test_EvalStack_removeLayerWhenEmpty, test_EvalStack_writeLiteralToTopLayer, test_EvalStack_copyToTopLayer, test_EvalStack_writeLiteralToNewLayer, test_EvalStack_copyToNewLayer];
+tests_structures = tests_structures.concat(tests_EvalStack);
 // Setup subprocedures that need to be run before these tests can work
 let evalStackTests_neededSetup = [setupReservedArea];
 // Test1- Add a new layer when there are no layers on the stack
@@ -148,6 +149,7 @@ async function test_EvalStack_copyToNewLayer(){
 */
 /* Tests for Variable Tables */
 let tests_VarTable = [test_VarTable_createCheckCorrectFormat, test_VarTable_createCheckSlotsClear, test_VarTable_createCheckParentEntry];
+tests_structures = tests_structures.concat(tests_VarTable);
 // The setup subprocedures that need to be run before these tests can work
 let varTableTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures];
 // Test1- Create table, and check it is is in the correct format (has all the correct headers)
@@ -226,7 +228,9 @@ async function test_VarTable_createCheckParentEntry(){
 /*
     Tests for name pools
 */
-let tests_NamePool = [test_NamePool_createCheckCorrectFormat, test_NamePool_createCheckFirstChunkPointerToNextFreeClear];
+let tests_NamePool = [];
+let tests_NamePool_Parent = [test_NamePool_createCheckCorrectFormat, test_NamePool_createCheckFirstChunkPointerToNextFreeClear];
+tests_NamePool = tests_NamePool.concat(tests_NamePool_Parent);
 // The setup subprocedures that must be run before these tests can work
 let namePoolTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures];
 
@@ -277,6 +281,8 @@ async function test_NamePool_createCheckFirstChunkPointerToNextFreeClear(){
 
 // Tests for expansion pools
 let tests_NamePool_Expansion = [test_NamePool_ExpansionCreateGlobalWhenNoneAlreadyExist, test_NamePool_ExpansionCreateLocalWhenNoneAlreadyExist, test_NamePool_ExpansionCreateGlobalWhenSomeAlreadyExist, test_NamePool_ExpansionCreateLocalWhenSomeAlreadyExist, test_NamePool_ExpansionCreateGlobalWhenLimitReached, test_NamePool_ExpansionCreateLocalWhenLimitReached];
+tests_NamePool = tests_NamePool.concat(tests_NamePool_Expansion);
+tests_structures = tests_structures.concat(tests_NamePool);
 let namePoolExpansionTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures, setupGlobalNamePool]
 // Test3- Create expansion pool in global scope when there are no existing expansion pools
 async function test_NamePool_ExpansionCreateGlobalWhenNoneAlreadyExist(){
@@ -458,3 +464,5 @@ async function test_NamePool_ExpansionCreateGlobalWhenLimitReached(){
 async function test_NamePool_ExpansionCreateLocalWhenLimitReached(){
     return "NOT IMPLEMENTED";
 }
+
+tests_all = tests_all.concat(tests_structures);

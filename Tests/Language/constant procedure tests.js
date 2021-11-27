@@ -2,6 +2,7 @@
     Automated tests for testing runtime constant procedures.
     The tests use functions from the testing.js file.
 */
+var tests_constantProcedures = [];
 
 /* 
     Base2ExponentProc
@@ -51,6 +52,7 @@ var tests_AllocationProc_GlobalPool = [test_AllocationProc_GlobalPoolAllocateWhe
 var tests_AllocationProc_GlobalHeap = [test_AllocationProc_GlobalHeapAllocateWhenEmpty, test_AllocationProc_GlobalHeapAllocateWhenPartiallyFull, test_AllocationProc_GlobalHeapInsufficientSpace, test_AllocationProc_GlobalHeapReallocateDeallocated, test_AllocationProc_GlobalHeapAllocateLastBlockInChunk, test_AllocationProc_GlobalHeapAllocateFirstBlockInChunk, test_AllocationProc_GlobalHeapAllocateMidBlockInChunk];
 var tests_AllocationProc_Local = [test_AllocationProc_FrameHeapAllocateWhenEmpty, test_AllocationProc_FrameHeapInsufficientSpace, test_AllocationProc_FrameHeapReallocateDeallocated, test_AllocationProc_FrameHeapAllocateFromTooLargeChunk, test_AllocationProc_FrameHeapAllocateLastChunkPartial, test_AllocationProc_FrameHeapAllocateLastChunkWhole];
 var tests_AllocationProc = tests_AllocationProc_GlobalPool.concat(tests_AllocationProc_GlobalHeap, tests_AllocationProc_Local);
+tests_constantProcedures = tests_constantProcedures.concat(tests_AllocationProc);
 // The setup subprocedures that need to be run before these tests can work
 var allocationProcTests_neededSetup = [setupReservedArea, setupIntFloatPool, setupGlobalHeap, setupConstantProcedures];
 // Tests for allocating on the int/float pool
@@ -703,7 +705,8 @@ async function test_AllocationProc_FrameHeapAllocateLastChunkWhole(){ return "NO
     Procedure for multiplying two 32 bit signed ints
 */
 var intMultProcTests_neededSetup = [setupConstantProcedures]
-var tests_IntMultProc = [test_IntMultProc_ZeroByZero, test_IntMultProc_ZeroByOne, test_IntMultProc_OneByOne, test_IntMultProc_Commutative, test_IntMultProc_NBytesByNBytes, test_IntMultProc_4BytesBy1Byte, test_IntMultProc_NegByPos, test_IntMultProc_NegByNeg, test_IntMultProc_NegByZero, test_IntMultProc_OverflowDuringShift, test_IntMultProc_OverflowIntoSignBitDuringShift, test_IntMultProc_OverflowDuringAdd]
+var tests_IntMultProc = [test_IntMultProc_ZeroByZero, test_IntMultProc_ZeroByOne, test_IntMultProc_OneByOne, test_IntMultProc_Commutative, test_IntMultProc_NBytesByNBytes, test_IntMultProc_4BytesBy1Byte, test_IntMultProc_NegByPos, test_IntMultProc_NegByNeg, test_IntMultProc_NegByZero, test_IntMultProc_OverflowDuringShift, test_IntMultProc_OverflowIntoSignBitDuringShift, test_IntMultProc_OverflowDuringAdd];
+tests_constantProcedures = tests_constantProcedures.concat(tests_IntMultProc);
 
 // Test1- 0 x 0
 async function test_IntMultProc_ZeroByZero(){
@@ -856,3 +859,5 @@ async function test_IntMultProc_OverflowDuringAdd(){
     */
    return "NOT IMPLEMENTED";
 }
+
+tests_all = tests_all.concat(tests_constantProcedures);

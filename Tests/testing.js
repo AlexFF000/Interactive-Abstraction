@@ -1,6 +1,7 @@
 /*
     Provides functions for use in tests
 */
+var tests_all = [];
 
 const testsInstructionsStart = runtime_options.MemorySize;  // Address instructions for tests will be loaded into when resetCPU==false
 
