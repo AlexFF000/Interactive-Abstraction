@@ -251,7 +251,7 @@ async function test_NamePool_createCheckCorrectFormat(){
    checkResult = assertMemoryEqualToInt(poolAddress + 7, poolAddress + 1, 4);
    if (checkResult !== true) return checkResult;
    // Check c
-   checkResult = assertMemoryEqualToInt(Math.floor((runtime_options.NamePoolSize - 7) / 5), poolAddress + 5, 1);
+   checkResult = assertMemoryEqualToInt(NamePool._parentTotalBlocks, poolAddress + 5, 1);
    if (checkResult !== true) return checkResult;
    // Check d
    return assertMemoryEqualToInt(0, poolAddress + 6, 1);
@@ -323,12 +323,51 @@ async function test_NamePool_ExpansionCreateGlobalWhenNoneAlreadyExist(){
 }
 // Test4- Create expansion pool in local scope when there are no existing expansion pools
 async function test_NamePool_ExpansionCreateLocalWhenNoneAlreadyExist(){
-    return "NOT IMPLEMENTED";
+    /*
+        Create a new expansion name pool, WITHOUT the forceGlobal flag set (global scope will still be used, but createExpansion won't know this, so the procedure will be the same as for local scope)
+        Then check that:
+            a) The pool has the correct format (type tag in first byte)
+            b) The parent pool's "number of expansions" header contains 1
+            c) The parent pool's pointer to the next expansion (in the last 4 bytes) points to the new pool
+            d) The "next free space" header in the parent pool points to the second byte of the new pool
+            e) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks}
+            f) the 2nd - 5th bytes of the new pool (i.e. the "next chunk" pointer of the only chunk in the new pool) contains the same value as the parent pool's "next free chunk" header did before the expansion was created
+            g) The 6th byte (i.e. the "next chunk size" field of the only chunk in the new pool) contains the same value as the parent pool's "next free chunk size" header did before the expansion was created
+    */
+    await runSetup(namePoolExpansionTests_neededSetup);
+    // Record the values from the parent pool's "next chunk" details headers
+    let parentPool = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, 4);
+    let oldFirstFreeChunkPtr = readMemoryAsInt(parentPool + 1, 4);
+    let oldFirstFreeChunkSize = readMemoryAsInt(parentPool + 5, 1);
+    // Create a new expansion name pool
+    await runInstructions(NamePool.createExpansion(testsInstructionsStart, false), false, true);
+    // Get address of the new pool (should have been left on EvalTop)
+    let expansionPool = readMemoryAsInt(readMemoryAsInt(Addresses.EvalTop, 4), 4);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(type_tags.expansion_name_pool, expansionPool, 1);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    checkResult = assertMemoryEqualToInt(1, parentPool + 6, 1);
+    if (checkResult !== true) return checkResult;
+    // Check c
+    checkResult = assertMemoryEqualToInt(expansionPool, parentPool + (runtime_options["NamePoolSize"] - 4), 4);
+    if (checkResult !== true) return checkResult;
+    // Check d
+    checkResult = assertMemoryEqualToInt(expansionPool + 1, parentPool + 1, 4);
+    if (checkResult !== true) return checkResult;
+    // Check e
+    checkResult = assertMemoryEqualToInt(NamePool._expansionTotalBlocks, parentPool + 5, 1);
+    if (checkResult !== true) return checkResult;
+    // Check f
+    checkResult = assertMemoryEqualToInt(oldFirstFreeChunkPtr, expansionPool + 1, 4);
+    if (checkResult !== true) return checkResult;
+    // Check g
+    return assertMemoryEqualToInt(oldFirstFreeChunkSize, expansionPool + 5, 1);  
 }
 // Test5- Create expansion pool in global scope when there are already 254 expansion pools
 async function test_NamePool_ExpansionCreateGlobalWhenSomeAlreadyExist(){
     /*
-        Manually create 254 expansion pools, then use NamePool.createExpansion to create another one.
+        Manually create 254 expansion pools, then use NamePool.createExpansion with forceGlobal set to create another one.
         Then check that:
             a) The parent pool's "number of expansions" header contains 255
             b) The "next expansion" footer in the 254th expansion pool points to the new pool
@@ -370,7 +409,46 @@ async function test_NamePool_ExpansionCreateGlobalWhenSomeAlreadyExist(){
 }
 // Test6- Create expansion pool in local scope when there are already 254 expansion pools
 async function test_NamePool_ExpansionCreateLocalWhenSomeAlreadyExist(){
-    return "NOT IMPLEMENTED";
+    /*
+        Manually create 254 expansion pools, then use NamePool.createExpansion to create another one.  By doing this with forceGlobal set to false, we will still be using the global scope but createExpansion won't know this, so the procedure will be the same as for local scopes
+        Then check that:
+            a) The parent pool's "number of expansions" header contains 255
+            b) The "next expansion" footer in the 254th expansion pool points to the new pool
+                - This should be checked by following the "next expansion" footers of each pool, which should eventually (after 255 pools) lead to the new pool
+                - Doing it this way rather than just going straight to 254th allows us to also check that the other footers were not incorrectly modified
+    */
+    await runSetup(namePoolExpansionTests_neededSetup);
+    let parentPool = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, 4);
+    // Manually create the 254 expansions
+    // First allocate the space for them
+    writeIntToMemory(Math.ceil(Math.log2(runtime_options.NamePoolSize * 254)), readMemoryAsInt(Addresses.EvalTop, 4), 1);
+    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocate"]), Addresses.psReturnAddr, 4);
+    await runInstructions(["GTO #allocate"], false, true);
+    let existingTablesSpace = readMemoryAsInt(readMemoryAsInt(Addresses.EvalTop, 4), 4);
+    // Create the pools
+    let previousPoolsFooter = parentPool + (runtime_options.NamePoolSize - 4);
+    for (let i = 0; i < 254; i++){
+        let currentPoolSpace = existingTablesSpace + (i * runtime_options.NamePoolSize);
+        // Write pool's type header (not really needed, but might make debugging this test easier if we can see where each pool starts and ends)
+        writeIntToMemory(currentPoolSpace, type_tags.expansion_name_pool, 1);
+        // Write this pool's address to the "next expansion" footer of the previous pool
+        writeIntToMemory(currentPoolSpace, previousPoolsFooter, 4);
+        // Increment the "number of expansions" header in the parent pool
+        writeIntToMemory(readMemoryAsInt(parentPool + 6, 1) + 1, parentPool + 6, 1);
+        previousPoolsFooter = currentPoolSpace + (runtime_options.NamePoolSize - 4);
+    }
+    // Create the new expansion pool
+    await runInstructions(NamePool.createExpansion(testsInstructionsStart, false), false, true);
+    let expansionPool = readMemoryAsInt(readMemoryAsInt(Addresses.EvalTop, 4), 4);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(255, parentPool + 6, 1);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    let currentPool = parentPool;
+    for (let i = 0; i < 255; i++){
+        currentPool = readMemoryAsInt(currentPool + (runtime_options.NamePoolSize - 4), 4);
+    }
+    return assertEqual(expansionPool, currentPool);
 }
 // Test7- Try to create expansion pool in global scope when the expansion pool limit has been reached
 async function test_NamePool_ExpansionCreateGlobalWhenLimitReached(){

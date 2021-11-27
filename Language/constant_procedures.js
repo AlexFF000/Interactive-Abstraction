@@ -1191,7 +1191,7 @@ let ExpandNamePoolProc = [
     ]
 );
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
-    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.NamePoolPointer, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc), true, true),
+    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.NamePoolPointer, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc), false, true),
     copy(Addresses.ps3, Addresses.psAddr, 4)
 );
 ExpandNamePoolProc = ExpandNamePoolProc.concat(
@@ -1254,7 +1254,9 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
         "ADD 0",
         "BIZ #expandPool_lastPoolFound",
         "#expandPool_checkForLastPool AND 0",
-    ],
+    ]
+);
+ExpandNamePoolProc = ExpandNamePoolProc.concat(
     add32BitIntegers(generalPointer, runtime_options.NamePoolSize - 4, ProcedureOffset + calculateInstructionsLength(ExpandNamePoolProc), false, true),  // ps3 now contains address of the current pool's pointer to the next pool
     copy(Addresses.ps3, Addresses.psAddr, 4),
 );
