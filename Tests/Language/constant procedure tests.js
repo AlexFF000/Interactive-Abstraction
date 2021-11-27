@@ -871,6 +871,14 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenEmptyNoExpansions(){
 }
 // Test2- Allocating from local parent pool when there are no expansions and pool is empty
 async function test_AllocateNameProc_LocalPoolAllocateWhenEmptyNoExpansions(){
+    /*
+        Use EvalStack to request a 27 block space on the pool (choice of 27 blocks is arbitrary).  This is the same as for the global scope, but without the forceGlobal flag set.  This will still use the global name pool, but the procedure won't know that.
+        Then check that:
+            a) EvalTop[0:3] contains ${parentPoolAddress + parentHeadersLength} (i.e. the first address in the parent pool after the headers)
+            b) The "next free space pointer" header in the parent pool contains ${parentPoolAddress + parentHeadersLength + (27 * 5)} (i.e. the first address after the one just allocated)
+            c) The "next free space size" header in the parent pool contains ${NamePool._parentTotalBlocks} - 27
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
     return "NOT IMPLEMENTED";
 }
 // Test3- Allocating from global parent pool when there are no expansions and pool is partially full
@@ -887,6 +895,13 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenPartiallyFullNoExpans
 }
 // Test4- Allocating from local parent pool when there are no expansions and pool is partially full
 async function test_AllocateNameProc_LocalPoolAllocateWhenPartiallyFullNoExpansions(){
+    /*
+        Allocate a 50 block space (choice of 50 blocks is arbitrary), then request another one of the same size
+            a) EvalTop[0:3] contains ${parentPoolAddress + parentHeadersLength + (50 * 5)} (i.e. the first address after the space we already allocated)
+            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space
+            c) The "next free space size" header in the parent pool contains ${NamePool._parentTotalBlocks - (50 + 50)}
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
     return "NOT IMPLEMENTED";
 }
 // Test5- Allocating from global parent pool when there are no expansions and pool is full
@@ -903,6 +918,14 @@ async function test_AllocateNameProc_GlobalAllocateWhenFullNoExpansions(){
 }
 // Test6- Allocating from local parent pool when there are no expansions and pool is full
 async function test_AllocateNameProc_LocalAllocateWhenFullNoExpansions(){
+    /*
+        Allocate ${NamePool._parentTotalBlocks} blocks, and then request 11 blocks (11 is arbitrary) with the forceGlobal flag set
+        Then check that:
+            a) EvalTop[0:3] contains the first address after the header of a new expansion pool
+            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space in the expansion pool
+            c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 11}
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
     return "NOT IMPLEMENTED";
 }
 // Test7- Allocating from global pool when the parent pool is full, and there is 1 partially full expansion
@@ -919,6 +942,14 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenParentFullAnd1Partial
 }
 // Test8- Allocating from local pool when the parent pool is full, and there is 1 partially full expansion
 async function test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion(){
+    /*
+        Allocate ${NamePool._parentTotalBlocks} blocks, followed by 50 more (50 is arbitrary).  Then request another 50
+        Then check that:
+            a) EvalTop[0:3] contains ${expansionPoolAddress + 1 + (50 * 5)} (+1 as the headers of expansions are only 1 byte).
+            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space in the expansion pool
+            c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 100}
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
     return "NOT IMPLEMENTED";
 }
 // Test9- Trying to allocate a space that is too large (i.e. too large to be supported, not just more space than is available)
