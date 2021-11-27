@@ -58,7 +58,11 @@ function assertMemoryEqualToInt(expected, addressOfActual, noOfBytes){
     for (let i = 0; i < noOfBytes; i++){
         binArray.unshift(intToBinArray(getByteOfInt(expected, 3 - i)));
     }
-    return assertMemoryEqual(binArray, addressOfActual, noOfBytes);
+    let result = assertMemoryEqual(binArray, addressOfActual, noOfBytes);
+    if (result === "Assertion Error: Values do not match"){
+        return `${result} (expected: ${expected}, actual: ${readMemoryAsInt(addressOfActual, noOfBytes)})`;
+    }
+    return result;
 }
 
 function assertEqual(expected, actual){
