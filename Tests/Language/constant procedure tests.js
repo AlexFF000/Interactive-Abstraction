@@ -844,4 +844,134 @@ async function test_IntMultProc_OverflowDuringAdd(){
    return "NOT IMPLEMENTED";
 }
 
+/*
+    AllocateNameProc
+    Procedure for allocating space from a name pool
+    Should take inputs on EvalStack:
+        EvalTop[0] = Number of 5 byte "blocks" needed for the name
+        EvalTop[1] = Set to non-zero to allocate the name from the global name pool, otherwise current scope's one will be used
+    Should leave output on EvalStack:
+        EvalTop[0:3] = Address of the allocated space
+*/
+let tests_AllocateNameProc = [test_AllocateNameProc_GlobalPoolAllocateWhenEmptyNoExpansions, test_AllocateNameProc_LocalPoolAllocateWhenEmptyNoExpansions, test_AllocateNameProc_GlobalPoolAllocateWhenPartiallyFullNoExpansions, test_AllocateNameProc_LocalPoolAllocateWhenPartiallyFullNoExpansions, test_AllocateNameProc_GlobalAllocateWhenFullNoExpansions, test_AllocateNameProc_LocalAllocateWhenFullNoExpansions, test_AllocateNameProc_GlobalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion, test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion, test_AllocateNameProc_AllocateTooLargeSpace, test_AllocateNameProc_GlobalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached, test_AllocateNameProc_LocalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached, test_AllocateNameProc_GlobalPoolAllocateDeallocated, test_AllocateNameProc_LocalPoolAllocateDeallocated];
+tests_constantProcedures = tests_constantProcedures.concat(tests_AllocateNameProc);
+let allocateNameProcTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures, setupGlobalNamePool];
+
+// Test1- Allocating from global parent pool when there are no expansions and pool is empty
+async function test_AllocateNameProc_GlobalPoolAllocateWhenEmptyNoExpansions(){
+    /*
+        Use EvalStack to request a 27 block space on the pool (choice of 27 blocks is arbitrary), with the forceGlobal flag set
+        Then check that:
+            a) EvalTop[0:3] contains ${parentPoolAddress + parentHeadersLength} (i.e. the first address in the parent pool after the headers)
+            b) The "next free space pointer" header in the parent pool contains ${parentPoolAddress + parentHeadersLength + (27 * 5)} (i.e. the first address after the one just allocated)
+            c) The "next free space size" header in the parent pool contains ${NamePool._parentTotalBlocks} - 27
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test2- Allocating from local parent pool when there are no expansions and pool is empty
+async function test_AllocateNameProc_LocalPoolAllocateWhenEmptyNoExpansions(){
+    return "NOT IMPLEMENTED";
+}
+// Test3- Allocating from global parent pool when there are no expansions and pool is partially full
+async function test_AllocateNameProc_GlobalPoolAllocateWhenPartiallyFullNoExpansions(){
+    /*
+        Allocate a 50 block space (choice of 50 blocks is arbitrary), then request another one of the same size with the forceGlobal flag set
+        Then check that:
+            a) EvalTop[0:3] contains ${parentPoolAddress + parentHeadersLength + (50 * 5)} (i.e. the first address after the space we already allocated)
+            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space
+            c) The "next free space size" header in the parent pool contains ${NamePool._parentTotalBlocks - (50 + 50)}
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test4- Allocating from local parent pool when there are no expansions and pool is partially full
+async function test_AllocateNameProc_LocalPoolAllocateWhenPartiallyFullNoExpansions(){
+    return "NOT IMPLEMENTED";
+}
+// Test5- Allocating from global parent pool when there are no expansions and pool is full
+async function test_AllocateNameProc_GlobalAllocateWhenFullNoExpansions(){
+    /*
+        Allocate ${NamePool._parentTotalBlocks} blocks, and then request 11 blocks (11 is arbitrary) with the forceGlobal flag set
+        Then check that:
+            a) EvalTop[0:3] contains the first address after the header of a new expansion pool
+            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space in the expansion pool
+            c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 11}
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test6- Allocating from local parent pool when there are no expansions and pool is full
+async function test_AllocateNameProc_LocalAllocateWhenFullNoExpansions(){
+    return "NOT IMPLEMENTED";
+}
+// Test7- Allocating from global pool when the parent pool is full, and there is 1 partially full expansion
+async function test_AllocateNameProc_GlobalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion(){
+    /*
+        Allocate ${NamePool._parentTotalBlocks} blocks, followed by 50 more (50 is arbitrary).  Then request another 50 with the foreceGlobal flag set
+        Then check that:
+            a) EvalTop[0:3] contains ${expansionPoolAddress + 1 + (50 * 5)} (+1 as the headers of expansions are only 1 byte).
+            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space in the expansion pool
+            c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 100}
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test8- Allocating from local pool when the parent pool is full, and there is 1 partially full expansion
+async function test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion(){
+    return "NOT IMPLEMENTED";
+}
+// Test9- Trying to allocate a space that is too large (i.e. too large to be supported, not just more space than is available)
+async function test_AllocateNameProc_AllocateTooLargeSpace(){
+    // TODO NEED TO IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
+    return "NOT IMPLEMENTED";
+}
+// Test10- Trying to allocate from global pool when parent and all expansions are full, and maximum number of expansions has been reached
+async function test_AllocateNameProc_GlobalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached(){
+    // TODO NEED TO IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
+    return "NOT IMPLEMENTED";
+}
+// Test11- Trying to allocate from local pool when parent and all expansions are full, and maximum number of expansions has been reached
+async function test_AllocateNameProc_LocalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached(){
+    // TODO NEED TO IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
+    return "NOT IMPLEMENTED";
+}
+// Test12- Reallocate deallocated space in global pool
+async function test_AllocateNameProc_GlobalPoolAllocateDeallocated(){
+    /*
+        Allocate the first 5 blocks of the parent pool (5 is arbitary), then allocate the rest of the parent pool by repeatedly allocating 50 blocks (50 is arbitrary)
+        Then deallocate a 50 block space somewhere in the middle of the pool (i.e. not at the start or end)
+        Then deallocate the first 5 blocks (this must be done after deallocating the 50, as we want the 5 blocks to be referenced by the "first free space" headers)
+        All this should be done with the forceGlobal flag set
+        Then request 23 blocks (23 is arbitrary, just needs to be smaller than the 50 blocks we deallocated and greater than the 5 blocks we dallocated)
+        Then check that:
+            a) EvalTop[0:3] contains the first address of the 50 deallocated blocks
+            b) The "next free chunk pointer" header points to the first 5 deallocated blocks (it should not have been overwritten when we allocated the 23 blocks)
+            c) The "next free chunk size" header contains 5
+            d) The "next free chunk pointer" field in the deallocated 5 byte chunk points to the first byte after the space we just allocated
+            e) The "next free chunk size" field in the deallocated 5 byte chunk contains 27
+            f) The "next free chunk size" field in the chunk after the one we just allocated contains 0, as there are no more free chunks
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test13- Reallocate deallocated space in local pool
+async function test_AllocateNameProc_LocalPoolAllocateDeallocated(){
+    /*
+        Allocate the first 5 blocks of the parent pool (5 is arbitary), then allocate the rest of the parent pool by repeatedly allocating 50 blocks (50 is arbitrary)
+        Then deallocate a 50 block space somewhere in the middle of the pool (i.e. not at the start or end)
+        Then deallocate the first 5 blocks (this must be done after deallocating the 50, as we want the 5 blocks to be referenced by the "first free space" headers)
+        Then request 23 blocks (23 is arbitrary, just needs to be smaller than the 50 blocks we deallocated and greater than the 5 blocks we dallocated)
+        Then check that:
+            a) EvalTop[0:3] contains the first address of the 50 deallocated blocks
+            b) The "next free chunk pointer" header points to the first 5 deallocated blocks (it should not have been overwritten when we allocated the 23 blocks)
+            c) The "next free chunk size" header contains 5
+            d) The "next free chunk pointer" field in the deallocated 5 byte chunk points to the first byte after the space we just allocated
+            e) The "next free chunk size" field in the deallocated 5 byte chunk contains 27
+            f) The "next free chunk size" field in the chunk after the one we just allocated contains 0, as there are no more free chunks
+    */
+    return "NOT IMPLEMENTED";
+}
+
+
+
 tests_all = tests_all.concat(tests_constantProcedures);
