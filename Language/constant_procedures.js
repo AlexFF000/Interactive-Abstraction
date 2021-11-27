@@ -965,9 +965,14 @@ AllocateNameProc = AllocateNameProc.concat(
 
     // Create a new expansion pool and allocate from it
     "#allocateName_createExpansion AND 0",
-    ],
-    // NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // DON'T RUN THIS FOR NOW UNTIL WORKING
+    ]
+);
+AllocateNameProc = AllocateNameProc.concat(
+    NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    // The "next free space" header in the parent pool will now point to space in the new expansion pool, so just restart the search.  The new space will be the first one checked
     [
+    "GTO #allocateName_searchPool",
+    
     "#allocateName_finish AND 0",
     // Copy the address of the found space into EvalTop and jump to the return address
     ],
