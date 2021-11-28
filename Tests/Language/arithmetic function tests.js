@@ -139,6 +139,7 @@ async function test_sub32BitInteger_negSubPosForNeg(){
     Function for finding the greater of two unsigned bytes
 */
 tests_arithmeticFunctions.push(test_checkGreaterUnsignedByte_checkAllCombinations);
+tests_longRunning.push(test_checkGreaterUnsignedByte_checkAllCombinations);  // This one takes a long time to run, so add to tests_longRunning so it can be skipped over
 let checkGreaterUnsignedByteTests_neededSetup = [setupReservedArea];
 
 // Test1- Compare every unsigned 8 bit number against every other unsigned 8 bit number

@@ -2,17 +2,27 @@
     Provides functions for use in tests
 */
 var tests_all = [];
+var tests_longRunning = [];  // List of the test that take a long time to run, useful to be able to exclude them from less thorough test runs
 
 const testsInstructionsStart = runtime_options.MemorySize;  // Address instructions for tests will be loaded into when resetCPU==false
 
 var breakInstructionAddresses = [];  // List of addresses (as ints) of instructions to pause on if breakInstructions have been turned on
 
-async function runTests(tests){
+async function runTests(tests, excludedTests=[]){
     // Takes list of test functions, and runs them, reporting the results of each
+    // tests in excludedTests will not be run, even if they are in tests
     let passed = 0;
     let notImplemented = 0;
     let failed = 0;
+    let testsToRun = tests.length;
+    let excluded = 0;
     for (let t of tests){
+        // Don't run test if it is excluded
+        if (excludedTests.includes(t)){
+            testsToRun --;
+            excluded++;
+            continue;
+        }
         try{
             let result = await t();
             if (result === true){
@@ -33,9 +43,10 @@ async function runTests(tests){
             console.log(`${t.name}: ERROR: ${e}`);
         }
     }
-    console.log(`${passed}/${tests.length} passed`);
+    console.log(`${passed}/${testsToRun} passed`);
     if (notImplemented != 0) console.log(`${notImplemented} not implemented`);
     if (failed != 0) console.log(`${failed} failed`);
+    if (excluded != 0) console.log(`${excluded} excluded`);
 }
 
 function assertMemoryEqual(expected, addressOfActual, noOfBytes){
