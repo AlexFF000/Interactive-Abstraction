@@ -873,9 +873,9 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenEmptyNoExpansions(){
     // Point EvalTop to the global EvalStack
     writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
     // Write request details to EvalTop
-    writeIntToMemory(Addresesses.GlobalArea + Offsets.frame.EvalStart, 27, 1);
+    writeIntToMemory(27, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
     // Set forceGlobal flag
-    writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1, 1);
+    writeIntToMemory(1, Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1);
     // Place return address in psReturnAddr
     writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
     await runInstructions(["GTO #allocateName"], false, true);
@@ -913,7 +913,33 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenPartiallyFullNoExpans
             c) The "next free space size" header in the parent pool contains ${NamePool._parentTotalBlocks - (50 + 50)}
             d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
     */
-    return "NOT IMPLEMENTED";
+    await runSetup(allocateNameProcTests_neededSetup);
+    let parentPool = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, 4);
+    let newAllocatedSpace = parentPool + NamePool._headersLength + (50 * 5);
+    let newFirstFreeChunk = newAllocatedSpace + (50 * 5);
+    // Point EvalTop to the global EvalStack
+    writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
+    // Request 50 blocks, twice
+    for (let i = 0; i < 2; i++){
+        // Write request details to EvalTop
+        writeIntToMemory(50, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
+        // Set forceGlobal flag
+        writeIntToMemory(1, Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1);
+        // Place return address in psReturnAddr
+        writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
+        await runInstructions(["GTO #allocateName"], false, true);
+    }
+    // Check a
+    let checkResult = assertMemoryEqualToInt(newAllocatedSpace, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    checkResult = assertMemoryEqualToInt(newFirstFreeChunk, parentPool + 1, 4);
+    if (checkResult !== true) return checkResult;
+    // Check c
+    checkResult = assertMemoryEqualToInt(NamePool._parentTotalBlocks - 100, parentPool + 5, 1);
+    if (checkResult !== true) return checkResult;
+    // Check d
+    return assertMemoryEqualToInt(newFirstFreeChunk + 4, 0, 1);
 }
 // Test4- Allocating from local parent pool when there are no expansions and pool is partially full
 async function test_AllocateNameProc_LocalPoolAllocateWhenPartiallyFullNoExpansions(){
@@ -931,12 +957,47 @@ async function test_AllocateNameProc_GlobalAllocateWhenFullNoExpansions(){
     /*
         Allocate ${NamePool._parentTotalBlocks} blocks, and then request 11 blocks (11 is arbitrary) with the forceGlobal flag set
         Then check that:
-            a) EvalTop[0:3] contains the first address after the header of a new expansion pool
-            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space in the expansion pool
-            c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 11}
-            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+            a) The "next expansion pointer" footer of the parent pool points to a byte that contains the type tag for an expansion pool
+            b) EvalTop[0:3] contains the first address after the header of the new expansion pool
+            c) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space in the expansion pool
+            d) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 11}
+            e) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
     */
-    return "NOT IMPLEMENTED";
+    await runSetup(allocateNameProcTests_neededSetup);
+    let parentPool = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, 4);
+    // Point EvalTop to the global EvalStack
+    writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
+    // Make first request- To fill parent pool
+    // Write request details to EvalTop
+    writeIntToMemory(NamePool._parentTotalBlocks, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
+    // Set forceGlobal flag
+    writeIntToMemory(1, Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1);
+    // Place return address in psReturnAddr
+    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
+    await runInstructions(["GTO #allocateName"], false, true);
+    // Make second request- To create and allocate from an expansion pool
+    writeIntToMemory(11, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
+    // set forceGlobal flag
+    writeIntToMemory(1, Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1);
+    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
+    await runInstructions(["GTO #allocateName"], false, true);
+
+    let expansionPool = readMemoryAsInt(parentPool + runtime_options.NamePoolSize - 4, 4);
+    let newFirstFreeChunk = expansionPool + 1 + (11 * 5);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(type_tags.expansion_name_pool, expansionPool, 1);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    checkResult = assertMemoryEqualToInt(expansionPool + 1, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+    if (checkResult !== true) return checkResult;
+    // Check c
+    checkResult = assertMemoryEqualToInt(newFirstFreeChunk, parentPool + 1, 4);
+    if (checkResult !== true) return checkResult;
+    // Check d
+    checkResult = assertMemoryEqualToInt(NamePool._expansionTotalBlocks - 11, parentPool + 5, 1);
+    if (checkResult !== true) return checkResult;
+    // Check e
+    return assertMemoryEqualToInt(newFirstFreeChunk + 4, 0, 1);
 }
 // Test6- Allocating from local parent pool when there are no expansions and pool is full
 async function test_AllocateNameProc_LocalAllocateWhenFullNoExpansions(){
@@ -972,7 +1033,39 @@ async function test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1Partiall
             c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 100}
             d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
     */
-    return "NOT IMPLEMENTED";
+    let parentPool = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, 4);
+    // Point EvalTop to the global EvalStack
+    writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
+    // Make first request- To fill parent pool
+    // Write request details to EvalTop
+    writeIntToMemory(NamePool._parentTotalBlocks, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
+    // Set forceGlobal flag
+    writeIntToMemory(1, Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1);
+    // Place return address in psReturnAddr
+    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
+    await runInstructions(["GTO #allocateName"], false, true);
+    // Request another 50 blocks, twice
+    for (let i = 0; i < 2; i++){
+        writeIntToMemory(50, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
+        // Set forceGlobal flag
+        writeIntToMemory(1, Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1);
+        writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
+        await runInstructions(["GTO #allocateName"], false, true);
+    }
+    let expansionPool = readMemoryAsInt(parentPool + runtime_options.NamePoolSize - 4, 4);
+    let newAllocatedSpace = expansionPool + 1 + (50 * 5);
+    let newFirstFreeChunk = newAllocatedSpace + (50 * 5);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(newAllocatedSpace, Addresses.GlobalArea + Offsets.frame.EvalStart, 4);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    checkResult = assertMemoryEqualToInt(newFirstFreeChunk, parentPool + 1, 4);
+    if (checkResult !== true) return checkResult;
+    // Check c
+    checkResult = assertMemoryEqualToInt(NamePool._expansionTotalBlocks - 100, parentPool + 5, 1);
+    if (checkResult !== true) return checkResult;
+    // Check d
+    return assertMemoryEqualToInt(0, newFirstFreeChunk + 4, 1);
 }
 // Test9- Trying to allocate a space that is too large (i.e. too large to be supported, not just more space than is available)
 async function test_AllocateNameProc_AllocateTooLargeSpace(){
@@ -1005,6 +1098,7 @@ async function test_AllocateNameProc_GlobalPoolAllocateDeallocated(){
             e) The "next free chunk size" field in the deallocated 5 byte chunk contains 27
             f) The "next free chunk size" field in the chunk after the one we just allocated contains 0, as there are no more free chunks
     */
+    // TODO NEED TO IMPLEMENT THIS WHEN ERRO HANDLING IS SET UP
     return "NOT IMPLEMENTED";
 }
 // Test13- Reallocate deallocated space in local pool
@@ -1022,6 +1116,7 @@ async function test_AllocateNameProc_LocalPoolAllocateDeallocated(){
             e) The "next free chunk size" field in the deallocated 5 byte chunk contains 27
             f) The "next free chunk size" field in the chunk after the one we just allocated contains 0, as there are no more free chunks
     */
+    // TODO NEED TO IMPLEMENT THIS WHEN ERRO HANDLING IS SET UP
     return "NOT IMPLEMENTED";
 }
 

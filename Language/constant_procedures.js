@@ -658,7 +658,7 @@ AllocationProc = AllocationProc.concat(
     ]
 );
 
-ProcedureOffset += calculateInstructionsLength(AllocationProc);  // Increase ProcedureOffset to contain the start address of the next contant procedure
+ProcedureOffset += calculateInstructionsLength(AllocationProc);  // Increase ProcedureOffset to contain the start address of the next constant procedure
 /*
     Procedure for checking if one 4 byte unsigned int value is greater than another
     The details are provided in the pseudoregisters:
@@ -838,7 +838,7 @@ AllocateNameProc = AllocateNameProc.concat(
     `BIZ #allocateName_current_scope`,
     // EvalTop[1] is set, so allocate globally
     ],
-    writeMultiByte(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, namePoolPointer, 4),
+    copy(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, namePoolPointer, 4),
     [
     "GTO #allocateName_searchPool",
     // EvalTop[1] is not set, so allocate in current scope
@@ -862,16 +862,23 @@ AllocateNameProc = AllocateNameProc.concat(
     copy(currentFreeSpaceDetailsPtr, Addresses.psAddr, 4),
 );
 AllocateNameProc = AllocateNameProc.concat(
-    copyToAddress(currentFreeSpacePtr, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // currentFreeSpacePtr now contains the address of the first free space in the pool
+    copyFromAddress(currentFreeSpacePtr, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // currentFreeSpacePtr now contains the address of the first free space in the pool
 );
 AllocateNameProc = AllocateNameProc.concat(
-    copyToAddress(currentFreeSpaceSize, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)), // currentFreeSpaceSize now contains the size (in blocks) of the first free space
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyFromAddress(currentFreeSpaceSize, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)), // currentFreeSpaceSize now contains the size (in blocks) of the first free space
     [
-    // Check if current space is large enough
+    // Check if current space is large enough, and if it is exactly the right size or larger than we need
     `#allocateName_checkSpace RED ${currentFreeSpaceSize}`,
     `SUB A ${neededNameDetails}`,
     "BIZ #allocateName_spacePerfect" ,
-    "BIN #allocateName_spaceTooSmall",
+    ]
+);
+AllocateNameProc = AllocateNameProc.concat(
+    checkGreaterUnsignedByte(currentFreeSpaceSize, neededNameDetails, "#allocateName_spaceTooBig", "#allocateName_spaceTooSmall", ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    [
     // The space is larger than we need, so take only as much as is needed
     "#allocateName_spaceTooBig AND 0",
     ]
@@ -907,7 +914,7 @@ AllocateNameProc = AllocateNameProc.concat(
 );
 AllocateNameProc = AllocateNameProc.concat(
     add32BitIntegers(currentFreeSpacePtr, generalPointer, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
-    copy(Addresses.ps3, generalPointer, 4),  // generalPointer now contains the address the new start address of the chunk
+    copy(Addresses.ps3, generalPointer, 4),  // generalPointer now contains the address of the new start address of the chunk
     copy(currentFreeSpaceDetailsPtr, Addresses.psAddr, 4)
 );
 AllocateNameProc = AllocateNameProc.concat(
@@ -917,6 +924,9 @@ AllocateNameProc = AllocateNameProc.concat(
     `SUB A ${neededNameDetails}`,
     `WRT ${generalPointer}`
     ]
+);
+AllocateNameProc = AllocateNameProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
 );
 AllocateNameProc = AllocateNameProc.concat(
     copyToAddress(generalPointer, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The size field for the current chunk now contains the new size
