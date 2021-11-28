@@ -469,6 +469,44 @@ function checkZero(address, bytes, branchAddressIfZero, branchAddressIfNotZero){
     return instructs;
 }
 
+function checkGreaterUnsignedByte(address1, address2, branchAddressIfAddress1Greater, branchAddressIfAddress1NotGreater, instructionsLength){
+    /*
+        Return instructions to check which of two unsigned bytes is greater and branch accordingly
+        This is slightly more complicated than simply subtracting them and using BIN, as if one is above 127 and the other isn't the result will be wrong (e.g. 202 - 27 = 175, which would set negative flag even though 202 is greater)
+        NOTE: If we know that both operands will have the same sign, then there is no need to use this function.  SUB and BIN will work
+        NOTE: When we say "negative" in this procedure, we mean greater than 127 as we are using unsigned bytes.  So "negative" number are actually larger than positive
+    */
+    // Check if address1 is "negative"
+    let instructs = [
+        "AND 0",
+        `ADD A ${address1}`,
+        `BIN ${instructionsLength + 44}`
+    ];
+    // address1 is positive
+    instructs.push(
+        "AND 0",
+        `ADD A ${address2}`,
+        // If address 2 is also positive, then we need to compare by subtraction.  Otherwise, address2 is greater
+        `BIN ${branchAddressIfAddress1NotGreater}`,
+    );
+    // Both equal, compare by subtraction
+    instructs.push(
+        `RED ${address1}`,
+        `SUB A ${address2}`,
+        `BIN ${branchAddressIfAddress1NotGreater}`,
+        `GTO ${branchAddressIfAddress1Greater}`
+    );
+    // address 1 is "negative"
+    instructs.push(
+        "AND 0",
+        `ADD A ${address2}`,
+        // If address2 is also "negative", then we need to compare by subtraction.  Otherwise address1 is greater
+        `BIN ${instructionsLength + 24}`,  // Both equal
+        `GTO ${branchAddressIfAddress1Greater}`
+    );
+    return instructs;
+}
+
 function generateByteSequence(inputSeq, length){
     // Generate a sequence of bytes described by the input sequence
     /*
