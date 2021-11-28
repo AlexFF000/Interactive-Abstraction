@@ -134,5 +134,47 @@ async function test_sub32BitInteger_negSubPosForNeg(){
     return assertMemoryEqualToInt(4294844935, Addresses.ps3, 4);
 }
 
+/*
+    checkGreaterUnsignedByte
+    Function for finding the greater of two unsigned bytes
+*/
+tests_arithmeticFunctions.push(test_checkGreaterUnsignedByte_checkAllCombinations);
+let checkGreaterUnsignedByteTests_neededSetup = [setupReservedArea];
+
+// Test1- Compare every unsigned 8 bit number against every other unsigned 8 bit number
+async function test_checkGreaterUnsignedByte_checkAllCombinations(){
+    let exitProcedureIfGreater = [
+        // If i is greater, place 1 in ps1
+        "AND 0",
+        "ADD 1",
+        `WRT ${Addresses.ps1}`,
+        "END"
+    ];
+    let exitProcedureIfNotGreater = [
+        // If i isn't greater, place 2 in ps1
+        "AND 0",
+        "ADD 2",
+        `WRT ${Addresses.ps1}`,
+        "END"
+    ];
+    let functionLen = testsInstructionsStart + calculateInstructionsLength(checkGreaterUnsignedByte(Addresses.ps0, Addresses.ps0 + 1, 1234, 1234, 0).concat(["END"]));
+    let code = checkGreaterUnsignedByte(Addresses.ps0, Addresses.ps0 + 1, functionLen, functionLen + calculateInstructionsLength(exitProcedureIfGreater), testsInstructionsStart);
+    // Add an "END" instruction to the end of the procedure to make sure that we can't accidentally get the right answer by not branching anywhere
+    code.push("END");
+    code = code.concat(exitProcedureIfGreater, exitProcedureIfNotGreater);
+    for (let i = 0; i < 255; i++){
+        for (let j = 0; j < 255; j++){
+            let correctResult = j < i ? 1 : 2;
+            await runSetup(checkGreaterUnsignedByteTests_neededSetup);
+            // Load in i and j
+            writeIntToMemory(i, Addresses.ps0, 1);
+            writeIntToMemory(j, Addresses.ps0 + 1, 1);
+            await runInstructions(code, false, false);
+            let checkResult = assertMemoryEqualToInt(correctResult, Addresses.ps1, 1);
+            if (checkResult !== true) return checkResult;
+        }
+    }
+    return true;
+}
 
 tests_all = tests_all.concat(tests_arithmeticFunctions);

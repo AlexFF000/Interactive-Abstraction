@@ -480,7 +480,7 @@ function checkGreaterUnsignedByte(address1, address2, branchAddressIfAddress1Gre
     let instructs = [
         "AND 0",
         `ADD A ${address1}`,
-        `BIN ${instructionsLength + 44}`
+        `BIN ${instructionsLength + 49}`
     ];
     // address1 is positive
     instructs.push(
@@ -494,6 +494,7 @@ function checkGreaterUnsignedByte(address1, address2, branchAddressIfAddress1Gre
         `RED ${address1}`,
         `SUB A ${address2}`,
         `BIN ${branchAddressIfAddress1NotGreater}`,
+        `BIZ ${branchAddressIfAddress1NotGreater}`,
         `GTO ${branchAddressIfAddress1Greater}`
     );
     // address 1 is "negative"
@@ -501,7 +502,7 @@ function checkGreaterUnsignedByte(address1, address2, branchAddressIfAddress1Gre
         "AND 0",
         `ADD A ${address2}`,
         // If address2 is also "negative", then we need to compare by subtraction.  Otherwise address1 is greater
-        `BIN ${instructionsLength + 24}`,  // Both equal
+        `BIN ${instructionsLength + 24}`,  // Both have same sign
         `GTO ${branchAddressIfAddress1Greater}`
     );
     return instructs;
