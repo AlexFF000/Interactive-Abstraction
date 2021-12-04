@@ -889,7 +889,7 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenEmptyNoExpansions(){
     checkResult = assertMemoryEqualToInt(NamePool._parentTotalBlocks - 27, parentPool + 5, 1);
     if (checkResult !== true) return checkResult;
     // Check d
-    return assertMemoryEqualToInt(newFirstFreeChunk + 4, 0, 1);
+    return assertMemoryEqualToInt(0, newFirstFreeChunk + 4, 1);
 }
 // Test2- Allocating from local parent pool when there are no expansions and pool is empty
 async function test_AllocateNameProc_LocalPoolAllocateWhenEmptyNoExpansions(){
@@ -939,7 +939,7 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenPartiallyFullNoExpans
     checkResult = assertMemoryEqualToInt(NamePool._parentTotalBlocks - 100, parentPool + 5, 1);
     if (checkResult !== true) return checkResult;
     // Check d
-    return assertMemoryEqualToInt(newFirstFreeChunk + 4, 0, 1);
+    return assertMemoryEqualToInt(0, newFirstFreeChunk + 4, 1);
 }
 // Test4- Allocating from local parent pool when there are no expansions and pool is partially full
 async function test_AllocateNameProc_LocalPoolAllocateWhenPartiallyFullNoExpansions(){

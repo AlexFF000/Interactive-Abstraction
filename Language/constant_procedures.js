@@ -818,22 +818,29 @@ let currentFreeSpaceSize = Addresses.ps7 + 2;  // The size of the free space cur
 let multiplicationCounter = Addresses.ps7 + 3;  // A counter needed when multiplying to find totalBytesNeeded.  Only uses 1 byte so use another unused byte from ps7
 let currentFreeSpaceDetailsPtr = Addresses.ps10;  // The address of the details of the current free space
 let generalPointer = Addresses.ps11 + 3;  // Holds addresses we only need temporarily
+returnAddr = Addresses.ps19;  // If we need to create an expansion pool, psReturnAddr will be overwritten so store the return address here
 
 var AllocateNameProc = [
     "#allocateName AND 0"
 ].concat(
+    copy(Addresses.psReturnAddr, returnAddr, 4),
     // First copy the details from EvalTop to neededNameDetails
     copy(Addresses.EvalTop, Addresses.psAddr, 4)
 );
 AllocateNameProc = AllocateNameProc.concat(
     copyFromAddress(neededNameDetails, 2, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
-    [
     // Check that the number of requested blocks is not over the limit
-    `RED ${neededNameDetails}`,
-    `SUB ${NamePool._maxNameSize}`,
-    "BIZ #allocateName_requestTooLarge",
+    [
+        "AND 0",
+        `ADD ${NamePool.maxNameSize}`,
+        `WRT ${generalPointer}`,
+    ]
+);
+AllocateNameProc = AllocateNameProc.concat(
+    checkGreaterUnsignedByte(neededNameDetails, generalPointer, "#allocateName_requestTooLarge", "#allocateName_getParentPool", ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // If the requested number of blocks is too large, goto #allocateName_requestTooLarge
+    [
     // Load the correct name pool address into namePoolPointer
-    `RED ${neededNameDetails + 1}`,
+    `#allocateName_getParentPool RED ${neededNameDetails + 1}`,
     "ADD 0",
     `BIZ #allocateName_current_scope`,
     // EvalTop[1] is set, so allocate globally
@@ -901,7 +908,7 @@ AllocateNameProc = AllocateNameProc.concat(
     `RED ${neededNameDetails}`,
     `WRT ${multiplicationCounter}`,
     // Start the multiplication
-    "#allocateName_calculateTotalBytes AND 0",
+    `#allocateName_calculateTotalBytes RED ${generalPointer + 3}`,
     `ADD ${NamePool._blockSize}`,
     `WRT ${generalPointer + 3}`,
     `RED ${multiplicationCounter}`,
@@ -920,7 +927,7 @@ AllocateNameProc = AllocateNameProc.concat(
 AllocateNameProc = AllocateNameProc.concat(
     copyToAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The pointer to the start of this chunk now points to the new start
     [
-    `WRT ${currentFreeSpaceSize}`,
+    `RED ${currentFreeSpaceSize}`,
     `SUB A ${neededNameDetails}`,
     `WRT ${generalPointer}`
     ]
@@ -950,12 +957,20 @@ AllocateNameProc = AllocateNameProc.concat(
     copyToAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The pointer to this chunk now points to the next one
 );
 AllocateNameProc = AllocateNameProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
+);
+AllocateNameProc = AllocateNameProc.concat(
     copyToAddress(multiplicationCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The size field now contains the size of the next chunk
     [
     "GTO #allocateName_finish",
     // The space is too small, so move onto the next one
     "#allocateName_spaceTooSmall AND 0",
     // Move to the next free chunk, or create a new expansion pool if there isn't another chunk
+    // If size field for this chunk is 0, then there is are more free chunks in this pool so we need to create another expansion
+    `RED ${currentFreeSpaceSize}`,
+    "ADD 0",
+    "BIZ #allocateName_createExpansion",
+    // Otherwise, check the next free chunk
     ],
     // First 4 bytes of free chunk contain pointer to next free chunk. Copy into currentFreeSpacePtr
     copy(currentFreeSpacePtr, Addresses.psAddr, 4)
@@ -964,14 +979,11 @@ AllocateNameProc = AllocateNameProc.concat(
     copyFromAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
 );
 AllocateNameProc = AllocateNameProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+);
+AllocateNameProc = AllocateNameProc.concat(
     // 5th byte contains size of next space, so copy into currentFreeSpaceSize
     copyFromAddress(currentFreeSpaceSize, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
-    [
-    // If next free space size is 0, there is no next free space so we need to create an expansion pool
-    `RED ${currentFreeSpaceSize}`,
-    "ADD 0",
-    "BIZ #allocateName_createExpansion"
-    ],
     copy(currentFreeSpacePtr, currentFreeSpaceDetailsPtr, 4),  // currentFreeSpaceDetailsPtr now contains the address of the details of the next free chunk
     copy(generalPointer, currentFreeSpacePtr, 4),  // currentFreeSpacePtr now contains the address of next free chunk
     [
@@ -979,13 +991,13 @@ AllocateNameProc = AllocateNameProc.concat(
 
     // Create a new expansion pool and allocate from it
     "#allocateName_createExpansion AND 0",
-    ]
+    ],
 );
 AllocateNameProc = AllocateNameProc.concat(
     NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
     // The "next free space" header in the parent pool will now point to space in the new expansion pool, so just restart the search.  The new space will be the first one checked
     [
-    "GTO #allocateName_searchPool",
+    "GTO #allocateName_getParentPool",
 
     "#allocateName_finish AND 0",
     // Copy the address of the found space into EvalTop and jump to the return address
@@ -995,7 +1007,7 @@ AllocateNameProc = AllocateNameProc.concat(
 AllocateNameProc = AllocateNameProc.concat(
     copyToAddress(currentFreeSpacePtr, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
     [
-    `GTO A ${Addresses.psReturnAddr}`,
+    `GTO A ${returnAddr}`,
 
     "#allocateName_requestTooLarge AND 0",
     // Too many blocks were requested.  TODO IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
