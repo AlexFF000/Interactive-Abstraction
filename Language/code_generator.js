@@ -73,16 +73,17 @@ const Addresses = {
     "ps17": reservedArea + 89,
     "ps18": reservedArea + 93,
     "ps19": reservedArea + 97,
+    "ps20": reservedArea + 101,
     // Pseudo register specifically for manipulating addresses, useful for pointers
-    "psAddr": reservedArea + 101,
+    "psAddr": reservedArea + 105,
     // Pseudo register for holding the address to be jumped to after using one of the constant procedures
-    "psReturnAddr": reservedArea + 105,
+    "psReturnAddr": reservedArea + 109,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
-    "GlobalArea": reservedArea + 109,
+    "GlobalArea": reservedArea + 113,
     // The stack starts immediately after the global area
-    "StackStart": reservedArea + 109 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
+    "StackStart": reservedArea + 113 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
     // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
-    "IntFloatPool": reservedArea + 109 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
+    "IntFloatPool": reservedArea + 113 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
 }
 
 

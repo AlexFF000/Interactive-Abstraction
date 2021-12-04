@@ -811,14 +811,14 @@ ProcedureOffset += calculateInstructionsLength(Base2ExponentProc);  // Increase 
 
     Upon completion, the first address of the allocated space is placed in the first four bytes of EvalTop
 */
-let neededNameDetails = Addresses.ps7;  // Contains a copy of the details provided on the EvalStack
+let neededNameDetails = Addresses.ps20;  // Contains a copy of the details provided on the EvalStack.  Needs to use a pseudoregister not used by ExpandNamePoolProc or AllocationProc
 let namePoolPointer = Addresses.ps8;  // Address of the name pool to be used
 let currentFreeSpacePtr = Addresses.ps9;  // The address of the free space currently being searched
-let currentFreeSpaceSize = Addresses.ps7 + 2;  // The size of the free space currently being searched (only 1 byte so can use one of the unused bytes in ps7)
-let multiplicationCounter = Addresses.ps7 + 3;  // A counter needed when multiplying to find totalBytesNeeded.  Only uses 1 byte so use another unused byte from ps7
+let currentFreeSpaceSize = Addresses.ps20 + 2;  // The size of the free space currently being searched (only 1 byte so can use one of the unused bytes in ps10)
+let multiplicationCounter = Addresses.ps20 + 3;  // A counter needed when multiplying to find totalBytesNeeded.  Only uses 1 byte so use another unused byte from ps10
 let currentFreeSpaceDetailsPtr = Addresses.ps10;  // The address of the details of the current free space
 let generalPointer = Addresses.ps11 + 3;  // Holds addresses we only need temporarily
-returnAddr = Addresses.ps19;  // If we need to create an expansion pool, psReturnAddr will be overwritten so store the return address here
+returnAddr = Addresses.ps19;  // If we need to create an expansion pool, psReturnAddr will be overwritten so store the return address here.  Needs to use a pseudoregister not used by ExpandNamePoolProc or AllocationProc
 
 var AllocateNameProc = [
     "#allocateName AND 0"
@@ -994,7 +994,11 @@ AllocateNameProc = AllocateNameProc.concat(
     ],
 );
 AllocateNameProc = AllocateNameProc.concat(
-    NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
+);
+AllocateNameProc = AllocateNameProc.concat(
+    // NamePool.createExpansion() will leave another layer on the EvalStack, containing the address of the expansion pool.  We can just discard this layer, as the new address will already be in the parent pool's "next free chunk" header
+    EvalStack.removeLayer(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
     // The "next free space" header in the parent pool will now point to space in the new expansion pool, so just restart the search.  The new space will be the first one checked
     [
     "GTO #allocateName_getParentPool",
