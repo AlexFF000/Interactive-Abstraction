@@ -853,7 +853,7 @@ async function test_IntMultProc_OverflowDuringAdd(){
     Should leave output on EvalStack:
         EvalTop[0:3] = Address of the allocated space
 */
-let tests_AllocateNameProc = [test_AllocateNameProc_GlobalPoolAllocateWhenEmptyNoExpansions, test_AllocateNameProc_LocalPoolAllocateWhenEmptyNoExpansions, test_AllocateNameProc_GlobalPoolAllocateWhenPartiallyFullNoExpansions, test_AllocateNameProc_LocalPoolAllocateWhenPartiallyFullNoExpansions, test_AllocateNameProc_GlobalAllocateWhenFullNoExpansions, test_AllocateNameProc_LocalAllocateWhenFullNoExpansions, test_AllocateNameProc_GlobalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion, test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion, test_AllocateNameProc_AllocateTooLargeSpace, test_AllocateNameProc_GlobalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached, test_AllocateNameProc_LocalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached, test_AllocateNameProc_GlobalPoolAllocateDeallocated, test_AllocateNameProc_LocalPoolAllocateDeallocated];
+let tests_AllocateNameProc = [test_AllocateNameProc_GlobalPoolAllocateWhenEmptyNoExpansions, test_AllocateNameProc_LocalPoolAllocateWhenEmptyNoExpansions, test_AllocateNameProc_GlobalPoolAllocateWhenPartiallyFullNoExpansions, test_AllocateNameProc_LocalPoolAllocateWhenPartiallyFullNoExpansions, test_AllocateNameProc_GlobalAllocateWhenFullNoExpansions, test_AllocateNameProc_LocalAllocateWhenFullNoExpansions, test_AllocateNameProc_GlobalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion, test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion, test_AllocateNameProc_GlobalPoolAllocateMoreSpaceThanInPool, test_AllocateNameProc_LocalPoolAllocateMoreSpaceThanInPool, test_AllocateNameProc_AllocateTooLargeSpace, test_AllocateNameProc_GlobalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached, test_AllocateNameProc_LocalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached, test_AllocateNameProc_GlobalPoolAllocateDeallocated, test_AllocateNameProc_LocalPoolAllocateDeallocated];
 tests_constantProcedures = tests_constantProcedures.concat(tests_AllocateNameProc);
 let allocateNameProcTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures, setupGlobalNamePool];
 
@@ -1021,18 +1021,7 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenParentFullAnd1Partial
             c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 100}
             d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
     */
-    return "NOT IMPLEMENTED";
-}
-// Test8- Allocating from local pool when the parent pool is full, and there is 1 partially full expansion
-async function test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion(){
-    /*
-        Allocate ${NamePool._parentTotalBlocks} blocks, followed by 50 more (50 is arbitrary).  Then request another 50
-        Then check that:
-            a) EvalTop[0:3] contains ${expansionPoolAddress + 1 + (50 * 5)} (+1 as the headers of expansions are only 1 byte).
-            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space in the expansion pool
-            c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 100}
-            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
-    */
+    await runSetup(allocateNameProcTests_neededSetup);
     let parentPool = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.NamePoolPointer, 4);
     // Point EvalTop to the global EvalStack
     writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
@@ -1067,22 +1056,46 @@ async function test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1Partiall
     // Check d
     return assertMemoryEqualToInt(0, newFirstFreeChunk + 4, 1);
 }
-// Test9- Trying to allocate a space that is too large (i.e. too large to be supported, not just more space than is available)
+// Test8- Allocating from local pool when the parent pool is full, and there is 1 partially full expansion
+async function test_AllocateNameProc_LocalPoolAllocateWhenParentFullAnd1PartiallyFullExpansion(){
+    /*
+        Allocate ${NamePool._parentTotalBlocks} blocks, followed by 50 more (50 is arbitrary).  Then request another 50
+        Then check that:
+            a) EvalTop[0:3] contains ${expansionPoolAddress + 1 + (50 * 5)} (+1 as the headers of expansions are only 1 byte).
+            b) The "next free space pointer" header in the parent pool points to the first address after the newly allocated space in the expansion pool
+            c) The "next free space size" header in the parent pool contains ${NamePool._expansionTotalBlocks - 100}
+            d) The "next free space size" field in the new first free space contains 0 (meaning there are no more free spaces after this one)
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test9- Allocating more space from global pool than is available in the current pool (but when pool is not full)
+async function test_AllocateNameProc_GlobalPoolAllocateMoreSpaceThanInPool(){
+    /*
+        When parent pool is partially (but not entirely) full, allocate more space than is left in the pool.  The new space should be allocated entirely within a new expansion pool
+        Allocate 50 bytes, then request another ${NamePool._parentTotalBlocks}
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test10 - Allocating more space from local pool than is available in the current pool (but when pool is not full)
+async function test_AllocateNameProc_LocalPoolAllocateMoreSpaceThanInPool(){
+    return "NOT IMPLEMENTED";
+}
+// Test11- Trying to allocate a space that is too large (i.e. too large to be supported, not just more space than is available)
 async function test_AllocateNameProc_AllocateTooLargeSpace(){
     // TODO NEED TO IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
     return "NOT IMPLEMENTED";
 }
-// Test10- Trying to allocate from global pool when parent and all expansions are full, and maximum number of expansions has been reached
+// Test12- Trying to allocate from global pool when parent and all expansions are full, and maximum number of expansions has been reached
 async function test_AllocateNameProc_GlobalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached(){
     // TODO NEED TO IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
     return "NOT IMPLEMENTED";
 }
-// Test11- Trying to allocate from local pool when parent and all expansions are full, and maximum number of expansions has been reached
+// Test13- Trying to allocate from local pool when parent and all expansions are full, and maximum number of expansions has been reached
 async function test_AllocateNameProc_LocalPoolAllocateWhenCompletelyFullAndMaxExpansionsReached(){
     // TODO NEED TO IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
     return "NOT IMPLEMENTED";
 }
-// Test12- Reallocate deallocated space in global pool
+// Test14- Reallocate deallocated space in global pool
 async function test_AllocateNameProc_GlobalPoolAllocateDeallocated(){
     /*
         Allocate the first 5 blocks of the parent pool (5 is arbitary), then allocate the rest of the parent pool by repeatedly allocating 50 blocks (50 is arbitrary)
@@ -1101,7 +1114,7 @@ async function test_AllocateNameProc_GlobalPoolAllocateDeallocated(){
     // TODO NEED TO IMPLEMENT THIS WHEN ERRO HANDLING IS SET UP
     return "NOT IMPLEMENTED";
 }
-// Test13- Reallocate deallocated space in local pool
+// Test15- Reallocate deallocated space in local pool
 async function test_AllocateNameProc_LocalPoolAllocateDeallocated(){
     /*
         Allocate the first 5 blocks of the parent pool (5 is arbitary), then allocate the rest of the parent pool by repeatedly allocating 50 blocks (50 is arbitrary)

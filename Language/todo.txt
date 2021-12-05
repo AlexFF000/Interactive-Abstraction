@@ -1,4 +1,5 @@
-Continue testing AllocateNameProc.
+Move fields in chunk forward in spaceTooBig, and make / modify a test to make sure this is happening.  <-- Changes are done, now just need to write / modify a test
+Continue testing AllocateNameProc
 Need to change AllocateNameProc to add a different call to createExpansion for when the global flag is set (note that tests won't notice that this isn't done)
 Change generalCounter in AllocateNameProc to no longer be +3
 Continue writing AllocateNameProc tests, and then run them.  The local tests can be the same as global ones but without the globalFlag set as global and local allocation work the same way for name pools.

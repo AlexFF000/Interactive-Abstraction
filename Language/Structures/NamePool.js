@@ -3,7 +3,7 @@
 */
 class NamePool{
     static _headersLength = 7;  // Length of headers in parent pool
-    static _blockSize = 5;
+    static _blockSize = 5;  // Must not be less than 5, as the details of next free chunk take up 5 bytes
     static _parentTotalBlocks = Math.floor(((runtime_options.NamePoolSize - this._headersLength) - 4) / 5);  // Total number of blocks in a parent pool
     static _expansionTotalBlocks = Math.floor(((runtime_options.NamePoolSize - 1) - 4) / 5);  // Total number of blocks in an expansion pool  // Expansion pools have only 1 byte headers
     static maxNameSize = this._parentTotalBlocks;  // The maximum number of blocks a name can request.  A hard limit is needed as the number of blocks requested uses one byte, so up to 255 blocks could be requested.  But 255 may be more blocks than are in a single pool, depending on what the NamePoolSize is set to.

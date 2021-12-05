@@ -818,6 +818,7 @@ let currentFreeSpaceSize = Addresses.ps20 + 2;  // The size of the free space cu
 let multiplicationCounter = Addresses.ps20 + 3;  // A counter needed when multiplying to find totalBytesNeeded.  Only uses 1 byte so use another unused byte from ps10
 let currentFreeSpaceDetailsPtr = Addresses.ps10;  // The address of the details of the current free space
 let generalPointer = Addresses.ps11 + 3;  // Holds addresses we only need temporarily
+let generalPointer2 = Addresses.ps13;  // Another pointer for addresses we only need temporarily
 returnAddr = Addresses.ps19;  // If we need to create an expansion pool, psReturnAddr will be overwritten so store the return address here.  Needs to use a pseudoregister not used by ExpandNamePoolProc or AllocationProc
 
 var AllocateNameProc = [
@@ -919,8 +920,32 @@ AllocateNameProc = AllocateNameProc.concat(
     "#allocateName_totalBytesCalculated AND 0"
     ]
 );
+// Move fields forward from existing start of chunk to new start
+AllocateNameProc = AllocateNameProc.concat(
+    copy(currentFreeSpacePtr, Addresses.psAddr, 4),
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyFromAddress(generalPointer2, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // generalPointer2 now contains the value of this chunk's "next free space pointer" field
+);
+AllocateNameProc = AllocateNameProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyFromAddress(multiplicationCounter, 1, calculateInstructionsLength(AllocateNameProc)), // multiplicationCounter now contains the value of this chunks "next free chunk size" field.  multiplicationCounter is used for this as it isn't currently being used for anything else
+);
 AllocateNameProc = AllocateNameProc.concat(
     add32BitIntegers(currentFreeSpacePtr, generalPointer, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+    copy(Addresses.ps3, Addresses.psAddr, 4),  // psAddr now contains the address of the new start address of the chunk
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(generalPointer2, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The first 4 bytes at the new start of the chunk now contain this chunk's "next free chunk pointer" field
+);
+AllocateNameProc = AllocateNameProc.concat(
+    incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyToAddress(multiplicationCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The 5th byte at the new start of the chunk now contain this chunk's "next free chunk size" field
+    // Change the pointer to this chunk to point to the new start, and update the size field
     copy(Addresses.ps3, generalPointer, 4),  // generalPointer now contains the address of the new start address of the chunk
     copy(currentFreeSpaceDetailsPtr, Addresses.psAddr, 4)
 );
