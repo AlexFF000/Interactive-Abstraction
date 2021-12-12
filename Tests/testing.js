@@ -314,3 +314,37 @@ function resumeBreakInstruction(){
     paused = false;
     clock();
 }
+
+async function compareExpectedVsActualPath(instructionsToRun, expected, instructionsList=instructionsToRun, offset=0, resetCPU=false, addEndInstruction=true){
+    // Given a list of instructions to run and an expected path (a list of instructions that the program is expected to run, in the order that it is expected to run them) return the instruction in the list after which the actual execution of the program diverges from the expected path
+    // instructionsList is the full list of instructions that may be run when running instructionsToRun (e.g. if indtructionsToRun includes a call to a constant procedure, instructions eill be run that are not included in instructionsToRun).  This is used to map instruction addresses to actual instructions
+    // Map addresses to the instructions they contain
+    let addressToInstructionMap = {}
+    let addressedInstructs = listInstructionAddresses(instructionsList, offset);
+    for (instruct of addressedInstructs){
+        let match = instruct.match(new RegExp("\\(([0-9]+)\\) ([^]*)"));
+        addressToInstructionMap[match[1]] = match[2];
+    }
+    // Run the code
+    toggleBreakInstructions(true);
+    await runInstructions(instructionsToRun, resetCPU, addEndInstruction);
+    // Run through the actual list of run instructions, and compare to expected to find where they diverge
+    let lastCorrectInstruction = 0;
+    let nextExpectedInstruction = expected.shift();  // If the next instruction is this, the program has not diverged from expected yet
+    for (let actualInstruct of instructions_fetched){
+        if (actualInstruct === nextExpectedInstruction){
+            lastCorrectInstruction = nextExpectedInstruction;
+            nextExpectedInstruction = expected.shift();
+            if (nextExpectedInstruction === undefined){
+                // No more instructions in expected, all were hit in order.  So there was no divergence
+                return "No divergence";
+            }
+        }
+        else if (expected.includes(actualInstruct)){
+            // If any of the other expected instructions are found, then we have diverged as we we were not supposed to hit them until after nextExpectedInstruction
+            return `Diverges between ${lastCorrectInstruction} (${addressToInstructionMap[actualInstruct]}) and ${nextExpectedInstruction} (${addressToInstructionMap[nextExpectedInstruction]})`;
+        }
+        // Otherwise move onto the next instruction
+    }
+    return `First expected instruction (${nextExpectedInstruction} (${addressToInstructionMap[nextExpectedInstruction]})) never run`;
+}
