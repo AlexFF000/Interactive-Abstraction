@@ -1019,10 +1019,23 @@ AllocateNameProc = AllocateNameProc.concat(
 
     // Create a new expansion pool and allocate from it
     "#allocateName_createExpansion AND 0",
+    // If forceGlobal then make the expansion pool in global scope
+    `ADD A ${neededNameDetails + 1}`,
+    `BIZ #allocateName_createExpansion_currentScope`
     ],
 );
 AllocateNameProc = AllocateNameProc.concat(
-    NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
+    NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc), true),
+    [
+        "GTO #allocateName_expansionCreated",
+        "#allocateName_createExpansion_currentScope AND 0"
+    ]
+)
+AllocateNameProc = AllocateNameProc.concat(
+    NamePool.createExpansion(ProcedureOffset + calculateInstructionsLength(AllocateNameProc), false),
+    [
+        "#allocateName_expansionCreated AND 0",
+    ]
 );
 AllocateNameProc = AllocateNameProc.concat(
     // NamePool.createExpansion() will leave another layer on the EvalStack, containing the address of the expansion pool.  We can just discard this layer, as the new address will already be in the parent pool's "next free chunk" header
