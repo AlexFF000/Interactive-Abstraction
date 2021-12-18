@@ -348,3 +348,29 @@ async function compareExpectedVsActualPath(instructionsToRun, expected, instruct
     }
     return `First expected instruction (${nextExpectedInstruction} (${addressToInstructionMap[nextExpectedInstruction]})) never run`;
 }
+
+
+/*
+    Helper functions for specific sets of tests
+*/
+
+async function testHelper_AllocateLargeNamePoolSpace(blocksNeeded, forceGlobal, evalTop, instructionsLength, simulateSingleSpace=false){
+    // There is a limit on how much space can be allocated from the name pool at once, so this function will repeatedly allocate until the required amount of space is allocated
+    // Note that doing it like this provides no guarantee that the allocated spaces will all be contiguous
+    let blocksStillNeeded = blocksNeeded;
+    let firstSpaceAddr = null;
+    while (blocksStillNeeded !== 0){
+        let amountToAllocate = blocksStillNeeded < NamePool.maxNameSize ? blocksStillNeeded : NamePool.maxNameSize;
+        writeIntToMemory(amountToAllocate, evalTop, 1);
+        writeIntToMemory(Number(forceGlobal), evalTop + 1, 1);
+        writeIntToMemory(instructionsLength + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
+        await runInstructions(["GTO #allocateName"], false, true);
+        if (simulateSingleSpace && blocksStillNeeded === blocksNeeded){
+            // Return the start address of the first space we allocate
+            firstSpaceAddr = readMemoryAsInt(evalTop, 4);
+        }
+        blocksStillNeeded -= amountToAllocate;
+    }
+    // If simulateSingleSpace then write the address of the first space that we allocated to EvalTop instead of the last one
+    if (simulateSingleSpace) writeIntToMemory(firstSpaceAddr, evalTop, 4);
+}
