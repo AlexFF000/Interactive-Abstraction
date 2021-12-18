@@ -815,9 +815,9 @@ let neededNameDetails = Addresses.ps20;  // Contains a copy of the details provi
 let namePoolPointer = Addresses.ps8;  // Address of the name pool to be used
 let currentFreeSpacePtr = Addresses.ps9;  // The address of the free space currently being searched
 let currentFreeSpaceSize = Addresses.ps20 + 2;  // The size of the free space currently being searched (only 1 byte so can use one of the unused bytes in ps10)
-let multiplicationCounter = Addresses.ps20 + 3;  // A counter needed when multiplying to find totalBytesNeeded.  Only uses 1 byte so use another unused byte from ps10
+let generalCounter = Addresses.ps20 + 3;  // A counter needed when multiplying to find totalBytesNeeded and for holding data temporarily in some parts of the procedure.  Only uses 1 byte so use another unused byte from ps10
 let currentFreeSpaceDetailsPtr = Addresses.ps10;  // The address of the details of the current free space
-let generalPointer = Addresses.ps11 + 3;  // Holds addresses we only need temporarily
+let generalPointer = Addresses.ps11;  // Holds addresses we only need temporarily
 let generalPointer2 = Addresses.ps13;  // Another pointer for addresses we only need temporarily
 returnAddr = Addresses.ps19;  // If we need to create an expansion pool, psReturnAddr will be overwritten so store the return address here.  Needs to use a pseudoregister not used by ExpandNamePoolProc or AllocationProc
 
@@ -910,15 +910,15 @@ AllocateNameProc = AllocateNameProc.concat(
     `WRT ${generalPointer + 2}`,
     `WRT ${generalPointer + 3}`,
     `RED ${neededNameDetails}`,
-    `WRT ${multiplicationCounter}`,
+    `WRT ${generalCounter}`,
     // Start the multiplication
     `#allocateName_calculateTotalBytes RED ${generalPointer + 3}`,
     `ADD ${NamePool._blockSize}`,
     `WRT ${generalPointer + 3}`,
-    `RED ${multiplicationCounter}`,
+    `RED ${generalCounter}`,
     "SUB 1",
     "BIZ #allocateName_totalBytesCalculated",
-    `WRT ${multiplicationCounter}`,
+    `WRT ${generalCounter}`,
     "GTO #allocateName_calculateTotalBytes",
     "#allocateName_totalBytesCalculated AND 0"
     ]
@@ -934,7 +934,7 @@ AllocateNameProc = AllocateNameProc.concat(
     incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
 );
 AllocateNameProc = AllocateNameProc.concat(
-    copyFromAddress(multiplicationCounter, 1, calculateInstructionsLength(AllocateNameProc)), // multiplicationCounter now contains the value of this chunks "next free chunk size" field.  multiplicationCounter is used for this as it isn't currently being used for anything else
+    copyFromAddress(generalCounter, 1, calculateInstructionsLength(AllocateNameProc)), // generalCounter now contains the value of this chunks "next free chunk size" field.
 );
 AllocateNameProc = AllocateNameProc.concat(
     add32BitIntegers(currentFreeSpacePtr, generalPointer, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
@@ -947,7 +947,7 @@ AllocateNameProc = AllocateNameProc.concat(
     incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
 );
 AllocateNameProc = AllocateNameProc.concat(
-    copyToAddress(multiplicationCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The 5th byte at the new start of the chunk now contain this chunk's "next free chunk size" field
+    copyToAddress(generalCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The 5th byte at the new start of the chunk now contain this chunk's "next free chunk size" field
     // Change the pointer to this chunk to point to the new start, and update the size field
     copy(Addresses.ps3, generalPointer, 4),  // generalPointer now contains the address of the new start address of the chunk
     copy(currentFreeSpaceDetailsPtr, Addresses.psAddr, 4)
@@ -977,8 +977,7 @@ AllocateNameProc = AllocateNameProc.concat(
     copyFromAddress(generalPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // generalPointer now contains the address of next free chunk (if it exists)
 );
 AllocateNameProc = AllocateNameProc.concat(
-    // NOTE: multiplicationCounter is used here because it isn't currently being used for anything else.
-    copyFromAddress(multiplicationCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // multiplicationCounter now contains size of next free chunk
+    copyFromAddress(generalCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // generalCounter now contains size of next free chunk
     copy(currentFreeSpaceDetailsPtr, Addresses.psAddr, 4)
 );
 AllocateNameProc = AllocateNameProc.concat(
@@ -988,7 +987,7 @@ AllocateNameProc = AllocateNameProc.concat(
     incrementAddress(ProcedureOffset + calculateInstructionsLength(AllocateNameProc))
 );
 AllocateNameProc = AllocateNameProc.concat(
-    copyToAddress(multiplicationCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The size field now contains the size of the next chunk
+    copyToAddress(generalCounter, 1, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),  // The size field now contains the size of the next chunk
     [
     "GTO #allocateName_finish",
     // The space is too small, so move onto the next one
@@ -1250,7 +1249,7 @@ ProcedureOffset += calculateInstructionsLength(IntMultProc);
 let parentPoolPointer = Addresses.ps16;  // Holds the address of the parent pool for the scope
 let newPoolPointer = Addresses.ps5;  // Holds address of the new pool
 let existingExpansionPools = Addresses.ps17;  // Number of existing expansion pools.  Only need 1 byte for this
-let generalCounter = Addresses.ps17 + 1;  // A counter for the loop for finding the last pool.  Only need 1 byte for this
+generalCounter = Addresses.ps17 + 1;  // A counter for the loop for finding the last pool.  Only need 1 byte for this
 generalPointer = Addresses.ps7;
 returnAddr = Addresses.ps18;  // Holds the returnAddr, as psReturnAddr will have to be overwritten when allocating memory for the new pool
 // Get the address of the parent pool
