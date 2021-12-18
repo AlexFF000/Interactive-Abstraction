@@ -6,7 +6,7 @@ class NamePool{
     static _blockSize = 5;  // Must not be less than 5, as the details of next free chunk take up 5 bytes
     static _parentTotalBlocks = Math.floor(((runtime_options.NamePoolSize - this._headersLength) - 4) / 5);  // Total number of blocks in a parent pool
     static _expansionTotalBlocks = Math.floor(((runtime_options.NamePoolSize - 1) - 4) / 5);  // Total number of blocks in an expansion pool  // Expansion pools have only 1 byte headers
-    static maxNameSize = this._parentTotalBlocks;  // The maximum number of blocks a name can request.  A hard limit is needed as the number of blocks requested uses one byte, so up to 255 blocks could be requested.  But 255 may be more blocks than are in a single pool, depending on what the NamePoolSize is set to.
+    static maxNameSize = 51;  // The maximum number of blocks a name can request.  A hard limit is needed as AllocateNameProc some places use a single byte for name lengths.  These places include variable tables (which use a single byte for name length (in bytes) giving a maximum name size of 255), AllocateNameProc (which stores the total number of bytes to allocate in a single byte).  In addition, the total number of blocks allocated cannot be more than the total number of blocks in a pool
 
     static create(instructionsLength){
         // Return instructions to create a new name pool in the current scope (this function only handles creating new pools, not expansion pools)
