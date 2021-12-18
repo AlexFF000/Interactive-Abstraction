@@ -855,7 +855,10 @@ AllocateNameProc = AllocateNameProc.concat(
 );
 AllocateNameProc = AllocateNameProc.concat(
     add32BitIntegers(Addresses.ScopePointer, Offsets.frame.NamePoolPointer, ProcedureOffset + calculateInstructionsLength(AllocateNameProc), false, true),  // ps3 now contains the address of the current scope's name pool
-    copy(Addresses.ps3, namePoolPointer, 4),
+    copy(Addresses.ps3, Addresses.psAddr, 4),
+);
+AllocateNameProc = AllocateNameProc.concat(
+    copyFromAddress(namePoolPointer, 4, ProcedureOffset + calculateInstructionsLength(AllocateNameProc)),
     [
     
     // Search the pool for a large enough free space
