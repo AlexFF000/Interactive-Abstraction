@@ -968,13 +968,7 @@ async function test_AllocateNameProc_GlobalAllocateWhenFullNoExpansions(){
     // Point EvalTop to the global EvalStack
     writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
     // Make first request- To fill parent pool
-    // Write request details to EvalTop
-    writeIntToMemory(NamePool._parentTotalBlocks, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
-    // Set forceGlobal flag
-    writeIntToMemory(1, Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1);
-    // Place return address in psReturnAddr
-    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
-    await runInstructions(["GTO #allocateName"], false, true);
+    await testHelper_AllocateLargeNamePoolSpace(NamePool._parentTotalBlocks, true, Addresses.GlobalArea + Offsets.frame.EvalStart, testsInstructionsStart);
     // Make second request- To create and allocate from an expansion pool
     writeIntToMemory(11, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
     // set forceGlobal flag
@@ -1026,13 +1020,7 @@ async function test_AllocateNameProc_GlobalPoolAllocateWhenParentFullAnd1Partial
     // Point EvalTop to the global EvalStack
     writeIntToMemory(Addresses.GlobalArea + Offsets.frame.EvalStart, Addresses.EvalTop, 4);
     // Make first request- To fill parent pool
-    // Write request details to EvalTop
-    writeIntToMemory(NamePool._parentTotalBlocks, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
-    // Set forceGlobal flag
-    writeIntToMemory(1, Addresses.GlobalArea + Offsets.frame.EvalStart + 1, 1);
-    // Place return address in psReturnAddr
-    writeIntToMemory(testsInstructionsStart + calculateInstructionsLength(["GTO #allocateName"]), Addresses.psReturnAddr, 4);
-    await runInstructions(["GTO #allocateName"], false, true);
+    await testHelper_AllocateLargeNamePoolSpace(NamePool._parentTotalBlocks, true, Addresses.GlobalArea + Offsets.frame.EvalStart, testsInstructionsStart);
     // Request another 50 blocks, twice
     for (let i = 0; i < 2; i++){
         writeIntToMemory(50, Addresses.GlobalArea + Offsets.frame.EvalStart, 1);
