@@ -913,7 +913,7 @@ AllocateNameProc = AllocateNameProc.concat(
     `WRT ${generalCounter}`,
     // Start the multiplication
     `#allocateName_calculateTotalBytes RED ${generalPointer + 3}`,
-    `ADD ${NamePool._blockSize}`,
+    `ADD ${NamePool.blockSize}`,
     `WRT ${generalPointer + 3}`,
     `RED ${generalCounter}`,
     "SUB 1",

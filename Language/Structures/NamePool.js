@@ -3,9 +3,9 @@
 */
 class NamePool{
     static _headersLength = 7;  // Length of headers in parent pool
-    static _blockSize = 5;  // Must not be less than 5, as the details of next free chunk take up 5 bytes
     static _parentTotalBlocks = Math.floor(((runtime_options.NamePoolSize - this._headersLength) - 4) / 5);  // Total number of blocks in a parent pool
     static _expansionTotalBlocks = Math.floor(((runtime_options.NamePoolSize - 1) - 4) / 5);  // Total number of blocks in an expansion pool  // Expansion pools have only 1 byte headers
+    static blockSize = 5;  // Must not be less than 5, as the details of next free chunk take up 5 bytes
     static maxNameSize = 51;  // The maximum number of blocks a name can request.  A hard limit is needed as AllocateNameProc some places use a single byte for name lengths.  These places include variable tables (which use a single byte for name length (in bytes) giving a maximum name size of 255), AllocateNameProc (which stores the total number of bytes to allocate in a single byte).  In addition, the total number of blocks allocated cannot be more than the total number of blocks in a pool
 
     static create(instructionsLength){
@@ -65,5 +65,32 @@ class NamePool{
                "GTO #expandPool"
             ]
         );
+    }
+
+    static storeName(instructionsLength, name, forceGlobal=false){
+        // Create a name and store it on the name pool.  If forceGlobal=true then the global name pool will be used, else the current scope's one will be used
+        // name should be a Name object
+        // First allocate the space for the name
+        let blocksNeeded = Math.ceil(name.bytes.length / this.blockSize);
+        let instructs = EvalStack.pushLiteral(generateByteSequence([blocksNeeded, Number(forceGlobal)], 5), instructionsLength);
+        instructs.push("GTO #allocateName");
+        instructs = instructs.concat(
+            // Do not remove the top layer after this, as the address of the name might still be useful
+            EvalStack.copyNFromTopLayer(Addresses.psAddr, 4, 0, instructionsLength + calculateInstructionsLength(instructs)),
+        );
+        // Load the name into the allocated space
+        for (let b of name.bytes){
+            instructs = instructs.concat(
+                [
+                    "AND 0",
+                    `ADD ${b}`,
+                    `WRT A ${Addresses.psAddr}`,
+                ]
+            );
+            instructs = instructs.concat(
+                incrementAddress(instructionsLength + calculateInstructionsLength(instructs))
+            );
+        }
+        return instructs;
     }
 }
