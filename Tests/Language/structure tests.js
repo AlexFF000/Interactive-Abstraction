@@ -160,7 +160,7 @@ async function test_VarTable_createCheckCorrectFormat(){
             a) The first byte of the allocated space contains the type tag for variable tables
             b) AllocatedSpace[1:2] (0 indexed) contains 1 (the number of entries in the table, should be 1 as the "parent" entry should have been added)
             c) AllocatedSpace[3] contains 0 (the number of expansion tables, 0 as there aren't any yet)
-            d) AllocatedSpace[4:5] contains 2 (the index of the next free slot in the table, should be 2 as the index starts from 1 to allow 0 to represent any empty table, and the first space is already taken by the "parent" entry)
+            d) AllocatedSpace[4:7] contains the address of the second entry (the address of the next free slot in the table, should be 2nd slot as the first space is already taken by the "parent" entry)
     */
    await runSetup(varTableTests_neededSetup);
    // As table will be allocated globally straight after setup, it will be located at the start of the heap
@@ -176,7 +176,7 @@ async function test_VarTable_createCheckCorrectFormat(){
    checkResult = assertMemoryEqualToInt(0, tableAddress + 3, 1);
    if (checkResult !== true) return checkResult;
    // Check d
-   return assertMemoryEqualToInt(2, tableAddress + 4, 2);
+   return assertMemoryEqualToInt(tableAddress + VarTable._headersLength + VarTable._entryLength, tableAddress + 4, 4);
 }
 // Test2- Create table, and check all of the empty slots have been cleared
 async function test_VarTable_createCheckSlotsClear(){
@@ -207,22 +207,22 @@ async function test_VarTable_createCheckParentEntry(){
     /*
         Allocate space for and create a new global variable table
         Then check that:
-            a) AllocatedSpace[6] contains the type tag for a variable table entry
-            b) AllocatedSpace[7] contains 0 (the name length, 0 as parent entry has no name)
-            c) AllocatedSpace[12:15] contains the null address (as global variable tables have no parent table)
+            a) AllocatedSpace[8] contains the type tag for a variable table entry
+            b) AllocatedSpace[9] contains 0 (the name length, 0 as parent entry has no name)
+            c) AllocatedSpace[14:17] contains the null address (as global variable tables have no parent table)
     */
     await runSetup(varTableTests_neededSetup);
     // As table will be allocated globally straight after setup, it will be located at the start of the heap
     let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
     await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
     // Check a
-    let checkResult = assertMemoryEqualToInt(type_tags.var_table_entry, tableAddress + 6, 1);
+    let checkResult = assertMemoryEqualToInt(type_tags.var_table_entry, tableAddress + 8, 1);
     if (checkResult !== true) return checkResult;
     // Check b
-    checkResult = assertMemoryEqualToInt(0, tableAddress + 7, 1);
+    checkResult = assertMemoryEqualToInt(0, tableAddress + 9, 1);
     if (checkResult !== true) return checkResult;
     // Check c
-    return assertMemoryEqualToInt(Addresses.NullAddress, tableAddress + 12, 4);
+    return assertMemoryEqualToInt(Addresses.NullAddress, tableAddress + 14, 4);
 }
 
 /*
