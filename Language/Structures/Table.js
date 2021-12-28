@@ -14,6 +14,101 @@ class Table{
     // Allocate the memory for and create an extension table to provide extra space when existing tables become full
     static createExtension(instructionsLength){};
 
+    static _allocateSlot(instructionsLength){
+        // Find and allocate the next free slot in the table referenced on EvalTop
+        let table = Addresses.ps4;
+        let nextFreeSlot = Addresses.ps5;
+        let newNextFreeSlot = Addresses.ps6;
+
+        let instructs = EvalStack.copyNFromTopLayer(table, 4, 0, instructionsLength);
+        // Get first free slot address
+        instructs = instructs.concat(
+            add32BitIntegers(table, 4, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4)
+        );
+        instructs = instructs.concat(
+            copyFromAddress(nextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs)),  // nextFreeSlot now contains the address of the next free slot
+            // If nextFreeSlot contains 0 then there are no more free slots, so we need to create an expansion table
+            checkZero(nextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(checkZero(nextFreeSlot, 4, 0, 0)), instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(checkZero(nextFreeSlot, 4, 0, 0)) + calculateInstructionsLength(this.createExtension(0).concat(`GTO ${instructionsLength}`)))
+        );
+
+        // nextFreeSlot is 0 so there are no more free slots, so create an expansion table
+        instructs = instructs.concat(
+            this.createExtension(instructionsLength + calculateInstructionsLength(instructs)),
+            [
+                // After creating the new expansion, return to the start of this method and try again
+                `GTO ${instructionsLength}`,
+            ]
+        );
+
+        // nextFreeSlot is not 0, so there is a slot we can use
+        /*
+            Point "next free pointer" header to the new next free slot:
+                - If this slot's "next free space" pointer is not 0, then just use the slot that it points to
+                - If this slot's "next free space" pointer is 0, then use the next consecutive slot if it is not in use or outside the table
+                    - If the pointer is 0 and the next consecutive slot is used or outside the table, then there are no more free slots
+            
+        */
+        instructs = instructs.concat(
+            add32BitIntegers(nextFreeSlot, 3, instructionsLength + calculateInstructionsLength(instructs), false, true),  // ps3 now contains the address of this slot's "next free slot pointer"
+            copy(Addresses.ps3, Addresses.psAddr, 4),
+        );
+        instructs = instructs.concat(
+            copyFromAddress(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs)),  // newNextFreeSlot now contains the value of "next free slot pointer" field
+            checkZero(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(copyFromAddress(0, 4, 0).concat(checkZero(newNextFreeSlot, 4, 0, 0))) + calculateInstructionsLength(add32BitIntegers(table, 4, 0, false, true).concat(copy(0, 0, 4), copyToAddress(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs)), ["GTO 0"])), instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(copyFromAddress(0, 4, 0).concat(checkZero(newNextFreeSlot, 4, 0, 0))))
+        );
+        
+        // newNextFreeSlot is not 0, so we can just write it to the "next free slot pointer" header
+        instructs = instructs.concat(
+            add32BitIntegers(table, 4, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4)
+        );
+        instructs = instructs.concat(
+            copyToAddress(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs)),  // The "next free slot pointer" header has now been updated
+        );
+        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + 1686}`);  // Jump to code to place found slot address on EvalTop
+        
+        // newNextFreeSlot is 0, so we need to find out if we can use the next consecutive slot
+        instructs = instructs.concat(
+            add32BitIntegers(nextFreeSlot, this._entryLength, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, newNextFreeSlot, 4),  // newNextFreeSlot now contains the address of the next consecutive slot
+            copy(Addresses.ps3, Addresses.psAddr, 4),
+            [
+                `RED A ${newNextFreeSlot}`,
+                `ADD 0`,
+                `BIZ ${instructionsLength + calculateInstructionsLength([`AND 0`, `WRT 0`, `WRT 0`, `WRT 0`, `WRT 0`].concat(add32BitIntegers(0, 4, 0, false, true), copy(0, 0, 4), copyToAddress(0, 4, 0), ["GTO 0"]))}`,  // The next consecutive space type tag is 0, so we can use it
+                // Next consecutive space's type tag is not 0, so it is either not a valid slot or is in use
+                `AND 0`,
+                `WRT ${newNextFreeSlot}`,
+                `WRT ${newNextFreeSlot + 1}`,
+                `WRT ${newNextFreeSlot + 2}`,
+                `WRT ${newNextFreeSlot + 3}`,
+            ]
+        );
+        
+        instructs = instructs.concat(
+            add32BitIntegers(table, 4, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4),
+        );
+        instructs = instructs.concat(
+            copyToAddress(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs))  // The "next free pointer" header now contains 0
+        );
+        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + 627}`);  // Jump to code to place found slot address on EvalTop
+        // Next consecutive slot's type tag is 0, so we can use it
+        instructs = instructs.concat(
+            add32BitIntegers(table, 4, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4),
+        );
+        instructs = instructs.concat(
+            copyToAddress(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs))
+        );
+
+        // Place address of found slot on EvalTop
+        return instructs.concat(
+            EvalStack.copyNToTopLayer(nextFreeSlot, 4, 0, instructionsLength + calculateInstructionsLength(instructs))
+        );
+    }
+
     // Set the name length field of each slot in the table to 0.  This is needed as searching uses the name length to avoid searching empty slots, so must run this after space is allocated to ensure no previously deallocated data causes searching to think empty slots are full
     static _clearNameLengthFields(instructionsLength){
         // Requires that ps0 contains a pointer to the allocated space
