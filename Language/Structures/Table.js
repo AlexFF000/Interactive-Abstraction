@@ -69,18 +69,23 @@ class Table{
         instructs = instructs.concat(
             copyToAddress(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs)),  // The "next free slot pointer" header has now been updated
         );
-        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + 1686}`);  // Jump to code to place found slot address on EvalTop
+        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + 1764}`);  // Jump to code to increment "number of entries" header and place found slot address on EvalTop
         
         // newNextFreeSlot is 0, so we need to find out if we can use the next consecutive slot
         instructs = instructs.concat(
             add32BitIntegers(nextFreeSlot, this._entryLength, instructionsLength + calculateInstructionsLength(instructs), false, true),
             copy(Addresses.ps3, newNextFreeSlot, 4),  // newNextFreeSlot now contains the address of the next consecutive slot
-            copy(Addresses.ps3, Addresses.psAddr, 4),
+            copy(Addresses.ps3, Addresses.psAddr, 4)
+        );
+        instructs = instructs.concat(
+            incrementAddress(instructionsLength + calculateInstructionsLength(instructs)), // psAddr now contains address of the next slot's "name length" field
+        );
+        instructs = instructs.concat(
             [
-                `RED A ${newNextFreeSlot}`,
+                `RED A ${Addresses.psAddr}`,
                 `ADD 0`,
-                `BIZ ${instructionsLength + calculateInstructionsLength([`AND 0`, `WRT 0`, `WRT 0`, `WRT 0`, `WRT 0`].concat(add32BitIntegers(0, 4, 0, false, true), copy(0, 0, 4), copyToAddress(0, 4, 0), ["GTO 0"]))}`,  // The next consecutive space type tag is 0, so we can use it
-                // Next consecutive space's type tag is not 0, so it is either not a valid slot or is in use
+                `BIZ ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength([`RED A 0`, `ADD 0`, `BIZ 0`, `AND 0`, `WRT 0`, `WRT 0`, `WRT 0`, `WRT 0`].concat(add32BitIntegers(0, 4, 0, false, true), copy(0, 0, 4), copyToAddress(0, 4, 0), ["GTO 0"]))}`,  // The next consecutive space's name length is 0, so we can use it
+                // Next consecutive space's name length is not 0, so it is either not a valid slot or is in use
                 `AND 0`,
                 `WRT ${newNextFreeSlot}`,
                 `WRT ${newNextFreeSlot + 1}`,
@@ -96,8 +101,8 @@ class Table{
         instructs = instructs.concat(
             copyToAddress(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs))  // The "next free pointer" header now contains 0
         );
-        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + 627}`);  // Jump to code to place found slot address on EvalTop
-        // Next consecutive slot's type tag is 0, so we can use it
+        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + 627}`);  // Jump to code to increment "number of entries" header and place found slot address on EvalTop
+        // Next consecutive slot's name length is 0, so we can use it
         instructs = instructs.concat(
             add32BitIntegers(table, 4, instructionsLength + calculateInstructionsLength(instructs), false, true),
             copy(Addresses.ps3, Addresses.psAddr, 4),
