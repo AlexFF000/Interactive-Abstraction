@@ -3,16 +3,18 @@
 */
 class Table{
     // Number of bytes used by the headers of the table
-    static _headersLength;
+    static _parentHeadersLength;
+    static _expansionHeadersLength;
     // Number of bytes used by an entry in the table
     static _entryLength;
     
     // Number of slots the table has
-    static _totalSlots = Math.floor((runtime_options.VariableTableSize - (this._headersLength + 4)) / this._entryLength)  // Subtract _headersLength + 4 so the space used for the headers and the pointer at the end of the table to the next expansion table are not taken into account
+    static _parentTotalSlots = Math.floor((runtime_options.VariableTableSize - (this._parentHeadersLength + 4)) / this._entryLength);  // Subtract _headersLength + 4 so the space used for the headers and the pointer at the end of the table to the next expansion table are not taken into account
+    static _expansionTotalSlots = Math.floor((runtime_options.VariableTableSize - (this._expansionHeadersLength + 4)) / this._entryLength);
     // Allocate the memory for a new table in the current scope, and then create the table
     static create(instructionsLength, parentAddress=false){};
-    // Allocate the memory for and create an extension table to provide extra space when existing tables become full
-    static createExtension(instructionsLength){};
+    // Allocate the memory for and create an expansion table to provide extra space when existing tables become full
+    static createExpansion(instructionsLength){};
 
     static _allocateSlot(instructionsLength){
         // Find and allocate the next free slot in the table referenced on EvalTop
@@ -29,12 +31,12 @@ class Table{
         instructs = instructs.concat(
             copyFromAddress(nextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs)),  // nextFreeSlot now contains the address of the next free slot
             // If nextFreeSlot contains 0 then there are no more free slots, so we need to create an expansion table
-            checkZero(nextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(checkZero(nextFreeSlot, 4, 0, 0)), instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(checkZero(nextFreeSlot, 4, 0, 0)) + calculateInstructionsLength(this.createExtension(0).concat(`GTO ${instructionsLength}`)))
+            checkZero(nextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(checkZero(nextFreeSlot, 4, 0, 0)), instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(checkZero(nextFreeSlot, 4, 0, 0)) + calculateInstructionsLength(this.createExpansion(0).concat(`GTO ${instructionsLength}`)))
         );
 
         // nextFreeSlot is 0 so there are no more free slots, so create an expansion table
         instructs = instructs.concat(
-            this.createExtension(instructionsLength + calculateInstructionsLength(instructs)),
+            this.createExpansion(instructionsLength + calculateInstructionsLength(instructs)),
             [
                 // After creating the new expansion, return to the start of this method and try again
                 `GTO ${instructionsLength}`,
@@ -110,16 +112,24 @@ class Table{
     }
 
     // Set the name length field of each slot in the table to 0.  This is needed as searching uses the name length to avoid searching empty slots, so must run this after space is allocated to ensure no previously deallocated data causes searching to think empty slots are full
-    static _clearNameLengthFields(instructionsLength){
+    static _clearNameLengthFields(instructionsLength, expansion=false){
         // Requires that ps0 contains a pointer to the allocated space
+        if (expansion){
+            var headersLength = this._expansionHeadersLength;
+            var totalSlots = this._expansionTotalSlots;
+        }
+        else{
+            var headersLength = this._parentHeadersLength;
+            var totalSlots = this._parentTotalSlots;
+        }
 
         // Add headerLength to skip past the headers straight to the first slot, and + 1 to go to the name length field
-        let instructs = add32BitIntegers(Addresses.ps0, this._headersLength + 1, instructionsLength, false, true);
+        let instructs = add32BitIntegers(Addresses.ps0, headersLength + 1, instructionsLength, false, true);
         // Use first byte of ps4 as a counter, to know when we have cleared each entry
         instructs = instructs.concat(
             [
                 "AND 0",
-                `ADD ${this._totalSlots}`,
+                `ADD ${totalSlots}`,
                 `WRT ${Addresses.ps4}`
             ]
         );
