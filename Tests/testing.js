@@ -76,6 +76,12 @@ function assertMemoryEqualToInt(expected, addressOfActual, noOfBytes){
     return result;
 }
 
+function assertMemoryNotEqualToInt(incorrectValue, addressOfActual, noOfBytes){
+    // Opposite of assertMemoryEqualToInt
+    if (assertMemoryEqualToInt(incorrectValue, addressOfActual, noOfBytes) !== true) return true;
+    else return `Assertion Error: Values match but should not (${incorrectValue})`;
+}
+
 function assertEqual(expected, actual){
     // Check if the two JS objects are equal
     return expected === actual ? true : "Assertion Error: Values not equal";

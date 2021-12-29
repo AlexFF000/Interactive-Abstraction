@@ -161,6 +161,7 @@ async function test_VarTable_createCheckCorrectFormat(){
             b) AllocatedSpace[1:2] (0 indexed) contains 1 (the number of entries in the table, should be 1 as the "parent" entry should have been added)
             c) AllocatedSpace[3] contains 0 (the number of expansion tables, 0 as there aren't any yet)
             d) AllocatedSpace[4:7] contains the address of the second entry (the address of the next free slot in the table, should be 2nd slot as the first space is already taken by the "parent" entry)
+            e) The second byte of the unused space between the last slot and "next expansion pointer" footer does not contain 0
     */
    await runSetup(varTableTests_neededSetup);
    // As table will be allocated globally straight after setup, it will be located at the start of the heap
@@ -176,7 +177,10 @@ async function test_VarTable_createCheckCorrectFormat(){
    checkResult = assertMemoryEqualToInt(0, tableAddress + 3, 1);
    if (checkResult !== true) return checkResult;
    // Check d
-   return assertMemoryEqualToInt(tableAddress + VarTable._parentHeadersLength + VarTable._entryLength, tableAddress + 4, 4);
+   checkResult = assertMemoryEqualToInt(tableAddress + VarTable._parentHeadersLength + VarTable._entryLength, tableAddress + 4, 4);
+   if (checkResult !== true) return checkResult;
+   // Check e
+   return assertMemoryNotEqualToInt(0, tableAddress + VarTable._parentHeadersLength + (VarTable._entryLength * VarTable._parentTotalSlots) + 1, 1);
 }
 // Test2- Create table, and check all of the empty slots have been cleared
 async function test_VarTable_createCheckSlotsClear(){

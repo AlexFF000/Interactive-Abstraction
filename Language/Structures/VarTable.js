@@ -75,6 +75,16 @@ class VarTable extends Table{
         instructs = instructs.concat(
             copyToAddress(Addresses.ps1, 24, instructionsLength + calculateInstructionsLength(instructs))
         );
+        
+        // Make sure that the 2nd byte of the unused space between the last slot and "next expansion" footer does NOT contain 0.  Otherwise, the allocation procedure will mistake it for an empty slot
+        instructs = instructs.concat(
+            add32BitIntegers(tableAddressPointer, this._parentHeadersLength + (this._parentTotalSlots * this._entryLength) + 1, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            [
+                `AND 0`,
+                `ADD 1`,
+                `WRT A ${Addresses.ps3}`
+            ]
+        );
         return instructs;
     }
 
@@ -202,6 +212,16 @@ class VarTable extends Table{
         );
         instructs = instructs.concat(
             copyToAddress(Addresses.ps3, 4, instructionsLength + calculateInstructionsLength(instructs))
+        );
+
+        // Make sure that the 2nd byte of the unused space between the last slot and "next expansion" footer does NOT contain 0.  Otherwise, the allocation procedure will mistake it for an empty slot
+        instructs = instructs.concat(
+            add32BitIntegers(expansionTable, this._expansionHeadersLength + (this._expansionTotalSlots * this._entryLength) + 1, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            [
+                `AND 0`,
+                `ADD 1`,
+                `WRT ${Addresses.ps3}`
+            ]
         );
         return instructs;
     };
