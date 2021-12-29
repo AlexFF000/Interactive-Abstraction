@@ -21,6 +21,7 @@ class Table{
         let table = Addresses.ps4;
         let nextFreeSlot = Addresses.ps5;
         let newNextFreeSlot = Addresses.ps6;
+        let generalPointer = Addresses.ps7;
 
         let instructs = EvalStack.copyNFromTopLayer(table, 4, 0, instructionsLength);
         // Get first free slot address
@@ -105,6 +106,27 @@ class Table{
             copyToAddress(newNextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs))
         );
 
+        // Increment "number of entries" header
+        // The header is two bytes, so will be loaded into the last 2 bytes of generalPointer
+        instructs = instructs.concat(
+            add32BitIntegers(table, 1, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4)  // psAddr now contains address of the header
+        );
+        instructs = instructs.concat(
+            copyFromAddress(generalPointer + 2, 2, instructionsLength + calculateInstructionsLength(instructs)),
+        );
+        instructs = instructs.concat(
+            add32BitIntegers(generalPointer, 1, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3 + 2, generalPointer + 2, 2)
+        );
+        instructs = instructs.concat(
+            add32BitIntegers(table, 1, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4),
+        );
+        instructs = instructs.concat(
+            copyToAddress(generalPointer + 2, 2, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        
         // Place address of found slot on EvalTop
         return instructs.concat(
             EvalStack.copyNToTopLayer(nextFreeSlot, 4, 0, instructionsLength + calculateInstructionsLength(instructs))
