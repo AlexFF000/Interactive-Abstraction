@@ -176,7 +176,7 @@ async function test_VarTable_createCheckCorrectFormat(){
    checkResult = assertMemoryEqualToInt(0, tableAddress + 3, 1);
    if (checkResult !== true) return checkResult;
    // Check d
-   return assertMemoryEqualToInt(tableAddress + VarTable._headersLength + VarTable._entryLength, tableAddress + 4, 4);
+   return assertMemoryEqualToInt(tableAddress + VarTable._parentHeadersLength + VarTable._entryLength, tableAddress + 4, 4);
 }
 // Test2- Create table, and check all of the empty slots have been cleared
 async function test_VarTable_createCheckSlotsClear(){

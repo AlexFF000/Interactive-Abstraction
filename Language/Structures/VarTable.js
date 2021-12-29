@@ -2,9 +2,11 @@
     Methods for generating code for managing variable tables
 */
 class VarTable extends Table{
-    static _headersLength = 8;
+    static _parentHeadersLength = 8;
+    static _expansionHeadersLength = 1;
     static _entryLength = 10;
-    static _totalSlots = Math.floor((runtime_options.VariableTableSize - (this._headersLength + 4)) / this._entryLength)
+    static _parentTotalSlots = Math.floor((runtime_options.VariableTableSize - (this._parentHeadersLength + 4)) / this._entryLength);
+    static _expansionTotalSlots = Math.floor((runtime_options.VariableTableSize - (this._expansionHeadersLength + 4)) / this._entryLength)
 
     static create(instructionsLength, parentAddress=false){
         // Return instructions to create a variable table in the current scope (this function only handles creating new tables, not expansion tables)
@@ -18,7 +20,7 @@ class VarTable extends Table{
         // Set up variable table in the allocated space
         // Calculate address of second entry, as this will be needed later (do it up here so ps1 - ps2 can be overwritten later)
         instructs = instructs.concat(
-            add32BitIntegers(tableAddressPointer, this._headersLength + this._entryLength, instructionsLength + calculateInstructionsLength(instructs), false, true)
+            add32BitIntegers(tableAddressPointer, this._parentHeadersLength + this._entryLength, instructionsLength + calculateInstructionsLength(instructs), false, true)
         )
     
         // Construct headers (Do this in registers then copy all the headers over to the allocated space)
@@ -76,5 +78,131 @@ class VarTable extends Table{
         return instructs;
     }
 
-    static createExtension(instructionsLength){};
+    static createExpansion(instructionsLength){
+        /* 
+            Return instructions to create an expansion table for the variable table referenced on EvalTop
+            EvalTop format:
+                - EvalTop[0:3] = Address of parent table
+                - EvalTop[4] = Must be set to 1 if the parent table is in global scope, 0 otherwise
+        */
+        let parentTable = Addresses.ps7;
+        let isGlobal = Addresses.ps8;  // Only 1 byte needed for this, but must be consecutive after parentTable.
+        let lastTable = Addresses.ps8;  // isGlobal is no longer needed by the time lastTable is, so the same pseudoregister can be reused
+        let expansionTable = Addresses.ps9;
+        let generalCounter = Addresses.ps10;  // Only first byte is needed
+        let instructs = EvalStack.copyNFromTopLayer(parentTable, 5, 0, instructionsLength);
+        // Check if table can have any more expansions
+        instructs = instructs.concat(
+            add32BitIntegers(parentTable, 3, instructionsLength + calculateInstructionsLength(instructs), false, true),  // Number of expansion pools is in 3rd byte of parentPool
+            [
+                `RED A ${Addresses.ps3}`,
+                "SUB 255",
+                `BIZ ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(add32BitIntegers(parentTable, 3, 0, false, true).concat([`RED A 0`, `SUB 255`, `BIZ 0`, `GTO 0`]))}`,
+                // Limit has not been reached, so jump over error code  TODO: UPDATE THIS BRANCH ADDRESS ONCE ERROR CODE IS WRITTEN
+                `GTO ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(add32BitIntegers(parentTable, 3, 0, false, true).concat([`RED A 0`, `SUB 255`, `BIZ 0`, `GTO 0`]))}`
+            ]
+        );
+        // Max number of expansions already reached so throw error.  TODO: IMPLEMENT THIS WHEN ERROR HANDLING IS SET UP
+
+        // Allocate space for the new expansion.  Can use the 3 unused bytes of isGlobal to construct the EvalTop arguments
+        instructs.push(
+            `AND 0`,
+            `ADD ${Math.log2(runtime_options.VariableTableSize)}`,
+            `WRT ${isGlobal + 1}`,
+            `AND 0`,
+            `ADD ${type_tags.expansion_var_table}`,
+            `WRT ${isGlobal + 2}`,
+            `RED ${isGlobal}`,
+            `WRT ${isGlobal + 3}`,
+        );
+        instructs = instructs.concat(
+            EvalStack.copyNToTopLayer(isGlobal + 1, 3, 0, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        instructs = instructs.concat(
+            writeMultiByte(instructionsLength + calculateInstructionsLength(instructs.concat(["GTO #allocate"])), Addresses.psReturnAddr, 4),  // psReturnAddr now contains the address of the instruction to return to after allocating the space
+            [
+                "GTO #allocate"
+            ]
+        );
+        // EvalTop now contains the address of the allocated space
+        instructs = instructs.concat(
+            EvalStack.copyNFromTopLayer(expansionTable, 4, 0, instructionsLength + calculateInstructionsLength(instructs)),  // expansionTable now contains the address of the space allocated for the new expansion table
+            // The only header for expansion tables is the type tag, so write this
+            [
+                "AND 0",
+                `ADD ${type_tags.expansion_var_table}`,
+                `WRT A ${expansionTable}`
+            ]
+        );
+        // Clear name lengths in expansionTable
+        instructs = instructs.concat(
+            this._clearNameLengthFields(instructionsLength + calculateInstructionsLength(instructs), true)
+        )
+        /*
+            Link the last table to the new one by
+                a) Finding the last table
+                b) Writing the address of the new table in the "next expansion pointer" footer of the last table
+                c) Incrementing the "number of expansions" header in the parent table
+                d) Pointing the "next free slot pointer" header in the parent table to the first slot in the new table 
+        */
+        // a) Iterate through the tables to find the last one
+        let lastTableFoundJumpAddr = instructionsLength + calculateInstructionsLength(instructs) + 1009;
+        instructs = instructs.concat(
+            copy(parentTable, lastTable, 4)
+        );
+        instructs = instructs.concat(
+            add32BitIntegers(parentTable, 3, instructionsLength + calculateInstructionsLength(instructs), false, true),  //ps3 now contains address of "number of expansions" header
+            [
+                `RED A ${Addresses.ps3}`,
+                "ADD 0",
+                `BIZ ${lastTableFoundJumpAddr}`,  // The parent table is the last table
+                `WRT ${generalCounter}`
+            ] 
+        );
+        let checkForLastTableJumpAddr = instructionsLength + calculateInstructionsLength(instructs);
+        instructs = instructs.concat(
+            add32BitIntegers(lastTable, runtime_options.VariableTableSize - 4, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4),  // psAddr now contains address of current tables "next table pointer" footer
+        );
+        instructs = instructs.concat(
+            copyFromAddress(lastTable, 4, instructionsLength + calculateInstructionsLength(instructs)),  // lastTable now contains address of the next table
+            [
+                // Decrement counter to see if this is the last expansion
+                `RED ${generalCounter}`,
+                "SUB 1",
+                `BIZ ${lastTableFoundJumpAddr}`,  // This is the last table
+                `WRT ${generalCounter}`,  // This is not the last table, so save the decremented counter and check the next table
+                `GTO ${checkForLastTableJumpAddr}`
+            ]
+        );
+        // b) Write address of new table to "next expansion" footer of last one
+        instructs = instructs.concat(
+            add32BitIntegers(lastTable, runtime_options.VariableTableSize - 4, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4)
+        );
+        instructs = instructs.concat(
+            copyToAddress(expansionTable, 4, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        // c) Increment "number of expansions" header
+        instructs = instructs.concat(
+            add32BitIntegers(parentTable, 3, instructionsLength + calculateInstructionsLength(instructs), false, true),  // ps3 now contains address of the header
+            [
+                `RED A ${Addresses.ps3}`,
+                "ADD 1",
+                `WRT A ${Addresses.ps3}`
+            ]
+        );
+        // d) Point "Next free slot pointer" header to the first slot in the new table
+        instructs = instructs.concat(
+            add32BitIntegers(parentTable, 4, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4),  // psAddr now contains address of header
+        );
+        instructs = instructs.concat(
+            add32BitIntegers(expansionTable, 1, instructionsLength + calculateInstructionsLength(instructs), false, true),  // ps3 now contains address of first slot in new table
+        );
+        instructs = instructs.concat(
+            copyToAddress(Addresses.ps3, 4, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        return instructs;
+    };
 }
