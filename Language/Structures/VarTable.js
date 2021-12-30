@@ -224,5 +224,101 @@ class VarTable extends Table{
             ]
         );
         return instructs;
-    };
+    }
+
+    static addEntry(instructionsLength){
+        /*
+            Add new entry to the table, using details specified on EvalTop and EvalTop - 1:
+                - EvalTop[0] = Name length (total bytes used by the name, not total blocks)
+                - EvalTop[1:4] = Address of name
+                - EvalTop - 1[0] = forceGlobal.  Set to 1 to force the entry to be added to global VarTable
+        */
+        let nameAddress = Addresses.ps4;
+        let otherDetails = Addresses.ps5;  // Only 2 bytes of this needed.  1st byte will contain name length, 2nd will contain forceGlobal
+        let tableAddress = Addresses.ps6;
+        let constructEvalLayerReg = Addresses.ps7;  // Pseudoregister briefly needed for constructing EvalTop arguments
+        let constructEvalLayerReg2 = Addresses.ps8;  // Another pseudoregister briefly needed for EvalTop args.  Must be consecutive after constructEvalLayerReg
+        let slotAddr = Addresses.ps7;  // Can reuse ps7 as constructEvalLayerReg is no longer needed
+
+        // Copy details from EvalStack into psuedoregisters
+        let instructs = EvalStack.copyNFromTopLayer(otherDetails, 1, 0, instructionsLength);
+        instructs = instructs.concat(
+            EvalStack.copyNFromTopLayer(nameAddress, 4, 1, instructionsLength + calculateInstructionsLength(instructs)),
+        );
+        instructs = instructs.concat(
+            EvalStack.removeLayer(instructionsLength + calculateInstructionsLength(instructs)),
+        );
+        instructs = instructs.concat(
+            EvalStack.copyNFromTopLayer(otherDetails + 1, 1, 1, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        
+        // Find the correct VarTable
+        instructs.push(
+            `RED ${otherDetails + 1}`,
+            "ADD 0",
+            `BIZ ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength([`RED A 0`, `ADD 0`, `BIZ 0`].concat(copy(Addresses.GlobalArea + Offsets.frame.VarTablePointer, tableAddress, 4), [`GTO 0`]))}`,
+        );
+        // Use global VarTable
+        instructs = instructs.concat(
+            copy(Addresses.GlobalArea + Offsets.frame.VarTablePointer, tableAddress, 4),  // tableAddress now contains address of global VarTable
+        );
+        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, 0, false, true).concat(copy(Addresses.ps3, Addresses.psAddr, 4), copyFromAddress(0, 4, 0)))}`)
+        // Use VarTable of current scope
+        instructs = instructs.concat(
+            add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, instructionsLength + calculateInstructionsLength(instructs), false, true),
+            copy(Addresses.ps3, Addresses.psAddr, 4),
+        );
+        instructs = instructs.concat(
+            copyFromAddress(tableAddress, 4, instructionsLength + calculateInstructionsLength(instructs))  // tableAddress now contains address of current scope's VarTable
+        );
+
+        // Allocate slot for the new entry
+        instructs = instructs.concat(
+            copy(tableAddress, constructEvalLayerReg, 4),
+            copy(otherDetails + 1, constructEvalLayerReg2, 1),
+        );
+        instructs = instructs.concat(
+            EvalStack.copyToTopLayer(constructEvalLayerReg, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        instructs = instructs.concat(
+            this._allocateSlot(instructionsLength + calculateInstructionsLength(instructs))
+        );
+
+        // Write details to new slot
+        instructs = instructs.concat(
+            EvalStack.copyNFromTopLayer(slotAddr, 4, 0, instructionsLength + calculateInstructionsLength(instructs)),  // slotAddr now contains address of the allocated slot
+            copy(slotAddr, Addresses.psAddr, 4),
+            // Write type tag
+            [
+                "AND 0",
+                `ADD ${type_tags.var_table_entry}`,
+                `WRT A ${Addresses.psAddr}`
+            ]
+        );
+        // Write name length
+        instructs = instructs.concat(
+            incrementAddress(instructionsLength + calculateInstructionsLength(instructs)),
+        );
+        instructs = instructs.concat(
+            copyToAddress(otherDetails, 1, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        // Write name address
+        instructs = instructs.concat(
+            incrementAddress(instructionsLength + calculateInstructionsLength(instructs))
+        );
+        instructs = instructs.concat(
+            copyToAddress(nameAddress, 4, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        // Write null to data address, as nothing has been assigned to the variable yet
+        instructs = instructs.concat(
+            incrementAddress(instructionsLength + calculateInstructionsLength(instructs)),
+            writeMultiByte(Addresses.NullAddress, nameAddress, 4),  // Need a pseudoregister to write it to and then copy it from.  nameAddress can be used as it isn't needed again
+        );
+        instructs = instructs.concat(
+            copyToAddress(nameAddress, 4, instructionsLength + calculateInstructionsLength(instructs))
+        );
+        
+        // The address of allocated slot should not be removed from EvalTop, as this avoids searching the table if this variable declaration is part of an assignment
+        return instructs;
+    }
 }

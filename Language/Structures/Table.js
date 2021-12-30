@@ -15,9 +15,12 @@ class Table{
     static create(instructionsLength, parentAddress=false){};
     // Allocate the memory for and create an expansion table to provide extra space when existing tables become full
     static createExpansion(instructionsLength){};
+    // Add a new entry to the table, with the address pointing to null
+    static addEntry(instructionsLength){};
 
     static _allocateSlot(instructionsLength){
         // Find and allocate the next free slot in the table referenced on EvalTop
+        // EvalTop[4] must be set to 1 if allocating from the global table, as this information will be needed by createExpansion
         let table = Addresses.ps4;
         let nextFreeSlot = Addresses.ps5;
         let newNextFreeSlot = Addresses.ps6;
