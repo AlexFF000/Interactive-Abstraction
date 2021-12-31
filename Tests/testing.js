@@ -355,6 +355,27 @@ async function compareExpectedVsActualPath(instructionsToRun, expected, instruct
     return `First expected instruction (${nextExpectedInstruction} (${addressToInstructionMap[nextExpectedInstruction]})) never run`;
 }
 
+function writeToEvalTopLayer(byteSequence, bytes, offset=0){
+    // Write given byte sequence to EvalTop
+    let evalTop = readMemoryAsInt(Addresses.EvalTop, 4);
+    for (let i = 0; i < bytes; i++){
+        writeMemory(byteSequence[i], evalTop + i + offset);
+    }
+}
+
+function addLayerToEvalStack(){
+    let evalTop = readMemoryAsInt(Addresses.EvalTop, 4);
+    let slotsUsed = readMemoryAsInt(Addresses.EvalSlotsUsed, 1);
+    writeIntToMemory(evalTop + 5, Addresses.EvalTop, 4);
+    writeIntToMemory(slotsUsed + 1, Addresses.EvalSlotsUsed, 1);
+}
+
+function pushLayerToEvalStack(byteSequence){
+    // Add new layer to EvalStack, and write given byteSequence to it
+    addLayerToEvalStack();
+    writeToEvalTopLayer(byteSequence, 5);
+}
+
 
 /*
     Helper functions for specific sets of tests
@@ -379,4 +400,16 @@ async function testHelper_AllocateLargeNamePoolSpace(blocksNeeded, forceGlobal, 
     }
     // If simulateSingleSpace then write the address of the first space that we allocated to EvalTop instead of the last one
     if (simulateSingleSpace) writeIntToMemory(firstSpaceAddr, evalTop, 4);
+}
+
+async function testHelper_addMultipleEntriesToVarTable(numOfEntries, forceGlobal, instructionsLength){
+    // Some VarTable tests require adding many entries to the table
+    // Dummy name data.  Completely arbitrary
+    let dummyNameLength = 5;
+    let dummyNameAddress = Addresses.ps0;  // Just use address of ps0
+    writeToEvalTopLayer([Number(forceGlobal)], 1, 0);
+    pushLayerToEvalStack(generateByteSequence([dummyNameLength, dummyNameAddress, "<", "<", "<"], 5));
+    for (let i = 0; i < numOfEntries; i++){
+        await runInstructions(VarTable.addEntry(instructionsLength), false, true);
+    }
 }
