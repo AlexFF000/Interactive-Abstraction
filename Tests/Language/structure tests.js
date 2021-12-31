@@ -148,7 +148,7 @@ async function test_EvalStack_copyToNewLayer(){
     Tests for Tables
 */
 /* Tests for Variable Tables */
-let tests_VarTable = [test_VarTable_createCheckCorrectFormat, test_VarTable_createCheckSlotsClear, test_VarTable_createCheckParentEntry];
+let tests_VarTable = [test_VarTable_createCheckCorrectFormat, test_VarTable_createCheckSlotsClear, test_VarTable_createCheckParentEntry, test_VarTable_globalAddEntryWhenNoExistingEntriesExceptParent, test_VarTable_localAddEntryWhenNoExistingEntriesExceptParent, test_VarTable_addEntryWhenPartiallyFull, test_VarTable_globalCreateExpansionWhenNoneExist, test_VarTable_localCreateExpansionWhenNoneExist, test_VarTable_createExpansionWhenSomeExist, test_VarTable_addEntryWhenCompletelyFull, test_VarTable_addEntryInDeallocatedSlotInParent, test_VarTable_addEntryInDeallocatedSlotInExpansion];
 tests_structures = tests_structures.concat(tests_VarTable);
 // The setup subprocedures that need to be run before these tests can work
 let varTableTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures];
@@ -227,6 +227,117 @@ async function test_VarTable_createCheckParentEntry(){
     if (checkResult !== true) return checkResult;
     // Check c
     return assertMemoryEqualToInt(Addresses.NullAddress, tableAddress + 14, 4);
+}
+// Test4- Add entry to variable table with no existing entries (except the parent one).  Set forceGlobal flag
+async function test_VarTable_globalAddEntryWhenNoExistingEntriesExceptParent(){
+    /*
+        Use a fake name address and name length and add entry to table. Set forceGlobal flag.  Then check that:
+            a) EvalTop[0:3] contains the address of the second slot in the parent VarTable
+            b) The specified slot has the following data:
+                - slot[0] = type tag for VarTable entries
+                - slot[1] = Fake name length
+                - slot[2] = Fake name address
+                - slot[3] = The null address
+            c) VarTable[1:2] (the "number of entries" header) contains 2
+            d) VarTable[3] (the "number of expansions" header) contains 0
+            e) VarTable[4:7] ("next free slot" header) contains address of the third slot
+            f) The 2nd byte ("name length" field) of the third slot contains 0
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test5- Add entry to variable table with no existing entries (except the parent one)
+async function test_VarTable_localAddEntryWhenNoExistingEntriesExceptParent(){
+    /*
+        Use a fake name address and name length and add entry to table.  Then check that:
+            a) EvalTop[0:3] contains the address of the second slot in the parent VarTable
+            b) The specified slot has the following data:
+                - slot[0] = type tag for VarTable entries
+                - slot[1] = Fake name length
+                - slot[2] = Fake name address
+                - slot[3] = The null address
+            c) VarTable[1:2] (the "number of entries" header) contains 2
+            d) VarTable[3] (the "number of expansions" header) contains 0
+            e) VarTable[4:7] ("next free slot" header) contains address of the third slot
+            f) The 2nd byte ("name length" field) of the third slot contains 0
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test6- Add entry to partially full variable table
+async function test_VarTable_addEntryWhenPartiallyFull(){
+    /*
+        Add 50 entries to the table (50 is arbitrary).  Then add another.
+        Then check that:
+            a) EvalTop[0:3] contains the address of the 52nd slot in the table
+            b) VarTable[1:2] (the "number of entries" header) contains 52
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test7- Add entry when VarTable is full (so an expansion should be created).  Set forceGlobal flag
+async function test_VarTable_globalCreateExpansionWhenNoneExist(){
+    /*
+        Add ${VarTable._parentTotalSlots - 1} entries with forceGlobal flag set.  Then add another
+        Then check that:
+            a) ParentVarTable[3] (the "number of expansions" header) contains 1
+            b) The last 4 bytes of parent table contains address of an expansion table (use type tag to verify this)
+            c) EvalTop[0:3] contains the address of the first slot in the expansion table
+            d) The 1st byte ("type tag" field) of the first slot in the expansion contains the type tag for VarTable entries
+            e) ParentVarTable[4:7] ("next free slot" header) contains the address of the second slot in the expansion table
+            f) The 2nd byte ("name length field") of the second slot in the expansion contains 0
+            g) ParentVarTable[1:2] ("number of entries" header) contains ${VarTable._parentTotalSlots + 1}
+            h) The second byte after the last slot in the expansion table does not contain 0
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test8- Add entry when VarTable is full (so an expansion should be created)
+async function test_VarTable_localCreateExpansionWhenNoneExist(){
+    /*
+        Add ${VarTable._parentTotalSlots - 1} entries.  Then add another
+        Then check that:
+            a) ParentVarTable[3] (the "number of expansions" header) contains 1
+            b) The last 4 bytes of parent table contains address of an expansion table (use type tag to verify this)
+            c) EvalTop[0:3] contains the address of the first slot in the expansion table
+            d) The 1st byte ("type tag" field) of the first slot in the expansion contains the type tag for VarTable entries
+            e) ParentVarTable[4:7] ("next free slot" header) contains the address of the second slot in the expansion table
+            f) The 2nd byte ("name length field") of the second slot in the expansion contains 0
+            g) ParentVarTable[1:2] ("number of entries" header) contains ${VarTable._parentTotalSlots + 1}
+            h) The second byte after the last slot in the expansion table does not contain 0
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test9- Add entry when multiple expansions already exist and are full (so another expansion should be created)
+async function test_VarTable_createExpansionWhenSomeExist(){
+    /*
+        Fill the parent table, then fill an expansion table.  Then add another entry
+        The check that:
+            a) ParentVarTable[3] (the "number of expansions" header) contains 2
+            b) The last 4 bytes of the parent table still contains the address of the first expansion table (not the new one)
+            c) The last 4 bytes of the first expansion table contains the address of another expansion table (use type tag to verify this)
+            d) EvalTop[0:3] contains the address of the first slot in the new expansion
+            e) ParentVarTable[4:7] ("next free slot" header points to the 2nd slot in the new expansion)
+    */
+    return "NOT IMPLEMENTED";
+}
+// Test10- Try to add entry when the maximum number of expansions has been reached, and all are full
+async function test_VarTable_addEntryWhenCompletelyFull(){
+    // TODO Need to implement this when error handling is set up
+    return "NOT IMPLEMENTED";
+}
+// Test11- Create entry after deallocating one
+async function test_VarTable_addEntryInDeallocatedSlotInParent(){
+    /*
+        Add 50 entries (50 is arbitrary) and then deallocate one of them (not the first or last one).  Then add another entry and check that it has been created in the deallocated space
+    */
+    // TODO Need to implement this when deallocation is set up for VarTables
+    return "NOT IMPLEMENTED";
+}
+// Test12- Create entry after deallocating one in expansion table
+async function test_VarTable_addEntryInDeallocatedSlotInExpansion(){
+    /*
+        Fill the parent table, and add 50 to the expansion table (50 is arbitrary) and then deallocate one of them (not the first or last one).
+        Then add another entry and check that it has been created in the deallocated space
+    */
+    // TODO Need to implement this when deallocation is set up for VarTables
+    return "NOT IMPLEMENTED";
 }
 
 /*
