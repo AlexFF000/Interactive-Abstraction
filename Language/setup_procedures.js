@@ -212,7 +212,7 @@ function setupGlobalVarTable(instructs){
     return instructs.concat(
         VarTable.create(calculateInstructionsLength(instructs), Addresses.NullAddress),
         // The address of the created table is left in ps0, copy to VarTablePointer
-        copy(Addresses.ps0, Addresses.GlobalArea + Offsets.frame.VarTablePointer)
+        copy(Addresses.ps0, Addresses.GlobalArea + Offsets.frame.VarTablePointer, 4)
     );
 }
 

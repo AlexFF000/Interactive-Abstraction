@@ -151,7 +151,7 @@ async function test_EvalStack_copyToNewLayer(){
 let tests_VarTable = [test_VarTable_createCheckCorrectFormat, test_VarTable_createCheckSlotsClear, test_VarTable_createCheckParentEntry, test_VarTable_globalAddEntryWhenNoExistingEntriesExceptParent, test_VarTable_localAddEntryWhenNoExistingEntriesExceptParent, test_VarTable_addEntryWhenPartiallyFull, test_VarTable_globalCreateExpansionWhenNoneExist, test_VarTable_localCreateExpansionWhenNoneExist, test_VarTable_createExpansionWhenSomeExist, test_VarTable_addEntryWhenCompletelyFull, test_VarTable_addEntryInDeallocatedSlotInParent, test_VarTable_addEntryInDeallocatedSlotInExpansion];
 tests_structures = tests_structures.concat(tests_VarTable);
 // The setup subprocedures that need to be run before these tests can work
-let varTableTests_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures];
+let varTableTestsCreation_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures];
 // Test1- Create table, and check it is is in the correct format (has all the correct headers)
 async function test_VarTable_createCheckCorrectFormat(){
     /*
@@ -163,7 +163,7 @@ async function test_VarTable_createCheckCorrectFormat(){
             d) AllocatedSpace[4:7] contains the address of the second entry (the address of the next free slot in the table, should be 2nd slot as the first space is already taken by the "parent" entry)
             e) The second byte of the unused space between the last slot and "next expansion pointer" footer does not contain 0
     */
-   await runSetup(varTableTests_neededSetup);
+   await runSetup(varTableTestsCreation_neededSetup);
    // As table will be allocated globally straight after setup, it will be located at the start of the heap
    let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
    await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
@@ -190,7 +190,7 @@ async function test_VarTable_createCheckSlotsClear(){
             a) AllocatedSpace[18:19] (the next free slot index of the second slot) contains 0
             b) The second byte of every slot, except the first contains 0 (meaning the name length field is set to 0 for every empty slot) (the first slot may also be 0, but for different reasons so don't check it)
     */
-    await runSetup(varTableTests_neededSetup);
+    await runSetup(varTableTestsCreation_neededSetup);
     // As table will be allocated globally straight after setup, it will be located at the start of the heap
     let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
     await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
@@ -215,7 +215,7 @@ async function test_VarTable_createCheckParentEntry(){
             b) AllocatedSpace[9] contains 0 (the name length, 0 as parent entry has no name)
             c) AllocatedSpace[14:17] contains the null address (as global variable tables have no parent table)
     */
-    await runSetup(varTableTests_neededSetup);
+    await runSetup(varTableTestsCreation_neededSetup);
     // As table will be allocated globally straight after setup, it will be located at the start of the heap
     let tableAddress = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.HeapStartPointer, 4);
     await runInstructions(VarTable.create(testsInstructionsStart, Addresses.NullAddress), false, true);
@@ -228,6 +228,7 @@ async function test_VarTable_createCheckParentEntry(){
     // Check c
     return assertMemoryEqualToInt(Addresses.NullAddress, tableAddress + 14, 4);
 }
+let varTableTestsAddEntry_neededSetup = [setupReservedArea, setupGlobalHeap, setupConstantProcedures, setupGlobalVarTable];
 // Test4- Add entry to variable table with no existing entries (except the parent one).  Set forceGlobal flag
 async function test_VarTable_globalAddEntryWhenNoExistingEntriesExceptParent(){
     /*
@@ -245,7 +246,7 @@ async function test_VarTable_globalAddEntryWhenNoExistingEntriesExceptParent(){
     */
     let mockNameAddress = runtime_options.MemorySize - 1;  // Can use any valid address for this, so just use last address in memory
     let mockNameLength = 11;  // 11 is arbitrary
-    await runSetup(varTableTests_neededSetup);
+    await runSetup(varTableTestsAddEntry_neededSetup);
     let varTable = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.VarTablePointer, 4);
     // Construct Eval args
     writeToEvalTopLayer(generateByteSequence([1], 1), 1);  // write forceGlobal flag
@@ -273,7 +274,7 @@ async function test_VarTable_globalAddEntryWhenNoExistingEntriesExceptParent(){
     if (checkResult !== true) return checkResult;
     // Check e
     let thirdSlot = newEntry + VarTable._entryLength;
-    checkResult = assertMemoryEqualToInt(thirdSlot, varTableTests_neededSetup + 4, 4);
+    checkResult = assertMemoryEqualToInt(thirdSlot, varTable + 4, 4);
     if (checkResult !== true) return checkResult;
     // Check f
     return assertMemoryEqualToInt(0, thirdSlot + 1, 1);
@@ -303,7 +304,7 @@ async function test_VarTable_addEntryWhenPartiallyFull(){
             a) EvalTop[0:3] contains the address of the 52nd slot in the table
             b) VarTable[1:2] (the "number of entries" header) contains 52
     */
-    await runSetup(varTableTests_neededSetup);
+    await runSetup(varTableTestsAddEntry_neededSetup);
     // Add 50 entries
     testHelper_addMultipleEntriesToVarTable(50, false, testsInstructionsStart);
     // Add another entry
@@ -331,7 +332,7 @@ async function test_VarTable_globalCreateExpansionWhenNoneExist(){
             g) ParentVarTable[1:2] ("number of entries" header) contains ${VarTable._parentTotalSlots + 1}
             h) The second byte after the last slot in the expansion table does not contain 0
     */
-    await runSetup(varTableTests_neededSetup);
+    await runSetup(varTableTestsAddEntry_neededSetup);
     let parentVarTable = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.VarTablePointer, 4);
     testHelper_addMultipleEntriesToVarTable(VarTable._expansionTotalSlots - 1, true, testsInstructionsStart);
     writeToEvalTopLayer([1], 1);
@@ -391,7 +392,7 @@ async function test_VarTable_createExpansionWhenSomeExist(){
             d) EvalTop[0:3] contains the address of the first slot in the new expansion
             e) ParentVarTable[4:7] ("next free slot" header points to the 2nd slot in the new expansion)
     */
-    await runSetup(varTableTests_neededSetup);
+    await runSetup(varTableTestsAddEntry_neededSetup);
     let parentVarTable = readMemoryAsInt(Addresses.EvalTop, 4);
     testHelper_addMultipleEntriesToVarTable((VarTable._parentTotalSlots - 1) + VarTable._expansionTotalSlots, false, testsInstructionsStart);
     writeToEvalTopLayer([0], 1);

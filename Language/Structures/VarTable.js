@@ -249,7 +249,7 @@ class VarTable extends Table{
             EvalStack.removeLayer(instructionsLength + calculateInstructionsLength(instructs)),
         );
         instructs = instructs.concat(
-            EvalStack.copyNFromTopLayer(otherDetails + 1, 1, 1, instructionsLength + calculateInstructionsLength(instructs))
+            EvalStack.copyNFromTopLayer(otherDetails + 1, 1, 0, instructionsLength + calculateInstructionsLength(instructs))
         );
         
         // Find the correct VarTable

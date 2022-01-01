@@ -359,7 +359,7 @@ function writeToEvalTopLayer(byteSequence, bytes, offset=0){
     // Write given byte sequence to EvalTop
     let evalTop = readMemoryAsInt(Addresses.EvalTop, 4);
     for (let i = 0; i < bytes; i++){
-        writeMemory(byteSequence[i], evalTop + i + offset);
+        writeIntToMemory(byteSequence[i], evalTop + i + offset, 1);
     }
 }
 

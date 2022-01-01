@@ -34,6 +34,8 @@ class Table{
         );
         instructs = instructs.concat(
             copyFromAddress(nextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs)),  // nextFreeSlot now contains the address of the next free slot
+        );
+        instructs = instructs.concat(
             // If nextFreeSlot contains 0 then there are no more free slots, so we need to create an expansion table
             checkZero(nextFreeSlot, 4, instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(checkZero(nextFreeSlot, 4, 0, 0)), instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(checkZero(nextFreeSlot, 4, 0, 0)) + calculateInstructionsLength(this.createExpansion(0).concat(`GTO ${instructionsLength}`)))
         );
