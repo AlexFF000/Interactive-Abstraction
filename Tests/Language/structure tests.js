@@ -334,16 +334,17 @@ async function test_VarTable_globalCreateExpansionWhenNoneExist(){
     */
     await runSetup(varTableTestsAddEntry_neededSetup);
     let parentVarTable = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.VarTablePointer, 4);
-    testHelper_addMultipleEntriesToVarTable(VarTable._expansionTotalSlots - 1, true, testsInstructionsStart);
+    await testHelper_addMultipleEntriesToVarTable(VarTable._expansionTotalSlots - 1, true, testsInstructionsStart);
     writeToEvalTopLayer([1], 1);
     pushLayerToEvalStack(generateByteSequence([5, 5, "<", "<", "<"], 5));  // These values are arbitrary
-    await runInstructions(VarTable.addEntry(testsInstructionsStart));
+    await runInstructions(VarTable.addEntry(testsInstructionsStart), false, true);
     // Check a
     let checkResult = assertMemoryEqualToInt(1, parentVarTable + 1, 1);
     if (checkResult !== true) return checkResult;
     // Check b
     let expansionVarTable = readMemoryAsInt(parentVarTable + runtime_options.VariableTableSize - 4, 4);
     checkResult = assertMemoryEqualToInt(type_tags.expansion_var_table, expansionVarTable, 1);
+    if (checkResult !== true) return checkResult;
     // Check c
     let evalTop = readMemoryAsInt(Addresses.EvalTop, 4);
     let expansionFirstSlot = expansionVarTable + VarTable._expansionHeadersLength;

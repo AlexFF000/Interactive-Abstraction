@@ -129,7 +129,7 @@ class VarTable extends Table{
             EvalStack.copyNToTopLayer(isGlobal + 1, 3, 0, instructionsLength + calculateInstructionsLength(instructs))
         );
         instructs = instructs.concat(
-            writeMultiByte(instructionsLength + calculateInstructionsLength(instructs.concat(["GTO #allocate"])), Addresses.psReturnAddr, 4),  // psReturnAddr now contains the address of the instruction to return to after allocating the space
+            writeMultiByte(instructionsLength + calculateInstructionsLength(instructs.concat(writeMultiByte(instructionsLength, 0, 4), ["GTO #allocate"])), Addresses.psReturnAddr, 4),  // psReturnAddr now contains the address of the instruction to return to after allocating the space
             [
                 "GTO #allocate"
             ]
@@ -147,7 +147,7 @@ class VarTable extends Table{
         // Clear name lengths in expansionTable
         instructs = instructs.concat(
             this._clearNameLengthFields(instructionsLength + calculateInstructionsLength(instructs), true)
-        )
+        );
         /*
             Link the last table to the new one by
                 a) Finding the last table
