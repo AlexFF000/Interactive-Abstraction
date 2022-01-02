@@ -95,11 +95,12 @@ class VarTable extends Table{
                 - EvalTop[0:3] = Address of parent table
                 - EvalTop[4] = Must be set to 1 if the parent table is in global scope, 0 otherwise
         */
-        let parentTable = Addresses.ps7;
-        let isGlobal = Addresses.ps8;  // Only 1 byte needed for this, but must be consecutive after parentTable.
-        let lastTable = Addresses.ps8;  // isGlobal is no longer needed by the time lastTable is, so the same pseudoregister can be reused
-        let expansionTable = Addresses.ps9;
-        let generalCounter = Addresses.ps10;  // Only first byte is needed
+        let parentTable = Addresses.ps16;
+        let isGlobal = Addresses.ps17;  // Only 1 byte needed for this, but must be consecutive after parentTable.
+        let lastTable = Addresses.ps17;  // isGlobal is no longer needed by the time lastTable is, so the same pseudoregister can be reused
+        let expansionTable = Addresses.ps18;
+        let generalCounter = Addresses.ps19;  // Only first byte is needed
+        
         let instructs = EvalStack.copyNFromTopLayer(parentTable, 5, 0, instructionsLength);
         // Check if table can have any more expansions
         instructs = instructs.concat(
