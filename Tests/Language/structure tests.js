@@ -395,7 +395,7 @@ async function test_VarTable_createExpansionWhenSomeExist(){
     */
     await runSetup(varTableTestsAddEntry_neededSetup);
     let parentVarTable = readMemoryAsInt(Addresses.EvalTop, 4);
-    testHelper_addMultipleEntriesToVarTable((VarTable._parentTotalSlots - 1) + VarTable._expansionTotalSlots, false, testsInstructionsStart);
+    await testHelper_addMultipleEntriesToVarTable((VarTable._parentTotalSlots - 1) + VarTable._expansionTotalSlots, false, testsInstructionsStart);
     writeToEvalTopLayer([0], 1);
     pushLayerToEvalStack(generateByteSequence([5, 5, "<", "<", "<"], 5));  // These values are arbitrary
     let firstExpansion = readMemoryAsInt(parentVarTable + runtime_options.VariableTableSize - 4, 4);
@@ -413,6 +413,7 @@ async function test_VarTable_createExpansionWhenSomeExist(){
     // Check d
     let evalTop = readMemoryAsInt(Addresses.EvalTop, 4);
     checkResult = assertMemoryEqualToInt(secondExpansion + VarTable._expansionHeadersLength, evalTop, 4);
+    if (checkResult !== true) return checkResult;
     // Check e
     return assertMemoryEqualToInt(secondExpansion + VarTable._expansionHeadersLength + VarTable._entryLength, parentVarTable + 4, 4);
 }
