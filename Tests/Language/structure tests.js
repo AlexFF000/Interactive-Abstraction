@@ -339,7 +339,7 @@ async function test_VarTable_globalCreateExpansionWhenNoneExist(){
     pushLayerToEvalStack(generateByteSequence([5, 5, "<", "<", "<"], 5));  // These values are arbitrary
     await runInstructions(VarTable.addEntry(testsInstructionsStart), false, true);
     // Check a
-    let checkResult = assertMemoryEqualToInt(1, parentVarTable + 1, 1);
+    let checkResult = assertMemoryEqualToInt(1, parentVarTable + 3, 1);
     if (checkResult !== true) return checkResult;
     // Check b
     let expansionVarTable = readMemoryAsInt(parentVarTable + runtime_options.VariableTableSize - 4, 4);
