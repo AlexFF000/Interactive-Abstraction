@@ -221,7 +221,7 @@ class VarTable extends Table{
             [
                 `AND 0`,
                 `ADD 1`,
-                `WRT ${Addresses.ps3}`
+                `WRT A ${Addresses.ps3}`
             ]
         );
         // Place address of parent table back on EvalTop. No need to include the global flag as we know no more memory allocation will be needed for the current addEntry operation
