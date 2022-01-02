@@ -100,7 +100,7 @@ class VarTable extends Table{
         let lastTable = Addresses.ps17;  // isGlobal is no longer needed by the time lastTable is, so the same pseudoregister can be reused
         let expansionTable = Addresses.ps18;
         let generalCounter = Addresses.ps19;  // Only first byte is needed
-        
+
         let instructs = EvalStack.copyNFromTopLayer(parentTable, 5, 0, instructionsLength);
         // Check if table can have any more expansions
         instructs = instructs.concat(
@@ -223,6 +223,10 @@ class VarTable extends Table{
                 `ADD 1`,
                 `WRT ${Addresses.ps3}`
             ]
+        );
+        // Place address of parent table back on EvalTop. No need to include the global flag as we know no more memory allocation will be needed for the current addEntry operation
+        instructs = instructs.concat(
+            EvalStack.copyNToTopLayer(parentTable, 4, 0, instructionsLength + calculateInstructionsLength(instructs)),
         );
         return instructs;
     }
