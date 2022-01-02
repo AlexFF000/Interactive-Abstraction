@@ -262,7 +262,7 @@ class VarTable extends Table{
         instructs = instructs.concat(
             copy(Addresses.GlobalArea + Offsets.frame.VarTablePointer, tableAddress, 4),  // tableAddress now contains address of global VarTable
         );
-        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, 0, false, true).concat(copy(Addresses.ps3, Addresses.psAddr, 4), copyFromAddress(0, 4, 0)))}`)
+        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, 0, false, true).concat([`GTO 0`], copy(Addresses.ps3, Addresses.psAddr, 4), copyFromAddress(0, 4, 0)))}`)
         // Use VarTable of current scope
         instructs = instructs.concat(
             add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, instructionsLength + calculateInstructionsLength(instructs), false, true),
