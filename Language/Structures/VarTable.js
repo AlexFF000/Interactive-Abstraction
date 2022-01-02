@@ -233,12 +233,12 @@ class VarTable extends Table{
                 - EvalTop[1:4] = Address of name
                 - EvalTop - 1[0] = forceGlobal.  Set to 1 to force the entry to be added to global VarTable
         */
-        let nameAddress = Addresses.ps4;
-        let otherDetails = Addresses.ps5;  // Only 2 bytes of this needed.  1st byte will contain name length, 2nd will contain forceGlobal
-        let tableAddress = Addresses.ps6;
-        let constructEvalLayerReg = Addresses.ps7;  // Pseudoregister briefly needed for constructing EvalTop arguments
-        let constructEvalLayerReg2 = Addresses.ps8;  // Another pseudoregister briefly needed for EvalTop args.  Must be consecutive after constructEvalLayerReg
-        let slotAddr = Addresses.ps7;  // Can reuse ps7 as constructEvalLayerReg is no longer needed
+        let nameAddress = Addresses.ps8;
+        let otherDetails = Addresses.ps9;  // Only 2 bytes of this needed.  1st byte will contain name length, 2nd will contain forceGlobal
+        let tableAddress = Addresses.ps10;
+        let constructEvalLayerReg = Addresses.ps11;  // Pseudoregister briefly needed for constructing EvalTop arguments
+        let constructEvalLayerReg2 = Addresses.ps12;  // Another pseudoregister briefly needed for EvalTop args.  Must be consecutive after constructEvalLayerReg
+        let slotAddr = Addresses.ps11;  // Can reuse ps11 as constructEvalLayerReg is no longer needed
 
         // Copy details from EvalStack into psuedoregisters
         let instructs = EvalStack.copyNFromTopLayer(otherDetails, 1, 0, instructionsLength);
