@@ -306,7 +306,7 @@ async function test_VarTable_addEntryWhenPartiallyFull(){
     */
     await runSetup(varTableTestsAddEntry_neededSetup);
     // Add 50 entries
-    testHelper_addMultipleEntriesToVarTable(50, false, testsInstructionsStart);
+    await testHelper_addMultipleEntriesToVarTable(50, false, testsInstructionsStart);
     // Add another entry
     writeToEvalTopLayer([0], 1);
     pushLayerToEvalStack(generateByteSequence([5, 5, "<", "<", "<"], 5));  // These values are arbitrary
