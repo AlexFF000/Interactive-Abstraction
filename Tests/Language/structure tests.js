@@ -352,6 +352,7 @@ async function test_VarTable_addEntryWhenPartiallyFull(){
     return assertMemoryEqualToInt(52, varTable + 1, 2);
 }
 // Test7- Add entry when VarTable is full (so an expansion should be created).  Set forceGlobal flag
+tests_longRunning.push(test_VarTable_globalCreateExpansionWhenNoneExist);  // Takes a while to run, so add to tests_longRunning so it can be skipped over
 async function test_VarTable_globalCreateExpansionWhenNoneExist(){
     /*
         Add ${VarTable._parentTotalSlots - 1} entries with forceGlobal flag set.  Then add another
@@ -400,6 +401,7 @@ async function test_VarTable_globalCreateExpansionWhenNoneExist(){
     return assertMemoryNotEqualToInt(0, expansionVarTable + VarTable._expansionHeadersLength + (VarTable._expansionTotalSlots * VarTable._entryLength) + 1, 1);
 }
 // Test8- Add entry when VarTable is full (so an expansion should be created)
+tests_longRunning.push(test_VarTable_localCreateExpansionWhenNoneExist);  // Takes a while to run, so add to tests_longRunning so it can be skipped over
 async function test_VarTable_localCreateExpansionWhenNoneExist(){
     /*
         Add ${VarTable._parentTotalSlots - 1} entries.  Then add another
@@ -448,6 +450,7 @@ async function test_VarTable_localCreateExpansionWhenNoneExist(){
     return assertMemoryNotEqualToInt(0, expansionVarTable + VarTable._expansionHeadersLength + (VarTable._expansionTotalSlots * VarTable._entryLength) + 1, 1);
 }
 // Test9- Add entry when multiple expansions already exist and are full (so another expansion should be created)
+tests_longRunning.push(test_VarTable_createExpansionWhenSomeExist);  // Takes a while to run, so add to tests_longRunning so it can be skipped over
 async function test_VarTable_createExpansionWhenSomeExist(){
     /*
         Fill the parent table, then fill an expansion table.  Then add another entry
