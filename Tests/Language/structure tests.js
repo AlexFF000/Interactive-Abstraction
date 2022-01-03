@@ -294,7 +294,40 @@ async function test_VarTable_localAddEntryWhenNoExistingEntriesExceptParent(){
             e) VarTable[4:7] ("next free slot" header) contains address of the third slot
             f) The 2nd byte ("name length" field) of the third slot contains 0
     */
-    return "NOT IMPLEMENTED";
+    let mockNameAddress = runtime_options.MemorySize - 1;  // Can use any valid address for this, so just use last address in memory
+    let mockNameLength = 11;  // 11 is arbitrary
+    await runSetup(varTableTestsAddEntry_neededSetup);
+    let varTable = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.VarTablePointer, 4);
+    // Construct Eval args
+    writeToEvalTopLayer(generateByteSequence([0], 1), 1);  // write forceGlobal flag (0 as not global)
+    pushLayerToEvalStack(generateByteSequence([mockNameLength, mockNameAddress, "<", "<", "<"], 5));  // Write nameLength and address to new layer of Eval Stack
+    await runInstructions(VarTable.addEntry(testsInstructionsStart), false, true);
+    let evalTop = readMemoryAsInt(Addresses.EvalTop, 4);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(varTable + VarTable._parentHeadersLength + VarTable._entryLength, evalTop, 4);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    let newEntry = readMemoryAsInt(evalTop, 4);
+    checkResult = assertMemoryEqualToInt(type_tags.var_table_entry, newEntry, 1);
+    if (checkResult !== true) return checkResult;
+    checkResult = assertMemoryEqualToInt(mockNameLength, newEntry + 1, 1);
+    if (checkResult !== true) return checkResult;
+    checkResult = assertMemoryEqualToInt(mockNameAddress, newEntry + 2, 4);
+    if (checkResult !== true) return checkResult;
+    checkResult = assertMemoryEqualToInt(Addresses.NullAddress, newEntry + 6, 4);
+    if (checkResult !== true) return checkResult;
+    // Check c
+    checkResult = assertMemoryEqualToInt(2, varTable + 1, 2);
+    if (checkResult !== true) return checkResult;
+    // Check d
+    checkResult = assertMemoryEqualToInt(0, varTable + 3, 1);
+    if (checkResult !== true) return checkResult;
+    // Check e
+    let thirdSlot = newEntry + VarTable._entryLength;
+    checkResult = assertMemoryEqualToInt(thirdSlot, varTable + 4, 4);
+    if (checkResult !== true) return checkResult;
+    // Check f
+    return assertMemoryEqualToInt(0, thirdSlot + 1, 1);
 }
 // Test6- Add entry to partially full variable table
 async function test_VarTable_addEntryWhenPartiallyFull(){
