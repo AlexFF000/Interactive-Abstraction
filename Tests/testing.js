@@ -7,6 +7,7 @@ var tests_longRunning = [];  // List of the test that take a long time to run, u
 const testsInstructionsStart = runtime_options.MemorySize;  // Address instructions for tests will be loaded into when resetCPU==false
 
 var breakInstructionAddresses = [];  // List of addresses (as ints) of instructions to pause on if breakInstructions have been turned on
+var breakOnModified = [];  // List of memory addresses (as ints).  The program will be paused when any of them are modifed
 
 async function runTests(tests, excludedTests=[]){
     // Takes list of test functions, and runs them, reporting the results of each
@@ -288,6 +289,8 @@ function listInstructionAddresses(instructions, lastPreviousAddress){
 
 var instructions_fetched = [];  // Ordered list of addresses of all instructions that have been fetched
 var original_fetch = fetch;  // Store reference to original fetch function, as toggleBreakInstructions overrides it
+var original_writeData = writeData_expanded;  // Store reference to original writeData_expanded function, as toggleBreakInstructions overrides it
+var breakReason;
 function toggleBreakInstructions(breakInstructions){
     // Allow the CPU to be paused when fetching instructions from addresses in breakInstructionAddresses
     if (breakInstructions === true){
@@ -297,12 +300,26 @@ function toggleBreakInstructions(breakInstructions){
             instructions_fetched.push(currentAddr);
             if (breakInstructionAddresses.includes(currentAddr)){
                 // The current instruction is included in the list of instructions to pause on
-                console.log(`Paused on ${currentAddr}`);
+                console.log(`Paused on instruction at ${currentAddr}`);
                 paused = true;
+                breakReason = "INSTRUCTION";
                 queue = [];
             }
             else{
                 original_fetch();
+            }
+        };
+        // Override writeData_expanded to enable pausing when memory address modified
+        writeData = () => {
+            // Pause if loc is in breakOnModified
+            if (breakOnModified.includes(loc)){
+                console.log(`Paused on modifying address ${loc}`);
+                paused = true;
+                breakReason = "MODIFY_ADDRESS";
+                queue = [];
+            }
+            else{
+                original_writeData();
             }
         };
         return "Turned on break instructions";
@@ -310,13 +327,15 @@ function toggleBreakInstructions(breakInstructions){
     else{
         // Set fetch back to the orignal fetch function
         fetch = original_fetch;
+        writeData = original_writeData;
         return "Turned off break instructions";
     }
 }
 
 function resumeBreakInstruction(){
-    // Resume after pausing on break instruction
-    original_fetch();
+    // Resume after pausing on break instruction or modifying address
+    if (breakReason === "INSTRUCTION") original_fetch();
+    else if (breakReason == "MODIFY_ADDRESS") original_writeData();
     paused = false;
     clock();
 }
