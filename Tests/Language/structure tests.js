@@ -394,7 +394,7 @@ async function test_VarTable_createExpansionWhenSomeExist(){
             e) ParentVarTable[4:7] ("next free slot" header points to the 2nd slot in the new expansion)
     */
     await runSetup(varTableTestsAddEntry_neededSetup);
-    let parentVarTable = readMemoryAsInt(Addresses.EvalTop, 4);
+    let parentVarTable = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.VarTablePointer, 4);
     await testHelper_addMultipleEntriesToVarTable((VarTable._parentTotalSlots - 1) + VarTable._expansionTotalSlots, false, testsInstructionsStart);
     writeToEvalTopLayer([0], 1);
     pushLayerToEvalStack(generateByteSequence([5, 5, "<", "<", "<"], 5));  // These values are arbitrary
