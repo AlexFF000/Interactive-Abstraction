@@ -147,6 +147,9 @@ class VarTable extends Table{
         );
         // Clear name lengths in expansionTable
         instructs = instructs.concat(
+            copy(expansionTable, Addresses.ps0, 4),  // _clearNameLengthFields requires that ps0 contains address of table to be cleared
+        );
+        instructs = instructs.concat(
             this._clearNameLengthFields(instructionsLength + calculateInstructionsLength(instructs), true)
         );
         /*
