@@ -413,7 +413,39 @@ async function test_VarTable_localCreateExpansionWhenNoneExist(){
             g) ParentVarTable[1:2] ("number of entries" header) contains ${VarTable._parentTotalSlots + 1}
             h) The second byte after the last slot in the expansion table does not contain 0
     */
-    return "NOT IMPLEMENTED";
+    await runSetup(varTableTestsAddEntry_neededSetup);
+    let parentVarTable = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.VarTablePointer, 4);
+    await testHelper_addMultipleEntriesToVarTable(VarTable._parentTotalSlots - 1, false, testsInstructionsStart);
+    writeToEvalTopLayer([0], 1);
+    pushLayerToEvalStack(generateByteSequence([5, 5, "<", "<", "<"], 5));  // These values are arbitrary
+    await runInstructions(VarTable.addEntry(testsInstructionsStart), false, true);
+    // Check a
+    let checkResult = assertMemoryEqualToInt(1, parentVarTable + 3, 1);
+    if (checkResult !== true) return checkResult;
+    // Check b
+    let expansionVarTable = readMemoryAsInt(parentVarTable + runtime_options.VariableTableSize - 4, 4);
+    checkResult = assertMemoryEqualToInt(type_tags.expansion_var_table, expansionVarTable, 1);
+    if (checkResult !== true) return checkResult;
+    // Check c
+    let evalTop = readMemoryAsInt(Addresses.EvalTop, 4);
+    let expansionFirstSlot = expansionVarTable + VarTable._expansionHeadersLength;
+    checkResult = assertMemoryEqualToInt(expansionFirstSlot, evalTop, 4);
+    if (checkResult !== true) return checkResult;
+    // Check d
+    checkResult = assertMemoryEqualToInt(type_tags.var_table_entry, expansionFirstSlot, 1);
+    if (checkResult !== true) return checkResult;
+    // Check e
+    let expansionSecondSlot = expansionFirstSlot + VarTable._entryLength;
+    checkResult = assertMemoryEqualToInt(expansionSecondSlot, parentVarTable + 4, 4);
+    if (checkResult !== true) return checkResult;
+    // Check f
+    checkResult = assertMemoryEqualToInt(0, expansionSecondSlot + 1, 1);
+    if (checkResult !== true) return checkResult;
+    // Check g
+    checkResult = assertMemoryEqualToInt(VarTable._parentTotalSlots + 1, parentVarTable + 1, 2);
+    if (checkResult !== true) return checkResult;
+    // Check h
+    return assertMemoryNotEqualToInt(0, expansionVarTable + VarTable._expansionHeadersLength + (VarTable._expansionTotalSlots * VarTable._entryLength) + 1, 1);
 }
 // Test9- Add entry when multiple expansions already exist and are full (so another expansion should be created)
 async function test_VarTable_createExpansionWhenSomeExist(){
