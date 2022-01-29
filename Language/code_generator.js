@@ -576,3 +576,53 @@ function allocateMemory(spaceNeeded, instructionsLength, typeTag=0, forceGlobal=
     }
     return instructs;
 }
+
+function DECLARE(parameters, instructionsLength){
+    /* Declare a variable.
+    Parameters:
+        - Name
+        - Modifiers
+    */
+    let nameAddress = Addresses.ps5;
+    let constructEvalLayerReg = Addresses.ps5;  // Pseudoregister to contruct EvalStack layer.  Can reuse ps5 for this as we will be finished with the nameAddress when this is needed
+    let constructEvalLayerReg2 = Addresses.ps6;  // Also need first byte of ps6
+    // Needs to determine whether to pass modifiers on Eval stack depending on the type of table
+    // CHILD operator does simply load the table into VarTable pointer, so we can just get the table from there and check the type at runtime
+    let name = parameters[0];
+    let modifiers = parameters[1];
+    // Load name into name pool
+    let instructs = NamePool.storeName(instructionsLength, name, modifiers.global);
+    instructs = instructs.concat(
+        EvalStack.copyNFromTopLayer(nameAddress, 4, 0, instructionsLength + calculateInstructionsLength(instructs))
+    );
+
+    // Add entry to table.  This bit is done by a constant procedure as it has to include the code for adding an entry to every type of table (as we don't know at compile time which type of table we are using) so it makes sense not to repeat all this on every DECLARE
+    /* 
+        Load the correct values onto EvalStack:
+            - EvalTop[0] = name length (total bytes used by name, not blocks used in name pool)
+            - EvalTop[1:4] = name address
+            - EvalTop - 1[0] = forceGlobal
+            - EvalTop - 1[1] = modifiers
+    */
+    instructs = instructs.concat(
+        EvalStack.writeToTopLayer(generateByteSequence([Number(modifiers.global), modifiers.bytes[0]], 5), instructionsLength + calculateInstructionsLength(instructs))
+    );
+    instructs.push(
+        "AND 0",
+        `ADD ${name.bytes.length}`,
+        `WRT ${constructEvalLayerReg}`
+    );
+    instructs = instructs.concat(
+        copy(nameAddress, constructEvalLayerReg + 1, 4)
+    );
+    instructs = instructs.concat(
+        EvalStack.copyToNewLayer(constructEvalLayerReg, instructionsLength + calculateInstructionsLength(instructs))
+    );
+    instructs = instructs.concat(
+        writeIntToMemory(instructionsLength + calculateInstructionsLength(instructs.concat(["GTO #addEntryToTable"])), Addresses.psReturnAddr, 4),
+        [
+            "GTO #addEntryToTable"
+        ]
+    );
+    
+}
