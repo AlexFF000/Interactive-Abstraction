@@ -1426,6 +1426,67 @@ ExpandNamePoolProc = ExpandNamePoolProc.concat(
 
 ProcedureOffset += calculateInstructionsLength(ExpandNamePoolProc);
 
+/*
+    Procedure for adding variable entries to tables
+    Details should be provided on EvalStack:
+        - EvalTop[0] = name length (in bytes, not blocks)
+        - EvalTop[1:4] = name address
+        - EvalTop - 1[0] = forceGlobal
+        - EvalTop - 1[1] = modifiers
+    Leaves the address of the new entry in EvalTop[0:3]
+*/
+let nameLength = Addresses.ps5;
+let nameAddress = Addresses.ps6;
+let forceGlobal = Addresses.ps5 + 1;
+let modifiers = Addresses.ps5 + 2;  // This must be immediately after forceGlobal
+let AddEntryToTableProc = [
+    "#addEntryToTable AND 0"
+    // Load data from EvalStack
+]
+.push(
+    `RED A ${Addresses.EvalTop}`,
+    `WRT ${nameLength}`
+);
+AddEntryToTableProc = AddEntryToTableProc.concat(
+    EvalStack.copyNFromTopLayer(nameAddress, 4, 1, ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
+);
+AddEntryToTableProc = AddEntryToTableProc.concat(
+    EvalStack.removeLayer(ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
+);
+AddEntryToTableProc = AddEntryToTableProc.concat(
+    EvalStack.copyNFromTopLayer(forceGlobal, 2, 0, ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
+);
+// Get address of table
+AddEntryToTableProc.push(
+    `RED ${forceGlobal}`,
+    `ADD 0`,
+    `BIZ #addEntryToTable_local`
+    // Use global VarTable as forceGlobal is set.  This will always be a variable table
+    `GTO #addEntryToTable_addEntryVarTable`,
+    
+    "#addEntryToTable_local AND 0"
+);
+
+AddEntryToTableProc = AddEntryToTableProc.concat(
+    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc), false, true),
+    `RED A ${Addresses.ps3}`,  // Accumulator now contains the value of the first byte of the table (so the type tag)
+    // Use the type tag to pick the correct addEntry function for the type of table
+    `SUB ${type_tags.var_table}`,
+    `BIZ #addEntryToTable_addEntryVarTable`,  // Variable table
+    `ADD ${type_tags.var_table}`,
+    // TODO: Add more table addEntry functions here as more are written
+);
+AddEntryToTableProc.push("#addEntryToTable_addEntryVarTable");
+AddEntryToTableProc = AddEntryToTableProc.concat(
+    VarTable.addEntry(ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
+);
+AddEntryToTableProc.push("GTO #addEntryToTable_finish");
+// Return
+AddEntryToTableProc.push(`#addEntryToTable_finish GTO A ${Addresses.psReturnAddr}`);
+
+
+ProcedureOffset += calculateInstructionsLength(AddEntryToTableProc);
+
 // Return all the procedures as a single array of instructions (must be concatenated in same order as defined, otherwise addresses that used ProcedureOffset will be incorrect)
 return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we don't actually want to run them during set up
     .concat(AllocationProc)
@@ -1433,7 +1494,8 @@ return [`GTO ${ProcedureOffset}`]  // Skip over the procedure definitions, as we
     .concat(Base2ExponentProc)
     .concat(AllocateNameProc)
     .concat(IntMultProc)
-    .concat(ExpandNamePoolProc);
+    .concat(ExpandNamePoolProc)
+    .concat(AddEntryToTableProc);
 }
 
 
