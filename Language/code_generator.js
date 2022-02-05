@@ -619,10 +619,11 @@ function DECLARE(parameters, instructionsLength){
         EvalStack.copyToNewLayer(constructEvalLayerReg, instructionsLength + calculateInstructionsLength(instructs))
     );
     instructs = instructs.concat(
-        writeIntToMemory(instructionsLength + calculateInstructionsLength(instructs.concat(["GTO #addEntryToTable"])), Addresses.psReturnAddr, 4),
+        writeMultiByte(instructionsLength + calculateInstructionsLength(instructs.concat(["GTO #addEntryToTable"])), Addresses.psReturnAddr, 4),
         [
             "GTO #addEntryToTable"
         ]
     );
     
+    return instructs;
 }
