@@ -1443,7 +1443,7 @@ let AddEntryToTableProc = [
     "#addEntryToTable AND 0"
     // Load data from EvalStack
 ]
-.push(
+AddEntryToTableProc.push(
     `RED A ${Addresses.EvalTop}`,
     `WRT ${nameLength}`
 );
@@ -1460,7 +1460,7 @@ AddEntryToTableProc = AddEntryToTableProc.concat(
 AddEntryToTableProc.push(
     `RED ${forceGlobal}`,
     `ADD 0`,
-    `BIZ #addEntryToTable_local`
+    `BIZ #addEntryToTable_local`,
     // Use global VarTable as forceGlobal is set.  This will always be a variable table
     `GTO #addEntryToTable_addEntryVarTable`,
     
@@ -1476,7 +1476,7 @@ AddEntryToTableProc = AddEntryToTableProc.concat(
     `ADD ${type_tags.var_table}`,
     // TODO: Add more table addEntry functions here as more are written
 );
-AddEntryToTableProc.push("#addEntryToTable_addEntryVarTable");
+AddEntryToTableProc.push("#addEntryToTable_addEntryVarTable AND 0");
 AddEntryToTableProc = AddEntryToTableProc.concat(
     VarTable.addEntry(ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
 );
