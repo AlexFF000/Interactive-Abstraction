@@ -93,6 +93,15 @@ class EvalStack{
         return instructs.concat(copyFromAddress(dstAddress, bytes, instructionsLength + calculateInstructionsLength(instructs)));
     }
 
+    static copyNFromPreviousLayer(dstAddress, bytes, offset, layerOffset, instructionsLength){
+        // Copy ${bytes} starting from ${offset} from the layer at the specified ${layerOffset} into ${dstAddress}
+        // layerOffset should be a negative number specifying the number of layers under eval top the desired layer is (e.g. -1 = layer under EvalTop)
+        let bytesBackward = ((layerOffset * -1) * 5) - offset;
+        let instructs = sub32BitInteger(Addresses.EvalTop, bytesBackward, instructionsLength, false, true);
+        instructs = instructs.concat(copy(Addresses.ps3, Addresses.psAddr, 4));
+        return instructs.concat(copyFromAddress(dstAddress, bytes, instructionsLength + calculateInstructionsLength(instructs)));
+    }
+
     static copyFromTopLayer(dstAddress, instructionsLength){
         // Copy whole top layer (5 bytes) to addresses starting from dstAddress
         return this.copyNFromTopLayer(dstAddress, 5, 0, instructionsLength);

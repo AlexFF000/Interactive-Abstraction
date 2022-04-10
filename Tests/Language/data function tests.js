@@ -15,9 +15,9 @@ let declareTests_neededSetup = [setupReservedArea, setupIntFloatPool, setupConst
 async function test_DECLARE_globalVarTableWithoutForceGlobal(){
     /*
         Declare a variable called "testVar" and check that:
-            a) Bytes 2-5 (the name address field) of the first slot in the global VarTable contains an address from the global name pool
+            a) Bytes 2-5 (the name address field) of the second slot (the first slot will already be the parent entry) in the global VarTable contains an address from the global name pool
             b) The address pointed to by the name address field is a name containing "testVar"
-            c) Bytes 6-9 (the data pointer) of the first slot in the global VarTable contains null
+            c) Bytes 6-9 (the data pointer) of the second slot in the global VarTable contains null
     */
     await runSetup(declareTests_neededSetup);
     let globalVarTable = readMemoryAsInt(Addresses.GlobalArea + Offsets.frame.VarTablePointer, 4);
@@ -26,10 +26,10 @@ async function test_DECLARE_globalVarTableWithoutForceGlobal(){
     let modifiers = new Modifiers();
     let parameters = [name, modifiers];
     await runInstructions(DECLARE(parameters, testsInstructionsStart), false, true);
-    let firstSlot = globalVarTable + VarTable._parentHeadersLength;
+    let firstSlot = globalVarTable + VarTable._parentHeadersLength + VarTable._entryLength;
     // Check a
     let nameAddress = readMemoryAsInt(firstSlot + 2, 4);
-    if (!(nameAddress < globalNamePool && nameAddress < globalNamePool + runtime_options.VariableTableSize)) return "Assertion Error: Value is not in expected range";
+    if (!(globalNamePool <= nameAddress && nameAddress < globalNamePool + runtime_options.NamePoolSize)) return "Assertion Error: Value is not in expected range";
     // Check b
     for (let i = 0; i < name.bytes.length; i++){
         if (readMemoryAsInt(nameAddress + i, 1) !== name.bytes[i]) return "Assertion Error: Values do not match";

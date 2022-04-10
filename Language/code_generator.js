@@ -583,9 +583,9 @@ function DECLARE(parameters, instructionsLength){
         - Name
         - Modifiers
     */
-    let nameAddress = Addresses.ps5;
-    let constructEvalLayerReg = Addresses.ps5;  // Pseudoregister to contruct EvalStack layer.  Can reuse ps5 for this as we will be finished with the nameAddress when this is needed
-    let constructEvalLayerReg2 = Addresses.ps6;  // Also need first byte of ps6
+    let nameAddress = Addresses.ps6;
+    let constructEvalLayerReg = Addresses.ps5;  // Pseudoregister to contruct EvalStack layer.
+    let constructEvalLayerReg2 = Addresses.ps6;  // Also need first byte of ps6.  Can reuse ps6 as we will be finished with the nameAddress when this is needed
     // Needs to determine whether to pass modifiers on Eval stack depending on the type of table
     // CHILD operator does simply load the table into VarTable pointer, so we can just get the table from there and check the type at runtime
     let name = parameters[0];
@@ -619,7 +619,7 @@ function DECLARE(parameters, instructionsLength){
         EvalStack.copyToNewLayer(constructEvalLayerReg, instructionsLength + calculateInstructionsLength(instructs))
     );
     instructs = instructs.concat(
-        writeMultiByte(instructionsLength + calculateInstructionsLength(instructs.concat(["GTO #addEntryToTable"])), Addresses.psReturnAddr, 4),
+        writeMultiByte(instructionsLength + calculateInstructionsLength(instructs.concat(writeMultiByte(instructionsLength, Addresses.psReturnAddr, 4), ["GTO #addEntryToTable"])), Addresses.psReturnAddr, 4),
         [
             "GTO #addEntryToTable"
         ]

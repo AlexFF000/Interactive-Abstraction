@@ -73,10 +73,12 @@ class NamePool{
         // First allocate the space for the name
         let blocksNeeded = Math.ceil(name.bytes.length / this.blockSize);
         let instructs = EvalStack.pushLiteral(generateByteSequence([blocksNeeded, Number(forceGlobal)], 5), instructionsLength);
+        instructs = instructs.concat(writeMultiByte(instructionsLength + calculateInstructionsLength(instructs.concat(writeMultiByte(instructionsLength, Addresses.psReturnAddr, 4), ["GTO #allocateName"])), Addresses.psReturnAddr, 4));
         instructs.push("GTO #allocateName");
         instructs = instructs.concat(
             // Do not remove the top layer after this, as the address of the name might still be useful
-            EvalStack.copyNFromTopLayer(Addresses.psAddr, 4, 0, instructionsLength + calculateInstructionsLength(instructs)),
+            EvalStack.copyNFromTopLayer(Addresses.ps3, 4, 0, instructionsLength + calculateInstructionsLength(instructs)),
+            copy(Addresses.ps3, Addresses.psAddr, 4)
         );
         // Load the name into the allocated space
         for (let b of name.bytes){

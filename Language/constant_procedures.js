@@ -993,7 +993,7 @@ AllocateNameProc = AllocateNameProc.concat(
     // The space is too small, so move onto the next one
     "#allocateName_spaceTooSmall AND 0",
     // Move to the next free chunk, or create a new expansion pool if there isn't another chunk
-    // If size field for this chunk is 0, then there is are more free chunks in this pool so we need to create another expansion
+    // If size field for this chunk is 0, then there are more free chunks in this pool so we need to create another expansion
     `RED ${currentFreeSpaceSize}`,
     "ADD 0",
     "BIZ #allocateName_createExpansion",
@@ -1451,10 +1451,7 @@ AddEntryToTableProc = AddEntryToTableProc.concat(
     EvalStack.copyNFromTopLayer(nameAddress, 4, 1, ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
 );
 AddEntryToTableProc = AddEntryToTableProc.concat(
-    EvalStack.removeLayer(ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
-);
-AddEntryToTableProc = AddEntryToTableProc.concat(
-    EvalStack.copyNFromTopLayer(forceGlobal, 2, 0, ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
+    EvalStack.copyNFromPreviousLayer(forceGlobal, 2, 0, -1, ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc))
 );
 // Get address of table
 AddEntryToTableProc.push(
