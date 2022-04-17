@@ -76,10 +76,9 @@ function return_intermediate_code(tree){
 }
 
 function intermediate_identifier(item){
-  // Declare a variable
-  // Place name on top of stack
-  intermediate_name(item);
-  intermediateCode.push(["LOAD", []]);
+  // Load a variable
+  let name = new Name(item.name);
+  intermediateCode.push(["LOAD", [name]]);
 }
 
 function intermediate_call(item){
@@ -87,6 +86,8 @@ function intermediate_call(item){
   // The args will be converted to intermediate instructions, but will be given as an argument to PREPARECALL instead of being inserted into intermediateCode directly
   args = return_intermediate_code(item.args.reverse());
   argsCount = item.args.length;
+  // Push code to load the function onto the eval stack ready to be called
+  generate_intermediate_code(item.name);
   intermediateCode.push(["PREPARECALL", [args, argsCount]]);
 }
 
@@ -118,13 +119,11 @@ function intermediate_child(item){
 }
 
 function intermediate_child_store(item){
-  // A different instruction must be used if storing into child object than for loading from one
   // Place parent on eval stack as normal
   generate_intermediate_code(item.parent);
   intermediateCode.push(["CHILD", []]);
-  // Instead of loading the value at the child name onto stack, simply load the name
-  intermediate_name(item.name);
-  intermediateCode.push(["STORE", []]);
+  let name = new Name(item.name.name);
+  intermediateCode.push(["STORE", [name]]);
 }
 
 function intermediate_add(item){
@@ -223,14 +222,13 @@ function intermediate_assign(item){
   }
   else
   {
-    // Need to store name on stack
-    intermediate_name(item.left);
-    intermediateCode.push(["STORE", []]);
-}
+    let name = new Name(item.left.name);
+    intermediateCode.push(["STORE", [name]]);
+  }
 }
 
 function intermediate_classdef(item){
-  var name = item.name.name;  // Get name part of identifier object in the name field
+  var name = new Name(item.name.name);  // Get name part of identifier object in the name field
   var code = return_intermediate_code(item.code);  // Convert the code inside the class definition (e.g. method and attribute definitions) into intermediate instructions to be passed as arguments so they can be run inside the class scope when it is defined
   // Pass parent class as argument (if applicable)
   var parent = "None";
@@ -239,8 +237,7 @@ function intermediate_classdef(item){
   }
   intermediateCode.push(["DEFINE", ["class", name, parent, code]]);
   // Store the class in a variable
-  intermediate_name(item.name);
-  intermediateCode.push(["STORE", []]);
+  intermediateCode.push(["STORE", [name]]);
 }
 
 function intermediate_functiondef(item){
@@ -257,8 +254,8 @@ function intermediate_functiondef(item){
   // Create the function definition
   intermediateCode.push(["DEFINE", ["function", args, code]]);
   // Store the function in a variable
-  intermediate_name(item.name);  // Get name part of name identifier
-  intermediateCode.push(["STORE", []]);
+  let name = new Name(item.name.name);  // Get name part of name identifier
+  intermediateCode.push(["STORE", [name]]);
 }
 
 function return_intermediate_args(args){  // Generate intermediate code for arguments in function definitions
@@ -274,14 +271,11 @@ function return_intermediate_args(args){  // Generate intermediate code for argu
   for (var i in args){
     item = args[i];
     if (item.type == "identifier"){
-      // Insert a name
-      intermediate_name(item);
-      intermediateCode.push(["DECLARE", []]);
+      intermediateCode.push(["DECLARE", [new Name(item.name)]]);
     }
     else if (item.type == "="){
       // If an "="" for a default argument, we first need to declare the left value (the argument)
-      intermediate_name(item.left);
-      intermediateCode.push(["DECLARE", []]);
+      intermediateCode.push(["DECLARE", [new Name(item.left.name)]]);
       // Now we can just run STORE as normal
       generate_intermediate_code(item);
     }
@@ -390,9 +384,4 @@ function intermediate_bool(item){
 
 function intermediate_null(item){
   intermediateCode.push(["NULL", []]);
-}
-
-function intermediate_name(item){
-  // Generate name and store reference to it on the evaluation stack
-  intermediateCode.push(["NAME", [item.name]]);
 }
