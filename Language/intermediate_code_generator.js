@@ -1,5 +1,7 @@
 // Scan syntaxTree and generate intermediate instructions
 intermediateCode = [];
+
+var currentModifiers = new Modifiers();  // Modifier and global keywords do not generate their own intermediates, instead they update this variable to be passed to DECLARE
 /*
 Intermediate instructions will be stored in the following format: [instruction name, [arguments]]
 */
@@ -70,8 +72,11 @@ function return_intermediate_code(tree){
   var generatedCode = [];
   var tmpIntermediateCode = intermediateCode;
   intermediateCode = generatedCode;
+  var tmpCurrentModifiers = currentModifiers;
+  currentModifiers = new Modifiers();
   generate_intermediate_code(tree);
   intermediateCode = tmpIntermediateCode;
+  currentModifiers = tmpCurrentModifiers;
   return generatedCode;
 }
 
@@ -123,7 +128,8 @@ function intermediate_child_store(item){
   generate_intermediate_code(item.parent);
   intermediateCode.push(["CHILD", []]);
   let name = new Name(item.name.name);
-  intermediateCode.push(["STORE", [name]]);
+  intermediateCode.push(["STORE", [name, currentModifiers]]);
+  currentModifiers = new Modifiers();
 }
 
 function intermediate_add(item){
@@ -223,7 +229,8 @@ function intermediate_assign(item){
   else
   {
     let name = new Name(item.left.name);
-    intermediateCode.push(["STORE", [name]]);
+    intermediateCode.push(["STORE", [name, currentModifiers]]);
+    currentModifiers = new Modifiers();
   }
 }
 
@@ -237,7 +244,8 @@ function intermediate_classdef(item){
   }
   intermediateCode.push(["DEFINE", ["class", name, parent, code]]);
   // Store the class in a variable
-  intermediateCode.push(["STORE", [name]]);
+  intermediateCode.push(["STORE", [name, currentModifiers]]);
+  currentModifiers = new Modifiers();
 }
 
 function intermediate_functiondef(item){
@@ -255,7 +263,8 @@ function intermediate_functiondef(item){
   intermediateCode.push(["DEFINE", ["function", args, code]]);
   // Store the function in a variable
   let name = new Name(item.name.name);  // Get name part of name identifier
-  intermediateCode.push(["STORE", [name]]);
+  intermediateCode.push(["STORE", [name, currentModifiers]]);
+  currentModifiers = new Modifiers();
 }
 
 function return_intermediate_args(args){  // Generate intermediate code for arguments in function definitions
@@ -271,11 +280,11 @@ function return_intermediate_args(args){  // Generate intermediate code for argu
   for (var i in args){
     item = args[i];
     if (item.type == "identifier"){
-      intermediateCode.push(["DECLARE", [new Name(item.name)]]);
+      intermediateCode.push(["DECLARE", [new Name(item.name), new Modifiers()]]);  // Arguments in function definitions won't have any modifiers
     }
     else if (item.type == "="){
       // If an "="" for a default argument, we first need to declare the left value (the argument)
-      intermediateCode.push(["DECLARE", [new Name(item.left.name)]]);
+      intermediateCode.push(["DECLARE", [new Name(item.left.name), new Modifiers()]]);
       // Now we can just run STORE as normal
       generate_intermediate_code(item);
     }
@@ -340,21 +349,24 @@ function intermediate_return(item){
 function intermediate_reference(item){}
 function intermediate_dereference(item){}
 function intermediate_address(item){}
+
 function intermediate_global(item){
-  intermediateCode.push(["GLOBAL", []]);
+  currentModifiers.setGlobal(true);
   generate_intermediate_code(item.identifier);
 }
+
 function intermediate_as(item){}
+
 function intermediate_modifier(item){
   switch(item.modifier){
     case "static":
-      intermediateCode.push(["STATIC", []]);
+      currentModifiers.setStatic(true);
       break;
     case "private":
-      intermediateCode.push(["PRIVATE", []]);
+      currentModifiers.setPrivate(true);
       break;
     case "public":
-      intermediateCode.push(["PUBLIC", []]);
+      currentModifiers.setPublic(true);
       break;
   }
   generate_intermediate_code(item.subject);
