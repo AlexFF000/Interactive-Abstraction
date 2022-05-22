@@ -270,20 +270,15 @@ class VarTable extends Table{
         instructs = instructs.concat(
             copy(Addresses.GlobalArea + Offsets.frame.VarTablePointer, tableAddress, 4),  // tableAddress now contains address of global VarTable
         );
-        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength(add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, 0, false, true).concat([`GTO 0`], copy(Addresses.ps3, Addresses.psAddr, 4), copyFromAddress(0, 4, 0)))}`)
+        instructs.push(`GTO ${instructionsLength + calculateInstructionsLength(instructs) + calculateInstructionsLength([`GTO 0`].concat(copy(Addresses.ps3, Addresses.psAddr, 4)))}`)
         // Use VarTable of current scope
         instructs = instructs.concat(
-            add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, instructionsLength + calculateInstructionsLength(instructs), false, true),
-            copy(Addresses.ps3, Addresses.psAddr, 4),
+            copy(Addresses.TablePointer, tableAddress, 4)  // tableAddress now contains address of current scope's VarTable
         );
-        instructs = instructs.concat(
-            copyFromAddress(tableAddress, 4, instructionsLength + calculateInstructionsLength(instructs))  // tableAddress now contains address of current scope's VarTable
-        );
-
         // Allocate slot for the new entry
         instructs = instructs.concat(
             copy(tableAddress, constructEvalLayerReg, 4),
-            copy(otherDetails + 1, constructEvalLayerReg2, 1),
+            copy(otherDetails + 1, constructEvalLayerReg2, 1)
         );
         instructs = instructs.concat(
             EvalStack.copyToTopLayer(constructEvalLayerReg, instructionsLength + calculateInstructionsLength(instructs))

@@ -1465,13 +1465,14 @@ AddEntryToTableProc.push(
 );
 
 AddEntryToTableProc = AddEntryToTableProc.concat(
-    add32BitIntegers(Addresses.ScopePointer, Offsets.frame.VarTablePointer, ProcedureOffset + calculateInstructionsLength(AddEntryToTableProc), false, true),
-    `RED A ${Addresses.ps3}`,  // Accumulator now contains the value of the first byte of the table (so the type tag)
-    // Use the type tag to pick the correct addEntry function for the type of table
-    `SUB ${type_tags.var_table}`,
-    `BIZ #addEntryToTable_addEntryVarTable`,  // Variable table
-    `ADD ${type_tags.var_table}`,
-    // TODO: Add more table addEntry functions here as more are written
+    [
+        `RED A ${Addresses.TablePointer}`,  // Accumulator now contains the value of the first byte of the table (so the type tag)
+        // Use the type tag to pick the correct addEntry function for the type of table
+        `SUB ${type_tags.var_table}`,
+        `BIZ #addEntryToTable_addEntryVarTable`,  // Variable table
+        `ADD ${type_tags.var_table}`,
+        // TODO: Add more table addEntry functions here as more are written
+    ]
 );
 AddEntryToTableProc.push("#addEntryToTable_addEntryVarTable AND 0");
 AddEntryToTableProc = AddEntryToTableProc.concat(

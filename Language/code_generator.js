@@ -42,48 +42,50 @@ const Addresses = {
     "PoolFreePointer": reservedArea + 13,
     // The address that null values point to
     "NullAddress": reservedArea + 17,
+    // The address of the table to start searching from when doing LOAD or STORE
+    "TablePointer": reservedArea + 21,
     // 1 byte value used when traversing variable tables.  Set if all tables so far have been accessed through the parent or "this" attribute (used to enforce private keyword)
-    "AllParents": reservedArea + 18,
+    "AllParents": reservedArea + 25,
     // 1 byte value used as flags for representing access modifiers for a new variable
-    "Modifiers": reservedArea + 19,
+    "Modifiers": reservedArea + 26,
     // 1 byte value set when global keyword used (indicates next variable must be created in global scope)
-    "DeclareGlobal": reservedArea + 20,
+    "DeclareGlobal": reservedArea + 27,
     /* 
         The pseudo registers are a set of 4 byte areas in memory used to temporarily hold data that is being worked on (this avoids the need to allocate memory for minor operations like addition, subtraction etc...) 
         These are useful as the only usable "hardware" register is the accumulator, which is only 8 bits.  But we will usually be working with 32 bits.
         These MUST be contiguous in memory and consecutive (ps1 must follow ps0, ps2 must follow ps1 etc...) as sometimes data that is more than 4 bytes will be spread across multiple pseudo-registers
     */
-    "ps0": reservedArea + 21,
-    "ps1": reservedArea + 25,
-    "ps2":reservedArea + 29,
-    "ps3": reservedArea + 33,
-    "ps4": reservedArea + 37,
-    "ps5": reservedArea + 41,
-    "ps6": reservedArea + 45,
-    "ps7": reservedArea + 49,
-    "ps8": reservedArea + 53,
-    "ps9": reservedArea + 57,
-    "ps10": reservedArea + 61,
-    "ps11": reservedArea + 65,
-    "ps12": reservedArea + 69,
-    "ps13": reservedArea + 73,
-    "ps14": reservedArea + 77,
-    "ps15": reservedArea + 81,
-    "ps16": reservedArea + 85,
-    "ps17": reservedArea + 89,
-    "ps18": reservedArea + 93,
-    "ps19": reservedArea + 97,
-    "ps20": reservedArea + 101,
+    "ps0": reservedArea + 28,
+    "ps1": reservedArea + 32,
+    "ps2":reservedArea + 36,
+    "ps3": reservedArea + 40,
+    "ps4": reservedArea + 44,
+    "ps5": reservedArea + 48,
+    "ps6": reservedArea + 52,
+    "ps7": reservedArea + 56,
+    "ps8": reservedArea + 60,
+    "ps9": reservedArea + 64,
+    "ps10": reservedArea + 68,
+    "ps11": reservedArea + 72,
+    "ps12": reservedArea + 76,
+    "ps13": reservedArea + 80,
+    "ps14": reservedArea + 84,
+    "ps15": reservedArea + 88,
+    "ps16": reservedArea + 92,
+    "ps17": reservedArea + 96,
+    "ps18": reservedArea + 100,
+    "ps19": reservedArea + 104,
+    "ps20": reservedArea + 108,
     // Pseudo register specifically for manipulating addresses, useful for pointers
-    "psAddr": reservedArea + 105,
+    "psAddr": reservedArea + 112,
     // Pseudo register for holding the address to be jumped to after using one of the constant procedures
-    "psReturnAddr": reservedArea + 109,
+    "psReturnAddr": reservedArea + 116,
     // Global area is the "stack frame" for global scope (it isn't really on the stack, but is structured the same as a normal stack frame)
-    "GlobalArea": reservedArea + 113,
+    "GlobalArea": reservedArea + 120,
     // The stack starts immediately after the global area
-    "StackStart": reservedArea + 113 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
+    "StackStart": reservedArea + 120 + Offsets.frame.EvalStart + runtime_options.EvalStackSize,
     // The buddy allocation system used for the global heap is inefficient for very small objects like ints and floats, so a dedicated pool is used for ints and floats in the global scope
-    "IntFloatPool": reservedArea + 113 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
+    "IntFloatPool": reservedArea + 120 + Offsets.frame.EvalStart + runtime_options.EvalStackSize + runtime_options.StackSize,
 }
 
 
@@ -587,7 +589,7 @@ function DECLARE(parameters, instructionsLength){
     let constructEvalLayerReg = Addresses.ps5;  // Pseudoregister to contruct EvalStack layer.
     let constructEvalLayerReg2 = Addresses.ps6;  // Also need first byte of ps6.  Can reuse ps6 as we will be finished with the nameAddress when this is needed
     // Needs to determine whether to pass modifiers on Eval stack depending on the type of table
-    // CHILD operator does simply load the table into VarTable pointer, so we can just get the table from there and check the type at runtime
+    // CHILD operator simply loads the table into VarTable pointer, so we can just get the table from there and check the type at runtime
     let name = parameters[0];
     let modifiers = parameters[1];
     // Load name into name pool
@@ -626,4 +628,24 @@ function DECLARE(parameters, instructionsLength){
     );
     
     return instructs;
+}
+
+function STORE(parameters, instructionsLength){
+
+}
+
+function findTableEntry(name, instructionsLength){
+    /* 
+        Search tables for the entry with the given name.
+        When found, load the address of the entry into ps3
+        If not found, put NullAddress in ps3
+    */
+    let foundEntryAddr = Addresses.ps3;
+    let currentTableAddress = Addresses.ps4;
+    let currentExpansionAddress = Addresses.ps5;
+    let instructs = [
+        // Start from whatever table is in VarTablePointer
+
+    ];
+
 }

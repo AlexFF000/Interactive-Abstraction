@@ -1,3 +1,5 @@
-Make changes to parser and intermediate generator so that names are passed as a argument to DECLARE, LOAD, or STORE rather than NAME being its own intermediate.  This will also change how modifiers are done
+For STORE, need to implement:
+    - Process for searching for a variable (this can be shared with LOAD)
+    - Process for deciding how much to allocate for the new variable
 Test compareExpectedVsActualPath
 Need to consider whether to detect and throw error when a 32 bit number is provided to ADD without an A.  Spent ages sunday working out why output from calculateInstructionsLength was differnt to actual.  Though perhaps not a problem as long as it WOULD HAVE errored had the offending instruction actually been run (it was just skipped over as part of constand procedures)
